@@ -1,0 +1,42 @@
+program: train_eval.py
+name: hp_search
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - model=LatentNNSurrogateRTM
+  - dataset=synthetic_remotap
+  # - model.input_latent_dim=154
+  - model.output_latent_dim=26
+  - model.l2_reg=4e-5
+  - model.dropout_p=0.0
+  - trainer.max_epochs=500
+  - dataloader.batch_size=256
+  - task=train+eval
+method: grid
+metric:
+  name: test/NRMSE
+  goal: minimize
+parameters:
+  # # cross-validation fold id  (0, 1, 2, 3, 4)
+  # task.fold_id:
+  #   values: [0, 1, 2, 3, 4]
+  # random seed
+  seed:
+    values: [0, 1, 2]
+  # learning rate
+  model.lr:
+    values: [1e-4, 3e-4, 1e-3, 3e-3, 1e-2]
+  # L2 regularization
+  # model.l2_reg:
+    # values: [0.0, 1e-6, 1e-5, 1e-4]
+  # number of hidden units in the forward model
+  model.forward_model.n_hidden:
+    values: [64, 128, 256, 512]
+  # number of layers in the forward model
+  model.forward_model.n_fc_layers:
+    values: [1, 2, 3, 4]
+  # number of input dimensions (after PCA)
+  model.input_latent_dim:
+    values: [60, 150, 320]

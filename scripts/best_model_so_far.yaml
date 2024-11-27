@@ -1,0 +1,32 @@
+program: train_eval.py
+name: best_model_so_far
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - dataset=synthetic_remotap
+  - model=LatentNNSurrogateRTM
+  - model.input_dim_reduction=PCA
+  - model.input_latent_dim=320
+  - model.output_dim_reduction=PCA
+  - model.output_latent_dim=26
+  - model.l2_reg=4e-5
+  - model.dropout_p=0.0
+  - model.forward_model.n_hidden=128
+  - model.forward_model.n_fc_layers=4
+  - model.lr=3e-4
+  - dataloader.batch_size=256
+  - trainer.max_epochs=250
+  - task=train+eval
+  - task.save_predictions=true
+  - logger.project=best_model_so_far
+  - logger.group=default
+method: grid
+metric:
+  name: test/MAPE_continuum
+  goal: minimize
+parameters:
+  # random seed
+  seed:
+    values: [0, 1, 2]

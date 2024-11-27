@@ -1,0 +1,16 @@
+# main config file
+defaults:
+  - dataset: synthetic_remotap
+  - model: LatentNNSurrogateRTM
+  - task: train+eval
+  - device: local
+  - logger: wandb
+  - trainer: lightning
+  - dataloader: pytorch
+seed: 1234
+verbose: True
+
+# define place to save results to
+result_dir: results
+result_path: ${join_paths:${device.root},${result_dir},${logger.project},${logger.group}}
+output_path: null

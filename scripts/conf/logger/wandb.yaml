@@ -1,0 +1,6 @@
+# @package logger
+_target_: pytorch_lightning.loggers.WandbLogger
+project: radiative-transfer
+group: default
+save_dir: ${join_paths:${result_path},logs}
+log_model: true # all: after every epoch, true: at the end of training, false: never

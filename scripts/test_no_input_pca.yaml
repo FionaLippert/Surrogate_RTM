@@ -1,0 +1,30 @@
+program: train_eval.py
+name: test_no_input_pca
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - dataset=synthetic_remotap
+  - model=LatentNNSurrogateRTM_MLPEncoder_PCA
+  - model.input_latent_dim=128
+  - model.output_latent_dim=26
+  - model.l2_reg=4e-5
+  - model.dropout_p=0.0
+  - model.forward_model.n_hidden=128
+  - model.forward_model.n_fc_layers=4
+  - model.lr=3e-4
+  - dataloader.batch_size=256
+  - trainer.max_epochs=150
+  - task=train+eval
+  - task.save_predictions=true
+  - logger.project=test_no_input_pca
+  - logger.group=MLPEncoder_320_320_128_v2
+method: grid
+metric:
+  name: test/MAPE_continuum
+  goal: minimize
+parameters:
+  # random seed
+  seed:
+    values: [0, 1, 2]

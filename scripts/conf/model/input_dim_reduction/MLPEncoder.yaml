@@ -1,0 +1,7 @@
+# @package model.input_dim_reduction
+_target_: rtm.dimensionality_reduction.MLPEncoder
+enc_dims: [${model.input_dim}, ${model.input_latent_dim}, ${model.input_latent_dim}]
+noise_level: 0.0
+dropout_p: ${model.dropout_p}
+bias: true
+nonlinearity: relu

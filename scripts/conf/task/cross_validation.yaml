@@ -1,0 +1,4 @@
+# @package task
+name: cross_validation
+n_cv_folds: 5
+fold_id: null

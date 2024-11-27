@@ -1,0 +1,3 @@
+# @package model.input_dim_reduction
+_target_: rtm.dimensionality_reduction.PCA
+n_components: ${model.input_latent_dim} # no reduction

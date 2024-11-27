@@ -1,0 +1,376 @@
+import os
+import os.path as osp
+import numpy as np
+import xarray as xr
+import pandas as pd
+from typing import List, Dict, Tuple
+
+from rtm import utils
+
+def save_netcdf_file(data: xr.Dataset, save_path: str):
+    if os.path.isfile(save_path):
+        # remove existing file
+        os.remove(save_path)
+    data.to_netcdf(save_path, format='NETCDF4')
+
+
+def combine_chunks(data_dir: str, prefix: str, n_chunks: int, combined_dir: str = 'combined'):
+
+    if combined_dir is not None:
+        out_dir = osp.join(data_dir, combined_dir)
+        os.makedirs(out_dir, exist_ok=True)
+    else:
+        out_dir = data_dir
+    
+    # find all pixel data files and combine them
+    pixel_files = [f for f in os.listdir(data_dir) if f.startswith(prefix) and f.endswith('_pixel_data.nc')]
+    pixel_files.sort()
+    pixel_files = pixel_files[:n_chunks]
+    pixel_data = combine_netcdf_files(data_dir, pixel_files)
+    save_netcdf_file(pixel_data, osp.join(out_dir, f'{prefix}_combined_pixel_data.nc'))
+
+    # find all profile data files and combine them
+    profile_files = [f for f in os.listdir(data_dir) if f.startswith(prefix) and f.endswith('_profile_data.nc')]
+    profile_files.sort()
+    profile_files = profile_files[:n_chunks]
+    profile_data = combine_netcdf_files(data_dir, profile_files)
+    save_netcdf_file(profile_data, osp.join(out_dir, f'{prefix}_combined_profile_data.nc'))
+
+    # find all spectral data files and combine them
+    spectral_files = [f for f in os.listdir(data_dir) if f.startswith(prefix) and f.endswith('_spectra.nc')]
+    spectral_files.sort()
+    spectral_files = spectral_files[:n_chunks]
+    spectral_data = combine_netcdf_files(data_dir, spectral_files)
+    save_netcdf_file(spectral_data, osp.join(out_dir, f'{prefix}_combined_spectra.nc'))
+
+    # find all coordinate files and combine them
+    coord_files = [f for f in os.listdir(data_dir) if f.startswith(prefix) and f.endswith('_coords.nc')]
+    coord_files.sort()
+    coord_files = coord_files[:n_chunks]
+    coord_data = combine_netcdf_files(data_dir, coord_files)
+    save_netcdf_file(coord_data, osp.join(out_dir, f'{prefix}_combined_coords.nc'))
+
+
+def combine_netcdf_files(data_dir: str, file_list: List[str]):
+    # combine chunked netCDF files into a single file
+    for i, f in enumerate(file_list):
+        ds = xr.open_dataset(osp.join(data_dir, f))
+        if i == 0:
+            combined = ds
+        else:
+            # adjust pixelID to avoid duplicates
+            ds['pixelID'] = ds['pixelID'] + combined['pixelID'].max() + 1
+            combined = xr.concat([combined, ds], dim='pixelID')
+
+    return combined
+
+def prepare_data(target_dir: str,
+                 data_dir: str,
+                 prefix: str,
+                 wl_range: Tuple[float, float],
+                 gas_names: List[str] = ['co2', 'ch4'],
+                ):
+    
+    os.makedirs(target_dir, exist_ok=True)
+
+    # load pixel data and save to csv file
+    pixel_data = load_pixel_data(data_dir, prefix, gas_names)
+    pixel_data_to_netcdf(pixel_data, target_dir, prefix)
+
+    # load profile data and save to csv file
+    profile_data = load_profile_data(data_dir, prefix, gas_names)
+    profile_data_to_netcdf(profile_data, target_dir, prefix)
+
+    # load spectral data and save to csv files
+    spectral_data = load_spectra(data_dir, prefix, wl_range)
+    spectra_to_netcdf(spectral_data, target_dir, prefix)
+
+    # load coordinates and save to csv file
+    coords = load_coords(data_dir, prefix)
+    coords_to_netcdf(coords, target_dir, prefix)
+
+
+def pixel_data_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+    # convert dict to netcdf format and write to disk
+    for k, v in data.items():
+        if len(v.shape) > 1:
+            v = v.reshape(v.shape[0], -1)
+            data[k] = {'dims': ('pixelID', f'dim_{k}'), 'data': v}
+        else:
+            data[k] = {'dims': ('pixelID'), 'data': v}
+    data['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(v.shape[0])}
+    data = xr.Dataset.from_dict(data)
+
+    save_netcdf_file(data, osp.join(target_dir, f'{prefix}_pixel_data.nc'))
+
+def pixel_data_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+    # save pixel data to csv file
+    df_pixels = pd.DataFrame(data)
+    df_pixels['pixelID'] = df_pixels.index
+
+    save_path = osp.join(target_dir, f'{prefix}_pixel_data.csv')
+    if os.path.isfile(save_path):
+        # remove existing file
+        os.remove(save_path)
+    df_pixels.to_csv(save_path, index=False)
+
+def coords_to_netcdf(coords: Dict[str, np.ndarray], target_dir: str, prefix: str):
+    # convert dict to netcdf format and write to disk
+    for k, v in coords.items():
+        coords[k] = {'dims': ('pixelID'), 'data': v}
+    coords['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(v.shape[0])}
+    coords = xr.Dataset.from_dict(coords)
+
+    save_netcdf_file(coords, osp.join(target_dir, f'{prefix}_coords.nc'))
+
+def coords_to_csv(coords: Dict[str, np.ndarray], target_dir: str, prefix: str):
+    # save coordinates to csv file
+    df_coords = pd.DataFrame(coords)
+    df_coords['pixelID'] = df_coords.index
+
+    save_path = osp.join(target_dir, f'{prefix}_coords.csv')
+    if os.path.isfile(save_path):
+        # remove existing file
+        os.remove(save_path)
+    df_coords.to_csv(save_path, index=False)
+
+
+def profile_data_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+    # convert dict to netcdf format
+    for k, v in data.items():
+        data[k] = {'dims': ('pixelID', 'layerID'), 'data': v}
+    data['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(v.shape[0])}
+    data['layerID'] = {'dims': ('layerID'), 'data': np.arange(v.shape[1])}
+    data = xr.Dataset.from_dict(data)
+
+    save_netcdf_file(data, osp.join(target_dir, f'{prefix}_profile_data.nc'))
+
+def profile_data_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+    # save profile data to csv file
+    # saved in long format, i.e. data is flattened and layer/pixel info is included in layerID and pixelID columns
+    df_profiles = pd.DataFrame()
+
+    shape = None
+    for k, v in data.items():
+        # check data shape: should be (nobs, nlayers)
+        if shape is None :
+            shape = v.shape
+        else:
+            assert shape == v.shape
+        df_profiles[k] = v.flatten()
+    nobs, nlayers = shape
+
+    # save pixel and layer info
+    df_profiles['pixelID'] = np.arange(nobs).repeat(nlayers)
+    df_profiles['layerID'] = np.tile(np.arange(nlayers), nobs)
+
+    # write to disk
+    save_path = osp.join(target_dir, f'{prefix}_profile_data.csv')
+    if os.path.isfile(save_path):
+        # remove existing file
+        os.remove(save_path)
+    df_profiles.to_csv(save_path, index=False)
+
+def spectra_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+    # convert dict to netcdf format
+
+    for k, v in data.items():
+        if k == 'wavelength':
+            data[k] = {'dims': ('wavelength'), 'data': v}
+        else:
+            data[k] = {'dims': ('pixelID', 'wavelength'), 'data': v}
+            npix = v.shape[0]
+    data['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(npix)}
+    data = xr.Dataset.from_dict(data)
+
+    save_netcdf_file(data, osp.join(target_dir, f'{prefix}_spectra.nc'))
+
+def spectra_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str, quantity: str):
+    # save spectra (only for the given quantity) to csv file
+    df_spectra = pd.DataFrame(data[quantity], columns=data['wavelength'])
+    df_spectra['pixelID'] = df_spectra.index
+
+    save_path = osp.join(target_dir, f'{prefix}_spectra.csv')
+    if os.path.isfile(save_path):
+        # remove existing file
+        os.remove(save_path)
+    df_spectra.to_csv(save_path, index=False)
+
+def load_pixel_data(data_dir: str,
+                      prefix: str,
+                      gas_names: List[str] = ['co2', 'ch4'],
+                     ):
+    # load pixel/surface properties that do not come as vertical profiles
+    data = {}
+    data.update(load_geometry(data_dir, prefix))
+    data.update(load_surface(data_dir, prefix, gas_names))
+    data.update(load_state_vars(data_dir, prefix))
+
+    return data
+
+def load_profile_data(data_dir: str,
+                         prefix: str,
+                         gas_names: List[str] = ['co2', 'ch4'],
+                        ):
+    # load vertical profiles of trace gases and meteo variables
+    data = load_atmospheric_profiles(data_dir, prefix, gas_names)
+
+    return data
+
+
+def load_geometry(data_dir: str, prefix: str, instrument: str = 'instr2_noise0'):
+    # extract orbit geometry from measurement NetCDF file
+    fname = f'{prefix}_{instrument}.nc'
+    var_list = [
+        'SolarZenithAngle', 
+        'ViewingZenithAngle', 
+        'RelativeAzimuthAngle', 
+        'ScatteringAngle',
+        'Flight_Altitude',
+        'Pixel_Altitude',
+        ]
+    ds = xr.open_dataset(osp.join(data_dir, fname))
+    geom_dict = {var: ds[var].data.squeeze() for var in var_list}
+
+    vars = list(geom_dict.keys())
+    for var in vars:
+        if 'Angle' in var:
+            data = geom_dict[var]
+            geom_dict[f'Cos_{var}'] = np.cos(np.deg2rad(data))
+            geom_dict[f'Sin_{var}'] = np.sin(np.deg2rad(data))
+
+    geom_dict['Air_Mass_Factor'] = (1 / geom_dict['Cos_SolarZenithAngle']) + \
+                                   (1 / geom_dict['Cos_ViewingZenithAngle'])
+    
+    return geom_dict
+
+
+def load_coords(data_dir: str, prefix: str, instrument: str = 'instr2_noise0'):
+    fname = f'{prefix}_{instrument}.nc'
+    # extract datetime, longitude and latitude from netCDF file
+    var_list = ['UTC_Date', 'Fracday', 'Julday', 'Lon', 'Lat']
+    ds = xr.open_dataset(osp.join(data_dir, fname))
+    coords = {var: ds[var].data for var in var_list}
+
+    # TODO: convert UTC_Date (int) and Fracday (float) to datetime?
+
+    return coords
+        
+def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
+    # extract surface properties and meteo data from netCDF file
+    fname = f'{prefix}-aux.nc'
+    var_list = ['surface_pressure_meteo', 
+                'surface_elevation_meteo', 
+                'surface_elevation_dem', 
+                'surface_elevation_std',
+                'land_fraction',
+                'cloud_fraction',
+                'cirrus_fraction',
+                'tropopause_height',
+                'cloud_top_height_asl']
+    ds = xr.open_dataset(osp.join(data_dir, fname))
+    surface_dict = {var: ds[var].data for var in var_list}
+
+    # calculate total water vapor
+    layers = {var: ds[var].data for var in ['hybrid_a', 'hybrid_b']}
+    tpw = utils.total_column_amount(ds['specific_humidity'].data, 
+                                    surface_dict['surface_pressure_meteo'], 
+                                    layers['hybrid_a'], 
+                                    layers['hybrid_b'])
+    surface_dict['H2O_column_total'] = tpw
+    surface_dict['log_H2O_column_total'] = np.log(tpw)
+
+    # calculate total column amounts for trace gases
+    for gas in gas_names:
+        gas_data = ds[f'MMR_{gas}'].data
+        column_total = utils.total_column_amount(gas_data, 
+                                                 surface_dict['surface_pressure_meteo'], 
+                                                 layers['hybrid_a'], 
+                                                 layers['hybrid_b'])
+        column_avg = utils.column_averaged_amount(gas_data, 
+                                                  surface_dict['surface_pressure_meteo'], 
+                                                  layers['hybrid_a'], 
+                                                  layers['hybrid_b'])
+
+        surface_dict[f'{gas}_column_total'] = column_total
+        surface_dict[f'{gas}_column_avg'] = column_avg
+        surface_dict[f'log_{gas}_column_total'] = np.log(column_total)
+
+    return surface_dict
+
+def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
+    # extract verical meteo profiles from netCDF file
+    fname = f'{prefix}-aux.nc'
+    var_list = ['specific_humidity', 'temperature']
+    ds = xr.open_dataset(osp.join(data_dir, fname))
+    atm_dict = {var: ds[var].data for var in var_list}
+    layers = {var: ds[var].data for var in ['hybrid_a', 'hybrid_b']}
+
+    # calculate pressure levels
+    atm_dict['pressure'] = utils.pressure_levels(ds['surface_pressure_meteo'].data, layers['hybrid_a'], layers['hybrid_b'])
+
+    # extract MMR profiles for trace gases
+    for gas in gas_names:
+        atm_dict[f'MMR_{gas}'] = ds[f'MMR_{gas}'].data
+
+    return atm_dict
+
+def load_state_vars(data_dir: str, prefix: str):
+    # load ground truth state variables (aerosol characteristics, optical depth, etc) from netCDF file
+    fname = f'{prefix}-truth.nc'
+    ds = xr.open_dataset(osp.join(data_dir, fname))
+
+    var_list = [var for var in ds.data_vars if 'Truth' in var]
+    props = {var: ds[var].data for var in var_list}
+
+    # apply log-transform where applicable
+    if 'Truth_SSA' in props: props['Log_Truth_SSA'] = np.log(props['Truth_SSA'])
+    if 'Truth_Mode_AOT' in props: props['Log_Truth_Mode_AOT'] = np.log(props['Truth_Mode_AOT'])
+    if 'Truth_AOT' in props: props['Log_Truth_AOT'] = np.log(props['Truth_AOT'])
+    if 'Truth_Mode1_TAU550' in props: props['Log_Truth_Mode1_TAU550'] = np.log(props['Truth_Mode1_TAU550'])
+    if 'Truth_Mode2_TAU550' in props: props['Log_Truth_Mode2_TAU550'] = np.log(props['Truth_Mode2_TAU550'])
+
+    return props
+
+
+def load_spectra(data_dir: str, prefix: str, wl_range: str, 
+                 postfix_transmission: str = 'transmission',
+                 wavelength: bool = True,
+                 instrument: str = 'instr2_noise0',):
+
+    # load data from full-physics simulation
+    fname = f'{prefix}_{instrument}.nc'
+    ds = xr.open_dataset(osp.join(data_dir, fname))
+
+    # find indices of wavelengths in specified range
+    wl = ds['Wavelength'].data
+    wl_idx = np.where((wl >= wl_range[0]) & (wl <= wl_range[1]))[0]
+
+    spectra = {}
+
+    # get radiance spectra for specified wavelength range
+    spectra['radiance'] = ds['Radiance'].data[:, 0, wl_idx]
+    
+    if wavelength:
+        spectra['wavelength'] = ds['Wavelength'].data[wl_idx]
+    
+    # data from non-scattering simulation (transmission only)
+    tr_fname = f'{prefix}_{postfix_transmission}_{instrument}.nc'
+    if osp.exists(osp.join(data_dir, tr_fname)):
+        tr_spectra = xr.open_dataset(osp.join(data_dir, tr_fname))
+        # get transmission spectra for specified wavelength range
+        spectra['transmission'] = tr_spectra['Radiance'].data[:, 0, wl_idx]
+    
+    return spectra
+    
+def load_wavelengths(data_dir: str, prefix: str, 
+                     wl_range: Tuple[float, float], 
+                     instrument: str = 'instr2_noise0'):
+    # extract wavelengths of spectra from netCDF file
+    fname = f'{prefix}_{instrument}.nc'
+    wl = xr.open_dataset(osp.join(data_dir, fname))['wavelength'].data
+
+    # select wavelength range
+    wl = wl[wl >= wl_range[0] and wl <= wl_range[1]]
+
+    return wl # shape: (nwave)

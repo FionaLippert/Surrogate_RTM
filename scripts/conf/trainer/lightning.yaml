@@ -1,0 +1,33 @@
+# @package trainer
+_target_: pytorch_lightning.Trainer
+# logger: ${logger}
+log_every_n_steps: 10
+check_val_every_n_epoch: 10
+max_epochs: 25
+accelerator: ${device.accelerator}
+devices: ${device.devices}
+
+# location to save checkpoints to
+# default_root_dir: null #${result_path}
+
+callbacks:
+  - _target_: pytorch_lightning.callbacks.LearningRateMonitor
+  - _target_: pytorch_lightning.callbacks.EarlyStopping
+    monitor: val/loss
+    patience: 10
+  - _target_: pytorch_lightning.callbacks.ModelCheckpoint
+    monitor: val/loss
+    mode: min
+    save_top_k: 3
+    save_last: true
+    every_n_epochs: ${trainer.check_val_every_n_epoch}
+    # dirpath: ${trainer.default_root_dir}
+  - _target_: rtm.callbacks.GradNormCallback
+
+# gradient_clip_algorithm: value
+# gradient_clip_val: 0
+# for debugging
+# overfit_batches: 10
+# track_grad_norm: 2
+# fast_dev_run: false
+# enable_model_summary: true
