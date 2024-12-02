@@ -13,9 +13,9 @@ from rtm.utils import init_weights
 
 class DimensionalityReduction(pl.LightningModule):
     def __init__(self, 
+                 target_quantity: str = 'targets',
                  target_transform: utils.RTMTransform = None, 
                  eval_scale: torch.Tensor = None,
-                 quantity: str = 'targets',
                  **kwargs):
         super().__init__()
 
@@ -23,7 +23,7 @@ class DimensionalityReduction(pl.LightningModule):
         self.eval_scale = eval_scale
 
         # quantity to encode/decode
-        self.quantity = quantity
+        self.target_quantity = target_quantity
 
         self._latent_dim = None
         self._input_dim = None
@@ -66,16 +66,19 @@ class DimensionalityReduction(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         """evaluate reconstruction performance"""
-        data = batch[self.quantity]
+        data = batch[self.target_quantity]
         reconstruction = self.forward(data)
+
+        data = data.detach().cpu()
+        reconstruction = reconstruction.detach().cpu()
 
         if self.target_transform:
             # undo normalization and transforms
-            data = self.target_transform.inverse(data.detach())
-            reconstruction = self.target_transform.inverse(reconstruction.detach())
+            data = self.target_transform.inverse(data)
+            reconstruction = self.target_transform.inverse(reconstruction)
         else:
-            data = data.detach().numpy()
-            reconstruction = reconstruction.detach().numpy()
+            data = data.numpy()
+            reconstruction = reconstruction.numpy()
 
         self.reconstruction.append(reconstruction)
         self.data.append(data)
@@ -97,19 +100,39 @@ class DimensionalityReduction(pl.LightningModule):
         mape = utils.mape(reconstruction, data, axis=0).mean()
         bias = utils.bias(reconstruction, data, axis=0).mean()
         r2 = utils.r2_score(reconstruction, data, axis=0).mean()
-        r2_log = utils.r2_score(np.log(reconstruction), np.log(data), axis=0).mean()
 
-        self.log_dict({'test/RMSE': rmse,
-                       'test/NRMSE': nrmse,
-                       'test/MAPE': mape,
-                       'test/bias': bias,
-                       'test/R2': r2,
-                       'test/R2_log': r2_log,
-                       })
+        test_dict = {
+            'test/RMSE': rmse,
+            'test/NRMSE': nrmse,
+            'test/MAPE': mape,
+            'test/bias': bias,
+            'test/R2': r2,
+        }
+
+        if self.target_quantity == 'targets':
+            # radiance-specific metrics
+            mape_continuum = utils.mape_continuum(reconstruction, data, axis=0).mean()
+            smape = utils.smape(reconstruction, data, axis=0).mean()
+            rel_bias = utils.relative_bias(reconstruction, data, axis=0).mean()
+
+            # compute R2 on log-transformed data
+            # ensure that outputs are positive
+            reconstruction = np.maximum(reconstruction, np.finfo(reconstruction.dtype).eps)
+            r2_log = utils.r2_score(np.log(reconstruction), np.log(data), axis=0).mean()
+
+            test_dict.update({
+                'test/MAPE_continuum': mape_continuum,
+                'test/SMAPE': smape,
+                'test/rel_bias': rel_bias,
+                'test/R2_log': r2_log,
+            })
+
+        self.log_dict(test_dict)
+        
 
     def predict_step(self, batch, batch_idx):
         """reconstruct input and transform back to physical space"""
-        data = batch[self.quantity]
+        data = batch[self.target_quantity]
         reconstruction = self.forward(data)
         
         data = data.detach().cpu()
@@ -157,228 +180,31 @@ class PCA(DimensionalityReduction):
     
     def pca_dict(self):
         pca_dict = {
-            'pca': self.pca,
+            'pca': self.pca.__dict__,
             '_input_dim': self._input_dim,
             '_latent_dim': self._latent_dim
         }
         return pca_dict
     
-    def load_pca_dict(self, state_dict):
-        self.pca = state_dict['pca']
+    def load_pca_dict(self, state_dict, map_location=None):
+        for key, value in state_dict['pca'].items():
+            if isinstance(value, torch.Tensor):
+                state_dict['pca'][key] = value.to(map_location)
+            else:
+                setattr(self.pca, key, value)
         self._input_dim = state_dict['_input_dim']
         self._latent_dim = state_dict['_latent_dim']
 
+    def _apply(self, convert):
+        newself = super()._apply(convert)
+        device = newself.device
 
+        print(f'Move PCA to device {device}')
+        for key, value in newself.pca.__dict__.items():
+            if isinstance(value, torch.Tensor):
+                setattr(newself.pca, key, value.to(device))
 
-class AE(DimensionalityReduction):
-    def __init__(self, 
-                 encoder: torch.nn.Module, 
-                 decoder: torch.nn.Module, 
-                 lr: float = 0.01, 
-                 **kwargs):
-        super().__init__(**kwargs)
-
-        # self.encoder = layers.MLPEncoder(**kwargs)
-        # self.decoder = layers.MLPDecoder(**kwargs)
-        self.encoder = encoder
-        self.decoder = decoder
-
-        assert self.encoder.latent_dim == self.decoder.latent_dim
-        self._latent_dim = self.encoder.latent_dim
-
-        self.lr = lr
-        self.l2_reg = kwargs.get('l2_reg', 0)
-        self.loss_scale = kwargs.get('loss_scale', 1.0)
-        self.w_orthogonality = kwargs.get('w_orthogonality', 0.0)
-
-        self.register_buffer('id_input', torch.eye(encoder.input_dim))
-        self.register_buffer('id_latent', torch.eye(self.latent_dim))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        z = self.encode(x)
-        x_hat = self.decode(z)
-        return x_hat
-    
-    def encode(self, x: torch.Tensor) -> torch.Tensor:
-        return self.encoder(x)
-    
-    def decode(self, z: torch.Tensor) -> torch.Tensor:
-        return self.decoder(z)
-    
-    def eval_step(self, batch):
-        data = batch[self.quantity]
-        reconstruction = self.forward(data)
-        loss = F.mse_loss(reconstruction, data)
-
-        loss = loss * self.loss_scale
-
-        if self.w_orthogonality:
-            # encourage orthogonality of encoder and decoder weights
-            orth_loss = self.orthogonality_regularizer()
-            loss += self.w_orthogonality * orth_loss
-
-        return loss
-
-    def training_step(self, batch, batch_idx):
-        loss = self.eval_step(batch)
-        self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-
-        return loss
-            
-    def validation_step(self, batch, batch_idx):
-        loss = self.eval_step(batch)
-        self.log('val/loss', loss, on_epoch=True, logger=True)
-
-    def orthogonality_regularizer(self) -> torch.Tensor:
-        f_enc = self.encoder.encode(self.id_input) # shape [input_dim, latent_dim]
-        f_dec = self.decoder.decode(self.id_latent) # shape [latent_dim, input_dim]
-        return F.mse_loss(f_dec @ f_enc, self.id_latent)
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
-
-
-class VAE(DimensionalityReduction):
-    def __init__(self, lr: float = 0.01, **kwargs):
-        super().__init__(**kwargs)
-
-        self.encoder = layers.MLPEncoder(**kwargs)
-        self.decoder = layers.MLPDecoder(**kwargs)
-
-        # encoder latent state contains both mean and log-variance
-        assert self.encoder.latent_dim == self.decoder.latent_dim * 2
-        self._latent_dim = self.decoder.latent_dim
-
-        # log scale for reconstruction loss
-        self.log_scale = Parameter(torch.tensor(kwargs.get('log_scale', 0.0)), requires_grad=False)
-
-        # beta parameter for KL divergence
-        self.beta = kwargs.get('beta', 1.0)
-
-        self.lr = lr
-
-    def forward(self, x: torch.Tensor, sample: bool = False) -> torch.Tensor:
-        mean, log_var = self.encode(x)
-        if sample:
-            z = self.sample(mean, log_var)
-        else:
-            z = mean
-        x_hat = self.decode(z)
-        return x_hat
-    
-    def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        z = self.encoder(x)
-   
-        # split into mean and logvar
-        mean = z[:, :self.latent_dim]
-        logvar = z[:, -self.latent_dim:]
-        return mean, logvar
-    
-    def decode(self, z: torch.Tensor) -> torch.Tensor:
-        return self.decoder(z)
-    
-    def sample(self, mean: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
-        std = torch.exp(0.5 * log_var)
-        z = mean + std * torch.randn_like(std)
-
-        return z
-    
-    def loss_function(self, 
-                      x: torch.Tensor, 
-                      x_hat: torch.Tensor,
-                      mean: torch.Tensor, 
-                      logvar: torch.Tensor) -> torch.Tensor:
-        rec_loss = self.rec_loss(x, x_hat)
-        kl_div = self.kl_divergence(mean, logvar)
-        loss = rec_loss + self.beta * kl_div
-
-        # to be consistent with loss_function_prob, divide by batch_size
-        return loss 
-    
-    def rec_loss(self, x: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
-        rec_loss = F.mse_loss(x_hat, x, reduction='mean')
-        return rec_loss
-
-    def kl_divergence(self, mean: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
-        kl = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp(), dim=-1).mean()
-        return kl
-    
-    # def gaussian_log_likelihood(self, x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-    #     # if logscale = 0, computes MSE loss
-    #     scale = torch.exp(self.log_scale)
-    #     dist = torch.distributions.Normal(x_hat, scale)
-
-    #     # measure prob of seeing x
-    #     log_pxz = dist.log_prob(x) # also includes constant term, in contast to F.mse_loss
-    #     # return log_pxz.sum(dim=-1)
-    #     return log_pxz.mean(dim=-1)
-    
-    # def kl_divergence_prob(self, 
-    #                        z: torch.Tensor, 
-    #                        mean: torch.Tensor, 
-    #                        log_var: torch.Tensor) -> torch.Tensor:
-    #     # define prior distribution
-    #     p = torch.distributions.Normal(torch.zeros_like(mean), torch.ones_like(log_var))
-
-    #     # define variational distribution
-    #     std = torch.exp(0.5 * log_var)
-    #     q = torch.distributions.Normal(mean, std)
-
-    #     # get log probabilities of sample z
-    #     log_qzx = q.log_prob(z)
-    #     log_pz = p.log_prob(z)
-
-    #     # compute kl
-    #     kl = (log_qzx - log_pz).sum(-1)
-
-    #     return kl
-    
-    def eval_step(self, batch):
-        x = batch[self.quantity]
-
-        # forward pass
-        mean, log_var = self.encode(x)
-        z = self.sample(mean, log_var)
-        x_hat = self.decode(z)
-
-        # # log likelihood
-        # ll = self.gaussian_log_likelihood(x_hat, x).mean(0)
-
-        # # kl divergence
-        # kl = self.kl_divergence_prob(z, mean, log_var).mean(0)
-
-        # # elbo and loss
-        # elbo = ll - self.beta * kl
-        # loss = -elbo
-        # rec_loss = -ll
-
-        rec_loss = self.rec_loss(x, x_hat)
-        kl = self.kl_divergence(mean, log_var)
-        loss = rec_loss + self.beta * kl
-        elbo = -loss
-
-        return {
-            'elbo': elbo,
-            'rec_loss': rec_loss,
-            'kl': kl,
-            'loss': loss
-        }
-
-    def training_step(self, batch, batch_idx):
-        eval_dict = self.eval_step(batch)
-        self.log_dict({f'train/{k}': v.detach() for k, v in eval_dict.items()}, 
-                      on_step=True, on_epoch=True, logger=True)
- 
-        return eval_dict['train/loss']
-            
-    def validation_step(self, batch, batch_idx):
-        eval_dict = self.eval_step(batch)
-        self.log_dict({f'val/{k}': v.detach() for k, v in eval_dict.items()}, 
-                      on_epoch=True, logger=True)
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
-
+        return newself
 
 
 ##################################################
@@ -507,7 +333,7 @@ class ResNet1DEncoder(Encoder):
 class RTCNNEncoder(Encoder):
     def __init__(self, 
                  latent_dim: int, 
-                 num_wavelengths: int, 
+                 num_wavelengths: int,
                  kernel_size: int = 3, 
                  num_layers: int = 1, 
                  dropout: float = 0.0):
@@ -517,10 +343,11 @@ class RTCNNEncoder(Encoder):
         self._input_dim = num_wavelengths
         self.num_wavelengths = num_wavelengths
 
-        # Initial linear layer to expand the latent state to a starting sequence length
-        self.initial_length = 2 ** num_layers
+        # determine sequence length of the latent state
+        self.latent_length = max(1, num_wavelengths // (2 ** num_layers))
 
-        # Linear adjustment to ensure the exact sequence length
+        # Linear adjustment to ensure that sequence length is divisible by 2^num_layers
+        self.initial_length = self.latent_length * (2 ** num_layers)
         self.adjustment_layer = nn.Linear(num_wavelengths, self.initial_length)
 
         # Create a sequence of deconvolutional layers to upsample the sequence
@@ -552,19 +379,21 @@ class RTCNNEncoder(Encoder):
 
         self.conv_layers = nn.Sequential(*conv_layers)
 
-        self.latent_projection = nn.Linear(out_channels, latent_dim)
+        self.latent_projection = nn.Linear(out_channels * self.latent_length, latent_dim)
         self.channels.append(latent_dim)        
 
     def encode(self, targets):
+        # targets: [batch_size, num_wavelengths]
+        batch_size = targets.size(0)
 
-        # make sure sequence has length of 2^num_layers
-        projected = self.adjustment_layer(targets)  # Shape: [batch_size, initial_length]
+        # make sure sequence length is multiple of 2^num_layers
+        projected = self.adjustment_layer(targets).unsqueeze(1)  # Shape: [batch_size, 1, initial_length]
 
         # convolve the sequence using the convolutional layers
-        output = self.conv_layers(projected.unsqueeze(1))  # Shape: [batch_size, num_filters, 1]
+        output = self.conv_layers(projected)  # Shape: [batch_size, num_layers, latent_length]
 
         # ensure latent state has the required dimensions
-        output = self.latent_projection(output.squeeze(2))  # Shape: [batch_size, latent_dim]
+        output = self.latent_projection(output.reshape(batch_size, -1))  # Shape: [batch_size, latent_dim]
 
         return output  
 
@@ -645,7 +474,6 @@ class RTCNNDecoder(Decoder):
     def __init__(self, 
                  latent_dim: int, 
                  num_wavelengths: int, 
-                 num_filters: int,
                  kernel_size: int = 3, 
                  num_layers: int = 1, 
                  dropout: float = 0.0):
@@ -654,15 +482,15 @@ class RTCNNDecoder(Decoder):
         self._latent_dim = latent_dim
         self._output_dim = num_wavelengths
         self.num_wavelengths = num_wavelengths
-        self.num_filters = num_filters
+        self.num_filters = 2 ** num_layers
 
         # Initial linear layer to expand the latent state to a starting sequence length
         self.initial_length = max(4, num_wavelengths // (2 ** num_layers))  # Ensure a reasonable starting length
-        self.latent_projection = nn.Linear(latent_dim, num_filters * self.initial_length)
+        self.latent_projection = nn.Linear(latent_dim, self.num_filters * self.initial_length)
 
         # Create a sequence of deconvolutional layers to upsample the sequence
         deconv_layers = []
-        in_channels = num_filters
+        in_channels = self.num_filters
         current_length = self.initial_length
 
         self.sequence_lengths = [current_length]
@@ -894,4 +722,219 @@ class ConvDecoder(Decoder):
             dim = dim + 1
 
         # TODO: finish this!
+
+
+##################################################
+# Autoencoder models
+##################################################
+
+
+class AE(DimensionalityReduction):
+    def __init__(self, 
+                 encoder: Encoder, 
+                 decoder: Decoder, 
+                 lr: float = 0.01, 
+                 **kwargs):
+        super().__init__(**kwargs)
+
+        self.encoder = encoder
+        self.decoder = decoder
+
+        assert self.encoder.latent_dim == self.decoder.latent_dim
+        self._latent_dim = self.encoder.latent_dim
+
+        self.lr = lr
+        self.l2_reg = kwargs.get('l2_reg', 0)
+        self.loss_scale = kwargs.get('loss_scale', 1.0)
+        self.w_orthogonality = kwargs.get('w_orthogonality', 0.0)
+
+        self.register_buffer('id_input', torch.eye(encoder.input_dim))
+        self.register_buffer('id_latent', torch.eye(self.latent_dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        z = self.encode(x)
+        x_hat = self.decode(z)
+        return x_hat
+    
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        return self.encoder(x)
+    
+    def decode(self, z: torch.Tensor) -> torch.Tensor:
+        return self.decoder(z)
+    
+    def eval_step(self, batch):
+        data = batch[self.target_quantity]
+        reconstruction = self.forward(data)
+        loss = F.mse_loss(reconstruction, data)
+
+        loss = loss * self.loss_scale
+
+        if self.w_orthogonality:
+            # encourage orthogonality of encoder and decoder weights
+            orth_loss = self.orthogonality_regularizer()
+            loss += self.w_orthogonality * orth_loss
+
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        loss = self.eval_step(batch)
+        self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+
+        return loss
+            
+    def validation_step(self, batch, batch_idx):
+        loss = self.eval_step(batch)
+        self.log('val/loss', loss, on_epoch=True, logger=True)
+
+    def orthogonality_regularizer(self) -> torch.Tensor:
+        f_enc = self.encoder.encode(self.id_input) # shape [input_dim, latent_dim]
+        f_dec = self.decoder.decode(self.id_latent) # shape [latent_dim, input_dim]
+        return F.mse_loss(f_dec @ f_enc, self.id_latent)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
+
+
+class VAE(DimensionalityReduction):
+    def __init__(self, lr: float = 0.01, **kwargs):
+        super().__init__(**kwargs)
+
+        self.encoder = layers.MLPEncoder(**kwargs)
+        self.decoder = layers.MLPDecoder(**kwargs)
+
+        # encoder latent state contains both mean and log-variance
+        assert self.encoder.latent_dim == self.decoder.latent_dim * 2
+        self._latent_dim = self.decoder.latent_dim
+
+        # log scale for reconstruction loss
+        self.log_scale = Parameter(torch.tensor(kwargs.get('log_scale', 0.0)), requires_grad=False)
+
+        # beta parameter for KL divergence
+        self.beta = kwargs.get('beta', 1.0)
+
+        self.lr = lr
+
+    def forward(self, x: torch.Tensor, sample: bool = False) -> torch.Tensor:
+        mean, log_var = self.encode(x)
+        if sample:
+            z = self.sample(mean, log_var)
+        else:
+            z = mean
+        x_hat = self.decode(z)
+        return x_hat
+    
+    def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        z = self.encoder(x)
+   
+        # split into mean and logvar
+        mean = z[:, :self.latent_dim]
+        logvar = z[:, -self.latent_dim:]
+        return mean, logvar
+    
+    def decode(self, z: torch.Tensor) -> torch.Tensor:
+        return self.decoder(z)
+    
+    def sample(self, mean: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
+        std = torch.exp(0.5 * log_var)
+        z = mean + std * torch.randn_like(std)
+
+        return z
+    
+    def loss_function(self, 
+                      x: torch.Tensor, 
+                      x_hat: torch.Tensor,
+                      mean: torch.Tensor, 
+                      logvar: torch.Tensor) -> torch.Tensor:
+        rec_loss = self.rec_loss(x, x_hat)
+        kl_div = self.kl_divergence(mean, logvar)
+        loss = rec_loss + self.beta * kl_div
+
+        # to be consistent with loss_function_prob, divide by batch_size
+        return loss 
+    
+    def rec_loss(self, x: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
+        rec_loss = F.mse_loss(x_hat, x, reduction='mean')
+        return rec_loss
+
+    def kl_divergence(self, mean: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
+        kl = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp(), dim=-1).mean()
+        return kl
+    
+    # def gaussian_log_likelihood(self, x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    #     # if logscale = 0, computes MSE loss
+    #     scale = torch.exp(self.log_scale)
+    #     dist = torch.distributions.Normal(x_hat, scale)
+
+    #     # measure prob of seeing x
+    #     log_pxz = dist.log_prob(x) # also includes constant term, in contast to F.mse_loss
+    #     # return log_pxz.sum(dim=-1)
+    #     return log_pxz.mean(dim=-1)
+    
+    # def kl_divergence_prob(self, 
+    #                        z: torch.Tensor, 
+    #                        mean: torch.Tensor, 
+    #                        log_var: torch.Tensor) -> torch.Tensor:
+    #     # define prior distribution
+    #     p = torch.distributions.Normal(torch.zeros_like(mean), torch.ones_like(log_var))
+
+    #     # define variational distribution
+    #     std = torch.exp(0.5 * log_var)
+    #     q = torch.distributions.Normal(mean, std)
+
+    #     # get log probabilities of sample z
+    #     log_qzx = q.log_prob(z)
+    #     log_pz = p.log_prob(z)
+
+    #     # compute kl
+    #     kl = (log_qzx - log_pz).sum(-1)
+
+    #     return kl
+    
+    def eval_step(self, batch):
+        x = batch[self.quantity]
+
+        # forward pass
+        mean, log_var = self.encode(x)
+        z = self.sample(mean, log_var)
+        x_hat = self.decode(z)
+
+        # # log likelihood
+        # ll = self.gaussian_log_likelihood(x_hat, x).mean(0)
+
+        # # kl divergence
+        # kl = self.kl_divergence_prob(z, mean, log_var).mean(0)
+
+        # # elbo and loss
+        # elbo = ll - self.beta * kl
+        # loss = -elbo
+        # rec_loss = -ll
+
+        rec_loss = self.rec_loss(x, x_hat)
+        kl = self.kl_divergence(mean, log_var)
+        loss = rec_loss + self.beta * kl
+        elbo = -loss
+
+        return {
+            'elbo': elbo,
+            'rec_loss': rec_loss,
+            'kl': kl,
+            'loss': loss
+        }
+
+    def training_step(self, batch, batch_idx):
+        eval_dict = self.eval_step(batch)
+        self.log_dict({f'train/{k}': v.detach() for k, v in eval_dict.items()}, 
+                      on_step=True, on_epoch=True, logger=True)
+ 
+        return eval_dict['train/loss']
+            
+    def validation_step(self, batch, batch_idx):
+        eval_dict = self.eval_step(batch)
+        self.log_dict({f'val/{k}': v.detach() for k, v in eval_dict.items()}, 
+                      on_epoch=True, logger=True)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+
 

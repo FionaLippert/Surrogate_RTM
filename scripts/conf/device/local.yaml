@@ -1,5 +1,5 @@
 # @package device
 name: local
-root: /nfs/Sentinel5/users/${oc.env:USER}/bitbucket/RadiativeTransferSurrogateModel
+root: /nfs/Sentinel5/users/${oc.env:USER}/gitlab/surrogate_rtm
 accelerator: gpu
 devices: 1

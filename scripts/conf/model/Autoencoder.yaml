@@ -1,0 +1,45 @@
+# @package model
+name: Autoencoder
+_target_: rtm.dimensionality_reduction.AE
+
+target_quantity: targets
+
+output_dim: ${dataset.output_dim} # all wavelengths
+
+lr: 1e-3
+l2_reg: 4e-5
+dropout_p: 0.0
+
+# loss_terms:
+#   - _target_: rtm.loss.WeightedMSE
+#     weight: 1.0
+#     # log_transformed: false
+
+
+############## define model components ################
+
+encoder:
+  _target_: rtm.dimensionality_reduction.MLPEncoder
+  enc_dims: 
+    - ${model.output_dim}
+    - 400
+    - 200
+    - 100
+    - 26
+  noise_level: 0.0
+  dropout_p: ${model.dropout_p}
+  bias: true
+  nonlinearity: relu
+
+decoder:
+  _target_: rtm.dimensionality_reduction.MLPDecoder
+  dec_dims: 
+    - 26
+    - 100
+    - 200
+    - 400
+    - ${model.output_dim}
+  noise_level: 0.0
+  dropout_p: ${model.dropout_p}
+  bias: true
+  nonlinearity: relu

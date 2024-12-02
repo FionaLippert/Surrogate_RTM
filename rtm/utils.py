@@ -109,6 +109,20 @@ def global_to_profile(data: np.ndarray, nlevels: int) -> np.ndarray:
 
     return profile
 
+def mmr_to_ppm(mmr: np.ndarray, gas: str) -> np.ndarray:
+    # convert mass mixing ratio to parts per million (ppm)
+    m_air = constants["mass"]["dry_air"]
+    m_gas = constants["mass"][gas]
+    concentration = mmr * m_air / m_gas
+    concentration = 1e6 * concentration
+
+    return concentration
+
+def dry_mmr_to_wet_mmr(dry_xh2o: np.ndarray) -> np.ndarray:
+    # convert dry MMR of H2O to moist MMR (i.e. specific humidity)
+    specific_humidity = dry_xh2o / (1 + dry_xh2o)
+    return specific_humidity
+
 
 ##################################################
 # torch transforms

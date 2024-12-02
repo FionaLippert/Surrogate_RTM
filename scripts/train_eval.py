@@ -55,10 +55,13 @@ def run(cfg: DictConfig):
         path_to_model = wandb.use_model(cfg.model.model_path)
         model.load_state_dict(torch.load(path_to_model))
 
+    trained = False
+
     if 'train' in cfg.task.name:
         transforms = train(trainer, model, cfg)
+        trained = True
     if 'eval' in cfg.task.name:
-        eval(trainer, model, cfg, transforms)
+        eval(trainer, model, cfg, transforms, trained=trained)
     
     if isinstance(trainer.logger, WandbLogger):
         # save config to wandb
@@ -96,12 +99,12 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     # fit PCA to training data, if applicable
     train_data = dataset[range(len(dataset))]
     device = utils.get_device(**cfg.device)
-    if isinstance(model.input_dim_reduction, dimensionality_reduction.PCA):
+    if isinstance(getattr(model, 'input_dim_reduction', None), dimensionality_reduction.PCA):
         model.input_dim_reduction.fit(train_data['inputs'].to(device))
         exp_var = 100 * model.input_dim_reduction.explained_variance_ratio()
         print(f'Explained input variance (%): {exp_var:.4f}')
 
-    if isinstance(model.output_dim_reduction, dimensionality_reduction.PCA):
+    if isinstance(getattr(model, 'output_dim_reduction', None), dimensionality_reduction.PCA):
         model.output_dim_reduction.fit(train_data['targets'].to(device))
         exp_var = 100 * model.output_dim_reduction.explained_variance_ratio()
         print(f'Explained output variance (%): {exp_var:.4f}')
@@ -121,7 +124,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
 
 
 def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
-         transforms: List[utils.RTMTransform] = [None, None, None]):
+         transforms: List[utils.RTMTransform] = [None, None, None], trained: bool = False):
     
     if cfg.verbose:
         print('####### Start model evaluation ########')
@@ -149,10 +152,11 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
 
 
     # evaluate model
-    trainer.test(model, test_loader)
+    kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}
+    trainer.test(model, test_loader, **kwargs)
 
     # also save individual predictions
-    predictions = trainer.predict(model, test_loader)
+    predictions = trainer.predict(model, test_loader, **kwargs)
     outputs, targets = map(list, zip(*predictions))
     outputs = np.concatenate(outputs, 0)
     targets = np.concatenate(targets, 0)

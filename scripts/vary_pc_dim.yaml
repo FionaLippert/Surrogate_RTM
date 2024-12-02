@@ -15,7 +15,9 @@ command:
   - trainer.max_epochs=250
   - task=train+eval
   - task.save_predictions=true
-  - logger.project=vary_pc_dim
+  - task.load_best_model=true
+  - logger.project=vary_input_pca_dim
+  - logger.group=default
 method: grid
 metric:
   name: test/MAPE_continuum
@@ -23,13 +25,13 @@ metric:
 parameters:
   # random seed
   seed:
-    values: [2]
+    values: [0, 1, 2] # [0, 1, 2]
   # learning rate
   model.lr:
-    values: [1e-4, 3e-4]
+    values: [1e-4] #[3e-4]
   # input latent dimension
   model.input_latent_dim:
-    values: [20, 40, 80, 160, 320]
+    values: [10, 20, 40, 80, 160, 320] #[20, 80, 320]
   # number of layers
   model.forward_model.n_fc_layers:
-    values: [1, 2, 3, 4]
+    values: [1, 2, 3, 4, 5]

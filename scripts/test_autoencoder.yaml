@@ -1,0 +1,28 @@
+program: train_eval.py
+name: test_autoencoder
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - dataset=synthetic_remotap
+  - model=Autoencoder_CNN
+  - model.l2_reg=4e-5
+  - model.dropout_p=0.0
+  - dataloader.batch_size=256
+  - trainer.max_epochs=150
+  - task=train+eval
+  - task.save_predictions=true
+  - task.load_best_model=true
+  - logger.project=test_autoencoder
+  - logger.group=CNNs
+method: grid
+metric:
+  name: test/MAPE_continuum
+  goal: minimize
+parameters:
+  # random seed
+  seed:
+    values: [0]
+  model.lr:
+    values: [3e-6]

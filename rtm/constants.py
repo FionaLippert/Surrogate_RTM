@@ -14,7 +14,10 @@ constants = {
       "h2o18": 0.020014811, # molar mass of H2(18)O in kg/mol (source: HITRAN)
       "hdo": 0.01901674, # molar mass of HDO in kg/mol (source: HITRAN)
       "co": 0.0280101, # molar mass of CO in kg/mol 
-      "no2": 0.0460055 # molar mass of NO2 in kg/mol 
+      "no2": 0.0460055, # molar mass of NO2 in kg/mol 
+      "co2": 0.04401, # molar mass of CO2 in kg/mol
+      "ch4": 0.01604, # molar mass of CH4 in kg/mol
+      "o3": 0.048, # molar mass of O3 in kg/mol
     },
     "reference_abundance": {
       "h2o": 0.997317, # standard abundance of H2O (source: HITRAN)

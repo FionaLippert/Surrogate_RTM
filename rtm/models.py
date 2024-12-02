@@ -6,29 +6,27 @@ from typing import Callable, Union, List, Dict, Tuple, Optional
 import numpy as np
 
 from rtm import utils, layers
+from rtm.base_class import BaseRTM
 from rtm.dimensionality_reduction import DimensionalityReduction, Encoder, Decoder, PCA
 from rtm.utils import init_weights
 
 
 class SurrogateRTM(pl.LightningModule):
     def __init__(self, 
-                #  to_raw_targets: Callable = None, 
-                target_transform: utils.RTMTransform = None,
-                eval_scale: torch.Tensor = None, 
-                **kwargs):
+                 target_quantity: str = 'targets',
+                 target_transform: utils.RTMTransform = None,
+                 eval_scale: torch.Tensor = None, 
+                 **kwargs):
+
         super().__init__()
 
-        # self._to_raw_targets = to_raw_targets
+        self.target_quantity = target_quantity
         self._target_transform = target_transform
         self.eval_scale = eval_scale
 
         self.save_hyperparameters(ignore=['forward_model', 
                                           'input_dim_reduction', 
                                           'output_dim_reduction'])    
-
-    # @property
-    # def to_raw_targets(self):
-    #     return self._to_raw_targets
 
     @property
     def target_transform(self) -> utils.RTMTransform:
@@ -48,17 +46,19 @@ class SurrogateRTM(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         """evaluate reconstruction performance"""
-        # inputs = batch['inputs']
-        targets = batch['targets']
+        targets = batch[self.target_quantity]
         outputs = self.forward(**batch)
+
+        targets = targets.detach()
+        outputs = outputs.detach()
 
         if self.target_transform:
             # undo normalization and transforms
-            targets = self.target_transform.inverse(targets.detach())
-            outputs = self.target_transform.inverse(outputs.detach())
+            targets = self.target_transform.inverse(targets)
+            outputs = self.target_transform.inverse(outputs)
         else:
-            targets = targets.detach().numpy()
-            outputs = outputs.detach().numpy()
+            targets = targets.numpy()
+            outputs = outputs.numpy()
 
         self.outputs.append(outputs)
         self.targets.append(targets)
@@ -100,16 +100,19 @@ class SurrogateRTM(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         """reconstruct input and transform back to physical space"""
-        targets = batch['targets']
+        targets = batch[self.target_quantity]
         outputs = self.forward(**batch)
+
+        targets = targets.detach()
+        outputs = outputs.detach()
 
         if self.target_transform:
             # undo normalization and transforms
-            targets = self.target_transform.inverse(targets.detach())
-            outputs = self.target_transform.inverse(outputs.detach())
+            targets = self.target_transform.inverse(targets)
+            outputs = self.target_transform.inverse(outputs)
         else:
-            targets = targets.detach().numpy()
-            outputs = outputs.detach().numpy()
+            targets = targets.numpy()
+            outputs = outputs.numpy()
 
         return outputs, targets
 
@@ -133,11 +136,11 @@ class NNSurrogateRTM(SurrogateRTM):
         self.loss_terms = kwargs.get('loss_terms', [torch.nn.MSELoss()])
 
     
-    def forward(self, inputs, **kwargs) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
         return self.forward_model(inputs)
 
 
-    def compute_loss(self, outputs, targets):
+    def compute_loss(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         loss = 0
         for loss_fct in self.loss_terms:
             loss = loss + loss_fct(outputs, targets)
@@ -148,7 +151,7 @@ class NNSurrogateRTM(SurrogateRTM):
         return loss
     
     def eval_step(self, batch) -> torch.Tensor:
-        targets = batch['targets']
+        targets = batch[self.target_quantity]
         outputs = self.forward(**batch)
 
         loss = self.compute_loss(outputs, targets)
@@ -157,8 +160,10 @@ class NNSurrogateRTM(SurrogateRTM):
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         loss = self.eval_step(batch)
-        self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train/log_loss', torch.log(loss), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train/loss', loss, on_step=True, on_epoch=True, 
+                 prog_bar=True, logger=True)
+        self.log('train/log_loss', torch.log(loss), on_step=True, 
+                 on_epoch=True, prog_bar=True, logger=True)
 
         return loss
             
@@ -173,20 +178,30 @@ class NNSurrogateRTM(SurrogateRTM):
 
 class NNSurrogateRTMDiff(NNSurrogateRTM):
     """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
-    def __init__(self, **kwargs):
+    def __init__(self, proxy_quantity: str = 'proxy_targets', **kwargs):
         super().__init__(**kwargs)
 
-    def prepare_outputs(self, targets, proxy, outputs, batch):
+        self.proxy_quantity = proxy_quantity
+
+    def prepare_outputs(self, 
+                        targets: torch.Tensor, 
+                        proxy: torch.Tensor, 
+                        outputs: torch.Tensor
+                        ) -> Tuple[np.ndarray, np.ndarray]:
+
+        targets = targets.detach()
+        proxy = proxy.detach()
+        outputs = outputs.detach()
 
         if self.target_transform:
             # undo normalization and transforms
-            targets = self.target_transform.inverse(targets.detach())
-            proxy = self.target_transform.inverse(proxy.detach())
-            outputs = self.target_transform.inverse(outputs.detach())
+            targets = self.target_transform.inverse(targets)
+            proxy = self.target_transform.inverse(proxy)
+            outputs = self.target_transform.inverse(outputs)
         else:
-            targets = targets.detach().numpy()
-            proxy = proxy.detach().numpy()
-            outputs = outputs.detach().numpy()
+            targets = targets.numpy()
+            proxy = proxy.numpy()
+            outputs = outputs.numpy()
 
         # compute actual spectra
         outputs = proxy + outputs
@@ -196,8 +211,8 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
 
     def test_step(self, batch, batch_idx):
         """evaluate reconstruction performance"""
-        targets = batch['targets']
-        proxy = batch['proxy_targets']
+        targets = batch[self.target_quantity]
+        proxy = batch[self.proxy_quantity]
         outputs = self.forward(**batch)
 
         outputs, targets = self.prepare_outputs(targets, proxy, outputs, batch)
@@ -207,8 +222,8 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
 
     def predict_step(self, batch, batch_idx):
         """make prediction"""
-        targets = batch['targets']
-        proxy = batch['proxy_targets']
+        targets = batch[self.target_quantity]
+        proxy = batch[self.proxy_quantity]
         outputs = self.forward(**batch)
 
         outputs, targets = self.prepare_outputs(targets, proxy, outputs, batch)
@@ -239,18 +254,6 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
         #     utils.freeze_weights(self.output_dim_reduction)
 
         self.latent_loss = kwargs.get('latent_loss', False)
-
-    # @property
-    # def input_latent_dim(self):
-    #     return self.input_dim_reduction.latent_dim
-    
-    # @property
-    # def output_latent_dim(self):
-    #     return self.output_dim_reduction.latent_dim
-    
-    @property
-    def target_transform(self) -> utils.RTMTransform:
-        return self._target_transform
     
     @target_transform.setter
     def target_transform(self, target_transform: utils.RTMTransform):
@@ -269,7 +272,6 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
             if isinstance(self.input_dim_reduction, Encoder) and self.nonlinearity:
                 inputs = self.nonlinearity(inputs)
 
-            
         outputs = self.forward_model(inputs)
 
         # if neural network decoder, apply non-linearity before passing on to forward model
@@ -282,7 +284,7 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
         return outputs
     
     def eval_step(self, batch) -> torch.Tensor:
-        targets = batch['targets']
+        targets = batch[self.target_quantity]
         inputs = batch['inputs']
         
         if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
@@ -300,6 +302,9 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
 
         return loss
     
+    def validation_step(self, batch, batch_idx):
+        return super().validation_step(batch, batch_idx)
+    
     def on_save_checkpoint(self, checkpoint):
         # save additional objects to checkpoint 
         if isinstance(self.input_dim_reduction, PCA):
@@ -309,33 +314,58 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
         checkpoint['target_transform'] = self.target_transform
 
     def on_load_checkpoint(self, checkpoint):
-        self.load_model_state(checkpoint)
+        print(f'Loading model state on device {self.device}...')
+        self.load_model_state(checkpoint, map_location=self.device)
         
-    def load_model_state(self, checkpoint):
+    def load_model_state(self, checkpoint, map_location=None):
         self.load_state_dict(checkpoint['state_dict'])
+
         if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'])
+            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
+            
         if isinstance(self.output_dim_reduction, PCA):
-            self.output_dim_reduction.load_pca_dict(checkpoint['output_dim_reduction'])
+            self.output_dim_reduction.load_pca_dict(checkpoint['output_dim_reduction'], map_location)
+
         self.target_transform = checkpoint['target_transform']
+
+        # make sure everything is on the same device
+        self.to(map_location)
+
+    def _apply(self, convert):
+        if isinstance(self.input_dim_reduction, PCA):
+            self.input_dim_reduction._apply(convert)
+        if isinstance(self.output_dim_reduction, PCA):
+            self.output_dim_reduction._apply(convert)
+        
+        return super()._apply(convert)
         
     
 class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
     """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
-    def __init__(self, **kwargs):
+    def __init__(self, proxy_quantity: str = 'proxy_targets', **kwargs):
         super().__init__(**kwargs)
 
-    def prepare_outputs(self, targets, proxy, outputs, batch):
+        self.proxy_quantity = proxy_quantity
+
+    def prepare_outputs(self, 
+                        targets: torch.Tensor, 
+                        proxy: torch.Tensor, 
+                        outputs: torch.Tensor
+                        ) -> Tuple[np.ndarray, np.ndarray]:
+
+        targets = targets.detach()
+        proxy = proxy.detach()
+        outputs = outputs.detach()
 
         if self.target_transform:
             # undo normalization and transforms
-            targets = self.target_transform.inverse(targets.detach())
-            proxy = self.target_transform.inverse(proxy.detach())
-            outputs = self.target_transform.inverse(outputs.detach())
+            targets = self.target_transform.inverse(targets)
+            proxy = self.target_transform.inverse(proxy)
+            outputs = self.target_transform.inverse(outputs)
         else:
-            targets = targets.detach().numpy()
-            proxy = proxy.detach().numpy()
-            outputs = outputs.detach().numpy()
+            targets = targets.numpy()
+            proxy = proxy.numpy()
+            outputs = outputs.numpy()
 
         # compute actual spectra
         outputs = proxy + outputs
@@ -345,8 +375,8 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
 
     def test_step(self, batch, batch_idx):
         """evaluate reconstruction performance"""
-        targets = batch['targets']
-        proxy = batch['proxy_targets']
+        targets = batch[self.target_quantity]
+        proxy = batch[self.proxy_quantity]
         outputs = self.forward(**batch)
 
         outputs, targets = self.prepare_outputs(targets, proxy, outputs, batch)
@@ -356,8 +386,8 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
 
     def predict_step(self, batch, batch_idx):
         """make prediction"""
-        targets = batch['targets']
-        proxy = batch['proxy_targets']
+        targets = batch[self.target_quantity]
+        proxy = batch[self.proxy_quantity]
         outputs = self.forward(**batch)
 
         outputs, targets = self.prepare_outputs(targets, proxy, outputs, batch)
@@ -388,7 +418,6 @@ class HybridRTM(torch.nn.Module):
 
         return output
     
-
 
 
 class MLP(torch.nn.Module):

@@ -9,6 +9,7 @@ output_dim: ${dataset.output_dim} # all wavelengths
 input_latent_dim: 320 # all features
 output_latent_dim: 26 # 99.9999% explained variance
 
+# nonlinearity used after the encoder and before the decoder
 nonlinearity: null
 
 lr: 1e-3

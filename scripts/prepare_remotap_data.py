@@ -1,5 +1,5 @@
 import argparse, glob, os
-
+import rtm
 from rtm.datasets import remotap_preprocessing
 
 if __name__ == '__main__':
