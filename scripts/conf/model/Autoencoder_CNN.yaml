@@ -19,18 +19,57 @@ dropout_p: 0.0
 
 ############## define model components ################
 
+# encoder:
+#   _target_: rtm.dimensionality_reduction.RTCNNEncoder
+#   latent_dim: ${model.latent_dim}
+#   num_wavelengths: ${model.output_dim}
+#   kernel_size: 3
+#   num_layers: 3
+#   dropout: ${model.dropout_p}
+
 encoder:
-  _target_: rtm.dimensionality_reduction.RTCNNEncoder
+  _target_: rtm.dimensionality_reduction.RTBiGRUEncoder
   latent_dim: ${model.latent_dim}
   num_wavelengths: ${model.output_dim}
-  kernel_size: 3
-  num_layers: 3
-  dropout: ${model.dropout_p}
+  d_model: ${model.latent_dim}
+  num_layers: 2
+
+# encoder:
+#   _target_: rtm.dimensionality_reduction.ResNet1DEncoder
+#   latent_dim: ${model.latent_dim}
+#   input_channels: 1
+#   hidden_dim: 1
+#   num_blocks: 9
+#   stride: 2
+
+# decoder:
+#   _target_: rtm.dimensionality_reduction.RTCNNDecoder
+#   latent_dim: ${model.latent_dim}
+#   num_wavelengths: ${model.output_dim}
+#   kernel_size: 3
+#   num_layers: 3
+#   dropout: ${model.dropout_p}
+
+# decoder:
+#   _target_: rtm.dimensionality_reduction.ResNet1DDecoder
+#   latent_dim: ${model.latent_dim}
+#   num_wavelengths: ${model.output_dim}
+#   output_channels: 1
+#   hidden_dim: 1
+#   num_blocks: 9
+
+# decoder:
+#   _target_: rtm.dimensionality_reduction.MLPDecoder
+#   dec_dims: 
+#     - ${model.latent_dim}
+#     - 100
+#     - 200
+#     - 400
+#     - ${model.output_dim}
 
 decoder:
-  _target_: rtm.dimensionality_reduction.RTCNNDecoder
+  _target_: rtm.dimensionality_reduction.RTBiGRUDecoder
   latent_dim: ${model.latent_dim}
   num_wavelengths: ${model.output_dim}
-  kernel_size: 3
-  num_layers: 3
-  dropout: ${model.dropout_p}
+  d_model: ${model.latent_dim}
+  num_layers: 2

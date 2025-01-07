@@ -299,13 +299,15 @@ class MLPEncoder(Encoder):
 
     
 class ResNet1DEncoder(Encoder):
-    def __init__(self, input_channels, hidden_dim=64, latent_dim=256, num_blocks=4, **kwargs):
+    def __init__(self, input_channels, hidden_dim=64, latent_dim=256, num_blocks=4, stride=1, **kwargs):
         super().__init__(**kwargs)
 
         self._latent_dim = latent_dim
 
+        self.verbose = kwargs.get('verbose', False)
+
         # Initial convolutional layer to reduce the input channels and sequence length
-        self.initial_conv = nn.Conv1d(input_channels, hidden_dim, kernel_size=7, stride=2, padding=3)
+        self.initial_conv = nn.Conv1d(input_channels, hidden_dim, kernel_size=7, stride=stride, padding=3)
         self.initial_bn = nn.BatchNorm1d(hidden_dim)
 
         # Create a sequence of residual blocks
@@ -313,7 +315,7 @@ class ResNet1DEncoder(Encoder):
         in_channels = hidden_dim
 
         for _ in range(num_blocks):
-            self.res_blocks.append(layers.ResidualBlock1D(in_channels, in_channels * 2))
+            self.res_blocks.append(layers.ResidualBlock1D(in_channels, in_channels * 2, stride=stride))
             in_channels *= 2
 
         # Global average pooling gets rid of the remaining sequence length dimension
@@ -322,11 +324,25 @@ class ResNet1DEncoder(Encoder):
         self.fc = nn.Linear(in_channels, latent_dim)
 
     def forward(self, x):
-        x = F.relu(self.initial_bn(self.initial_conv(x)))
+        if self.verbose: print(f'Input shape: {x.shape}')
+
+        x = self.initial_conv(x.unsqueeze(1))
+
+        if self.verbose: print(f'Output shape after initial conv: {x.shape}')
+
+        x = F.relu(self.initial_bn(x))
+        if self.verbose: print(f'Output shape after initial batch norm: {x.shape}')
+
         for block in self.res_blocks:
             x = block(x)
+        if self.verbose: print(f'Output shape after residual blocks: {x.shape}')
+
         x = self.global_pool(x).squeeze(-1)  # Global average pooling to get latent representation
+        if self.verbose: print(f'Output shape after global pooling: {x.shape}')
+
         latent = self.fc(x)
+        if self.verbose: print(f'Latent shape: {latent.shape}')
+
         return latent
 
     
@@ -336,12 +352,14 @@ class RTCNNEncoder(Encoder):
                  num_wavelengths: int,
                  kernel_size: int = 3, 
                  num_layers: int = 1, 
-                 dropout: float = 0.0):
+                 dropout: float = 0.0,
+                 verbose: bool = False):
         super().__init__()
 
         self._latent_dim = latent_dim
         self._input_dim = num_wavelengths
         self.num_wavelengths = num_wavelengths
+        self.verbose = verbose
 
         # determine sequence length of the latent state
         self.latent_length = max(1, num_wavelengths // (2 ** num_layers))
@@ -360,7 +378,7 @@ class RTCNNEncoder(Encoder):
 
         for _ in range(num_layers):
             # channels are doubled every layer
-            out_channels = in_channels * 2
+            out_channels = in_channels #* 2
             conv_layers.append(
                 nn.Conv1d(
                     in_channels, 
@@ -386,16 +404,57 @@ class RTCNNEncoder(Encoder):
         # targets: [batch_size, num_wavelengths]
         batch_size = targets.size(0)
 
+        if self.verbose: print(f'Input shape: {targets.shape}')
+
         # make sure sequence length is multiple of 2^num_layers
         projected = self.adjustment_layer(targets).unsqueeze(1)  # Shape: [batch_size, 1, initial_length]
+
+        if self.verbose: print(f'Adjusted shape: {projected.shape}')
 
         # convolve the sequence using the convolutional layers
         output = self.conv_layers(projected)  # Shape: [batch_size, num_layers, latent_length]
 
+        if self.verbose: print(f'Output shape after convolutions: {output.shape}')
+
         # ensure latent state has the required dimensions
         output = self.latent_projection(output.reshape(batch_size, -1))  # Shape: [batch_size, latent_dim]
 
-        return output  
+        if self.verbose: print(f'Latent shape: {output.shape}')
+
+        return output 
+
+
+class RTBiGRUEncoder(Encoder):
+    def __init__(self, 
+                 latent_dim: int, 
+                 num_wavelengths: int, 
+                 d_model: int, 
+                 num_layers: int = 1, 
+                 dropout: float = 0.0):
+        super().__init__()
+        
+        self.d_model = d_model
+        self.num_wavelengths = num_wavelengths
+        self._latent_dim = latent_dim
+        
+        # Bidirectional GRU for the encoding process
+        self.gru = nn.GRU(input_size=1, hidden_size=d_model, num_layers=num_layers, 
+                          dropout=dropout, batch_first=True, bidirectional=True)
+        
+        # Linear layer to map the GRU output to latent state
+        # Output size should match the number of directions (2 * d_model for bidirectional)
+        self.output_layer = nn.Linear(d_model * 2, latent_dim)
+
+    def encode(self, input_sequence):
+        # Pass the input sequence through the Bidirectional GRU
+        gru_output, _ = self.gru(input_sequence.unsqueeze(-1))  # gru_output shape: [batch_size, num_wavelengths, 2 * d_model]
+
+        # Map the GRU output to the final radiance spectrum
+        latent_state = self.output_layer(gru_output[:, 0])  # Shape: [batch_size, latent_dim]
+
+        return latent_state  # Shape: [batch_size, latent_dim]
+
+ 
 
 
     
@@ -476,13 +535,15 @@ class RTCNNDecoder(Decoder):
                  num_wavelengths: int, 
                  kernel_size: int = 3, 
                  num_layers: int = 1, 
-                 dropout: float = 0.0):
+                 dropout: float = 0.0,
+                 verbose: bool = False):
         super().__init__()
 
         self._latent_dim = latent_dim
         self._output_dim = num_wavelengths
         self.num_wavelengths = num_wavelengths
-        self.num_filters = 2 ** num_layers
+        self.num_filters = 1 #2 ** num_layers
+        self.verbose = verbose
 
         # Initial linear layer to expand the latent state to a starting sequence length
         self.initial_length = max(4, num_wavelengths // (2 ** num_layers))  # Ensure a reasonable starting length
@@ -515,7 +576,7 @@ class RTCNNDecoder(Decoder):
 
         self.deconv_layers = nn.Sequential(*deconv_layers)
 
-        # Final convolutional layer to map to the exact number of wavelengths
+        # Final convolutional layer to map to a single channel
         self.final_layer = nn.Conv1d(in_channels, 1, kernel_size=1)
 
         # Linear adjustment to ensure the exact sequence length
@@ -525,47 +586,84 @@ class RTCNNDecoder(Decoder):
 
     def decode(self, latent_state):
 
+        if self.verbose: print(f'Latent state shape: {latent_state.shape}')
+
         # Project the latent state into an initial sequence with multiple channels
         batch_size = latent_state.size(0)
         projected = self.latent_projection(latent_state)  # Shape: [batch_size, num_filters * initial_length]
+
+        if self.verbose: print(f'Projected shape: {projected.shape}')
+
         # projected = projected.view(batch_size, -1, projected.size(-1) // (2 ** len(self.deconv_layers))) 
         projected = projected.view(batch_size, self.num_filters, self.initial_length)  # Shape: [batch_size, num_filters, initial_length]
+
+        if self.verbose: print(f'Projected shape: {projected.shape}')
 
         # Upsample the sequence using the deconvolutional layers
         output = self.deconv_layers(projected) 
 
+        if self.verbose: print(f'Output shape after convolutions: {output.shape}')
+
         output = self.final_layer(output).squeeze(1)  # Shape: [batch_size, 1, sequence_length]
+
+        if self.verbose: print(f'Output shape: {output.shape}')
 
         # Final 1D convolution to get a different channels and adjust via a linear size reshape to match num wavelengths exactly.
         output = self.adjustment_layer(output)
+
+        if self.verbose: print(f'Output shape after adjustment: {output.shape}')
 
         return output  
     
 
 class ResNet1DDecoder(Decoder):
-    def __init__(self, latent_dim, output_channels, hidden_dim=64, num_blocks=4):
+    def __init__(self, latent_dim, num_wavelengths, output_channels=1, hidden_dim=64, num_blocks=4, **kwargs):
         super().__init__()
 
         self._latent_dim = latent_dim
+        self.num_wavelengths = num_wavelengths
+
+        self.verbose = kwargs.get('verbose', False)
         
         self.fc = nn.Linear(latent_dim, hidden_dim * (2 ** num_blocks))
         self.res_blocks = nn.ModuleList()
         in_channels = hidden_dim * (2 ** num_blocks)
+
+        self.scale_factors = []
+        current_length = 1
 
         for _ in range(num_blocks):
             self.res_blocks.append(
                 layers.ResidualBlock1D(in_channels, in_channels // 2)
             )
             in_channels //= 2
+            
+            if current_length * 2 < num_wavelengths:
+                self.scale_factors.append(2)
+                current_length *= 2
+            else:
+                self.scale_factors.append(1)
 
         self.final_conv = nn.Conv1d(hidden_dim, output_channels, kernel_size=7, stride=1, padding=3)
 
     def forward(self, latent):
+        if self.verbose: print(f'Latent state shape: {latent.shape}')
+
         x = self.fc(latent).unsqueeze(-1)  # Shape: [batch_size, hidden_dim, 1]
-        for block in self.res_blocks:
-            x = F.interpolate(x, scale_factor=2, mode='linear', align_corners=False)
+        if self.verbose: print(f'Output shape after initial linear layer: {x.shape}')
+
+        for block, factor in zip(self.res_blocks, self.scale_factors):
+            x = F.interpolate(x, scale_factor=factor, mode='linear', align_corners=False)
             x = block(x)
-        output = self.final_conv(x)
+        if self.verbose: print(f'Output shape after residual blocks: {x.shape}')
+
+        # ensure the output has the correct sequence length
+        x = F.interpolate(x, size=self.num_wavelengths, mode='linear', align_corners=False)
+        if self.verbose: print(f'Output shape after final interpolation: {x.shape}')
+
+        output = self.final_conv(x).squeeze(1)
+        if self.verbose: print(f'Output shape after final convolution: {output.shape}')
+
         return output
 
 
@@ -614,7 +712,7 @@ class RTBiGRUDecoder(Decoder):
         return radiance_output.squeeze(-1)  # Shape: [batch_size, num_wavelengths]
 
 
-class RTransformerDecoder(Decoder):
+class RTTransformerDecoder(Decoder):
     def __init__(self, 
                  latent_dim: int, 
                  num_wavelengths, 
@@ -730,7 +828,8 @@ class ConvDecoder(Decoder):
 
 
 class AE(DimensionalityReduction):
-    def __init__(self, 
+    def __init__(self,
+                 output_dim: int,
                  encoder: Encoder, 
                  decoder: Decoder, 
                  lr: float = 0.01, 
@@ -743,12 +842,14 @@ class AE(DimensionalityReduction):
         assert self.encoder.latent_dim == self.decoder.latent_dim
         self._latent_dim = self.encoder.latent_dim
 
+        self.output_dim = output_dim
+
         self.lr = lr
         self.l2_reg = kwargs.get('l2_reg', 0)
         self.loss_scale = kwargs.get('loss_scale', 1.0)
         self.w_orthogonality = kwargs.get('w_orthogonality', 0.0)
 
-        self.register_buffer('id_input', torch.eye(encoder.input_dim))
+        self.register_buffer('id_input', torch.eye(self.output_dim))
         self.register_buffer('id_latent', torch.eye(self.latent_dim))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -779,12 +880,14 @@ class AE(DimensionalityReduction):
     def training_step(self, batch, batch_idx):
         loss = self.eval_step(batch)
         self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train/log-loss', torch.log(loss), on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
             
     def validation_step(self, batch, batch_idx):
         loss = self.eval_step(batch)
         self.log('val/loss', loss, on_epoch=True, logger=True)
+        self.log('val/log-loss', torch.log(loss), on_epoch=True, logger=True)
 
     def orthogonality_regularizer(self) -> torch.Tensor:
         f_enc = self.encoder.encode(self.id_input) # shape [input_dim, latent_dim]

@@ -7,10 +7,11 @@ command:
   - ${args_no_hyphens}
   - dataset=synthetic_remotap
   - model=Autoencoder_CNN
+  - model.latent_dim=128
   - model.l2_reg=4e-5
   - model.dropout_p=0.0
-  - dataloader.batch_size=256
-  - trainer.max_epochs=150
+  - dataloader.batch_size=64
+  - trainer.max_epochs=50
   - task=train+eval
   - task.save_predictions=true
   - task.load_best_model=true
@@ -25,4 +26,6 @@ parameters:
   seed:
     values: [0]
   model.lr:
-    values: [3e-6]
+    values: [1e-5]
+  model.latent_dim:
+    values: [26]

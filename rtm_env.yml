@@ -1,0 +1,54 @@
+name: sron_pytorch
+channels:
+  - defaults
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python>=3.10
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=11.8
+  - pytorch-lightning
+  - wandb
+  - hydra-core
+  - gpustat
+  - ipython
+  - ipykernel
+  - pytest
+  - numpy
+  - shapely
+  - matplotlib
+  - scipy
+  - isoweek
+  - nltk
+  - pylatexenc
+  - netcdf4
+  - pyhdf
+  - gzip
+  - jsonpickle
+  - pyarrow
+  - pillow
+  - pygrib
+  - pandas
+  - basemap
+  - scikit-learn
+  - simplekml
+  - brewer2mpl
+  - six
+  - seaborn
+  - cartopy
+  - python-magic
+  - tikzplotlib
+  - rclone
+  - xarray
+  - pip
+  - pip:
+    - nvector
+    - geog
+    - resource
+    - msgpack
+    - msgpack-numpy
+    - torch-pca
+    # - geo-py

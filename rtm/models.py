@@ -6,7 +6,6 @@ from typing import Callable, Union, List, Dict, Tuple, Optional
 import numpy as np
 
 from rtm import utils, layers
-from rtm.base_class import BaseRTM
 from rtm.dimensionality_reduction import DimensionalityReduction, Encoder, Decoder, PCA
 from rtm.utils import init_weights
 
@@ -254,6 +253,10 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
         #     utils.freeze_weights(self.output_dim_reduction)
 
         self.latent_loss = kwargs.get('latent_loss', False)
+
+    @property
+    def target_transform(self) -> utils.RTMTransform:
+        return self._target_transform
     
     @target_transform.setter
     def target_transform(self, target_transform: utils.RTMTransform):
