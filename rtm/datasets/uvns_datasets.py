@@ -127,9 +127,7 @@ class RTDataset(Dataset):
 
         if self.proxy is not None:
             proxy = self.proxy[idx]
-            if self.target_transform: # and not self.predict_difference:
-                # if difference is predicted, leave proxy as is so that 
-                # we can reconstruct the final outputs with it
+            if self.target_transform:
                 proxy = self.target_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
@@ -204,14 +202,14 @@ class RTDataset(Dataset):
         # make sure data is float64 to avoid precision issues when normalizing
         full_physics = full_physics.astype(np.float64)
 
-        # extract transmission spectra, if available
-        if 'transmission' in ds.data_vars:
-            transmission = ds['transmission'].data # shape (nobs, nwave)
-            transmission = transmission.astype(np.float64)
+        # extract proxy spectra, if available
+        if 'proxy' in ds.data_vars:
+            proxy = ds['proxy'].data # shape (nobs, nwave)
+            proxy = proxy.astype(np.float64)
         else:
-            transmission = None
+            proxy = None
         
-        return full_physics, transmission
+        return full_physics, proxy
     
     def _load_wavelengths(self, data_dir: str, prefix: str):
         # load wavelengths from spectra netcdf file

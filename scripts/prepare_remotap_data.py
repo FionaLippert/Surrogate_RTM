@@ -15,7 +15,13 @@ if __name__ == '__main__':
                         help='band name (NIR, SWIR1, or SWIR3)')
     parser.add_argument('--n_chunks', type=int, default=1,
                         help='number of chunks to load and combine')
+    parser.add_argument('--instrument', type=str, default='instr2_noise0',
+                        help='should be instr2_noise0 if both MAP and CO2I were simulated, otherwise instr1_noise0')
+    parser.add_argument('--postfix_proxy', type=str, default='proxy',
+                        help='postfix of the files containing proxy spectra')
     args = parser.parse_args()
+
+    gas_names = ['co2', 'ch4'] # for now co is left out because it is not present in the synthetic data
 
     if args.band == 'NIR':
         wl_range = (755, 773)
@@ -36,6 +42,8 @@ if __name__ == '__main__':
             # find chunk number
             chunk = f.split('_')[-1].split('-aux')[0]
             prefix = f'{args.prefix}_{chunk}'
+            prefix_proxy = f'{args.prefix}_{args.postfix_proxy}_{chunk}'
+
             print(f'Processing chunk {chunk}...')
         else:
             prefix = args.prefix
@@ -43,7 +51,9 @@ if __name__ == '__main__':
         remotap_preprocessing.prepare_data(args.target_dir, args.data_dir, 
                                         prefix=prefix, 
                                         wl_range=wl_range,
-                                        gas_names=['co2', 'ch4'])
+                                        gas_names=gas_names,
+                                        instrument=args.instrument,
+                                        prefix_proxy=prefix_proxy)
 
     if args.n_chunks > 1:
         remotap_preprocessing.combine_chunks(args.target_dir, 

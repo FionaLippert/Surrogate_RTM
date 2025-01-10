@@ -69,25 +69,36 @@ def prepare_data(target_dir: str,
                  prefix: str,
                  wl_range: Tuple[float, float],
                  gas_names: List[str] = ['co2', 'ch4'],
+                 instrument: str = 'instr2_noise0',
+                 prefix_proxy: str = None,
                 ):
     
     os.makedirs(target_dir, exist_ok=True)
 
-    # load pixel data and save to csv file
-    pixel_data = load_pixel_data(data_dir, prefix, gas_names)
-    pixel_data_to_netcdf(pixel_data, target_dir, prefix)
+    # load spectral data
+    spectral_data = load_spectra(data_dir, prefix, wl_range, 
+                                 instrument=instrument, 
+                                 prefix_proxy=prefix_proxy)
 
-    # load profile data and save to csv file
+    # load coordinates
+    coords = load_coords(data_dir, prefix, 
+                         instrument=instrument)
+
+    # load pixel data
+    pixel_data = load_pixel_data(data_dir, prefix, gas_names, 
+                                 instrument=instrument)
+    if 'proxy' in spectral_data:
+        # add proxy radiances as additional features
+        pixel_data['proxy'] = spectral_data['proxy']
+
+    # load profile data
     profile_data = load_profile_data(data_dir, prefix, gas_names)
-    profile_data_to_netcdf(profile_data, target_dir, prefix)
 
-    # load spectral data and save to csv files
-    spectral_data = load_spectra(data_dir, prefix, wl_range)
+    # save data to disk
     spectra_to_netcdf(spectral_data, target_dir, prefix)
-
-    # load coordinates and save to csv file
-    coords = load_coords(data_dir, prefix)
     coords_to_netcdf(coords, target_dir, prefix)
+    pixel_data_to_netcdf(pixel_data, target_dir, prefix)
+    profile_data_to_netcdf(profile_data, target_dir, prefix)
 
 
 def pixel_data_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
@@ -199,10 +210,11 @@ def spectra_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str, qu
 def load_pixel_data(data_dir: str,
                       prefix: str,
                       gas_names: List[str] = ['co2', 'ch4'],
+                      instrument: str = 'instr2_noise0',
                      ):
     # load pixel/surface properties that do not come as vertical profiles
     data = {}
-    data.update(load_geometry(data_dir, prefix))
+    data.update(load_geometry(data_dir, prefix, instrument))
     data.update(load_surface(data_dir, prefix, gas_names))
     data.update(load_state_vars(data_dir, prefix))
 
@@ -334,12 +346,13 @@ def load_state_vars(data_dir: str, prefix: str):
 
 
 def load_spectra(data_dir: str, prefix: str, wl_range: str, 
-                 postfix_transmission: str = 'transmission',
+                 prefix_proxy: str = None,
                  wavelength: bool = True,
                  instrument: str = 'instr2_noise0',):
 
     # load data from full-physics simulation
     fname = f'{prefix}_{instrument}.nc'
+
     ds = xr.open_dataset(osp.join(data_dir, fname))
 
     # find indices of wavelengths in specified range
@@ -354,13 +367,16 @@ def load_spectra(data_dir: str, prefix: str, wl_range: str,
     if wavelength:
         spectra['wavelength'] = ds['Wavelength'].data[wl_idx]
     
-    # data from non-scattering simulation (transmission only)
-    tr_fname = f'{prefix}_{postfix_transmission}_{instrument}.nc'
-    if osp.exists(osp.join(data_dir, tr_fname)):
-        tr_spectra = xr.open_dataset(osp.join(data_dir, tr_fname))
-        # get transmission spectra for specified wavelength range
-        spectra['transmission'] = tr_spectra['Radiance'].data[:, 0, wl_idx]
-    
+    if prefix_proxy is not None:
+        # add data from non-scattering, transmission, or single-scattering simulation
+        tr_fname = f'{prefix_proxy}_{instrument}.nc'
+        if osp.exists(osp.join(data_dir, tr_fname)):
+            tr_spectra = xr.open_dataset(osp.join(data_dir, tr_fname))
+            # get prior spectra for specified wavelength range
+            spectra['proxy'] = tr_spectra['Radiance'].data[:, 0, wl_idx]
+        else:
+            print(f'No proxy spectra found for {prefix_proxy}')
+        
     return spectra
     
 def load_wavelengths(data_dir: str, prefix: str, 

@@ -31,7 +31,7 @@ parameters:
     values: [1e-4] #[3e-4]
   # input latent dimension
   model.input_latent_dim:
-    values: [10, 20, 40, 80, 160, 320] #[20, 80, 320]
+    values: [10, 20, 40, 80, 160, 303] #[20, 80, 320]
   # number of layers
   model.forward_model.n_fc_layers:
-    values: [1, 2, 3, 4, 5]
+    values: [1, 2, 3, 4, 5, 6]
