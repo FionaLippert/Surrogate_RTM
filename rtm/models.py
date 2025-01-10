@@ -214,7 +214,7 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
         proxy = batch[self.proxy_quantity]
         outputs = self.forward(**batch)
 
-        outputs, targets = self.prepare_outputs(targets, proxy, outputs, batch)
+        outputs, targets = self.prepare_outputs(targets, proxy, outputs)
 
         self.outputs.append(outputs)
         self.targets.append(targets)
@@ -225,7 +225,7 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
         proxy = batch[self.proxy_quantity]
         outputs = self.forward(**batch)
 
-        outputs, targets = self.prepare_outputs(targets, proxy, outputs, batch)
+        outputs, targets = self.prepare_outputs(targets, proxy, outputs)
 
         return outputs, targets
 
@@ -236,6 +236,7 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
     def __init__(self, 
                  input_dim_reduction: Union[DimensionalityReduction, Encoder] = None, 
                  output_dim_reduction: Union[DimensionalityReduction, Decoder] = None,
+                 proxy_module: Optional[torch.nn.Module] = None,
                  nonlinearity: Optional[str] = None, 
                  **kwargs):
         super().__init__(**kwargs)
@@ -243,6 +244,9 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
         # model components
         self.input_dim_reduction = input_dim_reduction
         self.output_dim_reduction = output_dim_reduction
+        self.proxy_module = proxy_module
+
+        print(proxy_module)
 
         self.nonlinearity = getattr(F, nonlinearity) if nonlinearity else None
 
@@ -275,6 +279,11 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
             if isinstance(self.input_dim_reduction, Encoder) and self.nonlinearity:
                 inputs = self.nonlinearity(inputs)
 
+        if self.proxy_module:
+            # extract information from proxy spectra and append to other inputs
+            proxy = self.proxy_module(kwargs['proxy_targets'])
+            inputs = torch.cat([inputs, proxy], dim=-1)
+
         outputs = self.forward_model(inputs)
 
         # if neural network decoder, apply non-linearity before passing on to forward model
@@ -288,18 +297,22 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
     
     def eval_step(self, batch) -> torch.Tensor:
         targets = batch[self.target_quantity]
-        inputs = batch['inputs']
-        
-        if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
-            inputs = self.input_dim_reduction.encode(inputs)
 
-        outputs = self.forward_model(inputs)
+        outputs = self.forward(**batch)
+
+        # inputs = batch['inputs']
+        
+        # if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+        #     inputs = self.input_dim_reduction.encode(inputs)
+
+        # outputs = self.forward_model(inputs)
 
         if isinstance(self.output_dim_reduction, (DimensionalityReduction, Decoder)):
             if self.latent_loss:
                 targets = self.output_dim_reduction.encode(targets)
-            else:
-                outputs = self.output_dim_reduction.decode(outputs)
+                outputs = self.output_dim_reduction.encode(outputs)
+            # else:
+            #     outputs = self.output_dim_reduction.decode(outputs)
             
         loss = self.compute_loss(outputs, targets)
 
@@ -382,7 +395,7 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
         proxy = batch[self.proxy_quantity]
         outputs = self.forward(**batch)
 
-        outputs, targets = self.prepare_outputs(targets, proxy, outputs, batch)
+        outputs, targets = self.prepare_outputs(targets, proxy, outputs)
 
         self.outputs.append(outputs)
         self.targets.append(targets)
@@ -393,7 +406,7 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
         proxy = batch[self.proxy_quantity]
         outputs = self.forward(**batch)
 
-        outputs, targets = self.prepare_outputs(targets, proxy, outputs, batch)
+        outputs, targets = self.prepare_outputs(targets, proxy, outputs)
 
         return outputs, targets
 

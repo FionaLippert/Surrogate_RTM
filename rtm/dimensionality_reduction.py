@@ -45,6 +45,10 @@ class DimensionalityReduction(pl.LightningModule):
         return self._input_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """runs encoding and returns encoded input"""
+        raise NotImplementedError
+    
+    def encode_decode(self, x: torch.Tensor) -> torch.Tensor:
         """runs encoding and decoding and returns reconstructed input"""
         raise NotImplementedError
     
@@ -67,7 +71,7 @@ class DimensionalityReduction(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         """evaluate reconstruction performance"""
         data = batch[self.target_quantity]
-        reconstruction = self.forward(data)
+        reconstruction = self.encode_decode(data)
 
         data = data.detach().cpu()
         reconstruction = reconstruction.detach().cpu()
@@ -133,7 +137,7 @@ class DimensionalityReduction(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
         """reconstruct input and transform back to physical space"""
         data = batch[self.target_quantity]
-        reconstruction = self.forward(data)
+        reconstruction = self.encode_decode(data)
         
         data = data.detach().cpu()
         reconstruction = reconstruction.detach().cpu()
@@ -159,6 +163,10 @@ class PCA(DimensionalityReduction):
         self._input_dim = -1
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        z = self.encode(x)
+        return z
+    
+    def encode_decode(self, x: torch.Tensor) -> torch.Tensor:
         z = self.encode(x)
         x_hat = self.decode(z)
         return x_hat
