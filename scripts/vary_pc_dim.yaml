@@ -16,8 +16,8 @@ command:
   - task=train+eval
   - task.save_predictions=true
   - task.load_best_model=true
-  - logger.project=vary_input_pca_dim
-  - logger.group=default
+  - logger.project=RTM_vary_input_pca_dim
+  - logger.group=no_proxy
 method: grid
 metric:
   name: test/MAPE_continuum

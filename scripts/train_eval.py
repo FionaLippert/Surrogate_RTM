@@ -84,6 +84,27 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     # apply normalization based on training set statistics
     dataset.add_normalization(train_indices)
     dataset.add_transforms(*[utils.DoubleToFloat()]*3)
+
+    # save dataset as wandb artifact
+    data_artifact = wandb.Artifact(
+            "remotap_train_val", type="dataset",
+            description="Synthetic RemoTAP dataset, used for training and validation",
+            metadata={"source": "rtm.uvns_datasets.FlatRTDataset",
+                      "train_indices": train_indices,
+                      "val_indices": val_indices}
+    )
+    with data_artifact.new_file("training_dataset.pt", mode="wb") as file:
+        torch.save(dataset, file)
+    wandb.run.log_artifact(data_artifact)
+
+    transform_artifact = wandb.Artifact(
+            "transform", type="transform",
+            description="Transforms applied to the dataset"
+    )
+    for name, transf in zip(['pixel', 'profile', 'target'], dataset.get_transforms()):
+        with transform_artifact.new_file(f"{name}_transform.pt", mode="wb") as file:
+            torch.save(transf, file)
+    wandb.run.log_artifact(transform_artifact)
     
     # define function to convert model outputs to physical targets
     # def to_raw_targets(outputs, batch=None):
@@ -97,7 +118,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
                              batch_size=1, shuffle=False)
 
     # fit PCA to training data, if applicable
-    train_data = dataset[range(len(dataset))]
+    train_data = dataset[train_indices]
     device = utils.get_device(**cfg.device)
     if isinstance(getattr(model, 'input_dim_reduction', None), dimensionality_reduction.PCA):
         model.input_dim_reduction.fit(train_data['inputs'].to(device))
@@ -135,6 +156,16 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
 
         # make sure transforms (incl. normalization) are the same as for training
         dataset.set_transforms(*transforms)
+
+        # save dataset as wandb artifact
+        data_artifact = wandb.Artifact(
+                "remotap_test", type="dataset",
+                description="Synthetic RemoTAP dataset, used for final testing",
+                metadata={"source": "rtm.uvns_datasets.FlatRTDataset"}
+        )
+        with data_artifact.new_file("test_dataset.pt", mode="wb") as file:
+            torch.save(dataset, file)
+        wandb.run.log_artifact(data_artifact)
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, shuffle=False)
@@ -183,17 +214,37 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
 
     # save to csv
     eval_metrics = pd.DataFrame(eval_metrics)
-    fname = f'eval_metrics_{wandb.run.id}.csv'
-    eval_metrics.to_csv(osp.join(cfg.output_path, fname), index=False)
+    fp = osp.join(cfg.output_path, 'eval_metrics.csv')
+    eval_metrics.to_csv(fp, index=False)
+
+    # save as wandb artifact
+    evaluation = wandb.Artifact(
+            f'evaluation-{wandb.run.id}', type="evaluation",
+            description="Performance metrics per wavelength, evaluated on independent test set")
+    evaluation.add_file(fp)
+    wandb.run.log_artifact(evaluation)
+    
+
 
     if cfg.task.save_predictions:
         # save individual predictions
-        fname = f'predictions_{wandb.run.id}.npy'
-        np.save(osp.join(cfg.output_path, fname), outputs)
+        fp_outputs = osp.join(cfg.output_path, f'predictions.npy')
+        np.save(fp_outputs, outputs)
 
         # save ground truth
-        fname = f'targets_{wandb.run.id}.npy'
-        np.save(osp.join(cfg.output_path, fname), targets)
+        fp_targets = osp.join(cfg.output_path, f'targets.npy')
+        np.save(fp_targets, targets)
+
+        # save as wandb artifact
+        prediction = wandb.Artifact(
+            f'prediction-{wandb.run.id}', type="prediction",
+            description="Predicted spectra and corresponding targets")
+        prediction.add_file(fp_outputs)
+        prediction.add_file(fp_targets)
+        wandb.run.log_artifact(prediction)
+
+    # Save the artifact to W&B.
+    wandb.run.log_artifact(evaluation)
 
 
 
