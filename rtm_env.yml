@@ -1,4 +1,4 @@
-name: rtm_env
+name: rtm
 channels:
   - conda-forge
   - pytorch
@@ -7,7 +7,6 @@ dependencies:
   - python>=3.10
   - pytorch
   - torchvision
-  - torchaudio
   - pytorch-cuda=11.8
   - pytorch-lightning
   - wandb
@@ -17,7 +16,6 @@ dependencies:
   - ipykernel
   - pytest
   - numpy
-  - shapely
   - matplotlib
   - scipy
   - netcdf4

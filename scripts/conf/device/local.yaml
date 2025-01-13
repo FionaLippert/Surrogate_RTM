@@ -1,5 +1,6 @@
 # @package device
 name: local
 root: /nfs/Sentinel5/users/${oc.env:USER}/gitlab/surrogate_rtm
+data_root: /deos/fional/remotap/simulations/RemoTAP_FWD
 accelerator: gpu
 devices: 1

@@ -27,6 +27,8 @@ def run(cfg: DictConfig):
     # for reproducibility
     pl.seed_everything(cfg.seed, workers=True)
 
+    print('GPU available?', torch.cuda.is_available())
+
     # setup logger
     os.makedirs(cfg.result_path, exist_ok=True)
     os.makedirs(cfg.logger.save_dir, exist_ok=True)

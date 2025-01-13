@@ -1,0 +1,6 @@
+# @package device
+name: snellius
+root: ${oc.env:HOME}/SRON/surrogate_rtm
+data_root: /projects/0/prjs1294/data/remotap
+accelerator: gpu
+devices: 1
