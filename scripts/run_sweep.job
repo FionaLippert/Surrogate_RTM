@@ -9,12 +9,12 @@
 #SBATCH --time=8:00:00
 #SBATCH --output=slurm_output_%A_%a.out
 
+echo $PYTHONPATH
+
+export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
+
+echo $PYTHONPATH
+
+cd $HOME/SRON/surrogate_rtm/scripts
 source activate rtm_env
-
-echo $PWD
-
-which python
-
-nvidia-smi
-
 wandb agent $1

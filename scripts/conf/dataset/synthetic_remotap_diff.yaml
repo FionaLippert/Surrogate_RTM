@@ -1,5 +1,5 @@
 # @package dataset
-name: synthetic_remotap
+name: synthetic_remotap_diff
 _target_: rtm.datasets.uvns_datasets.FlatRTDataset
 
 # don't touch to ensure the same data split is used for all experiments
@@ -8,7 +8,7 @@ test_size: 0.2 # fraction of the dataset to be used for testing
 val_size: 0.1 # fraction of the training dataset to be used for validation
 
 # point to data files
-data_dir: /deos/fional/remotap/simulations/RemoTAP_FWD/s5_random_ensemble_1e5_only_CO2I/SWIR1_preprocessed/combined_nchunks=10
+data_dir: ${device.data_root}/s5_random_ensemble_1e5_only_CO2I/SWIR1_preprocessed
 prefix: syn_meas_s5_random_ensemble_1e5_only_CO2I_combined
 
 # define output quantity
@@ -35,7 +35,7 @@ pixel_features:
   - Log_Truth_Mode_AOT
   - Log_Truth_AOT
   # - Truth_Xbdrf_Wave # not available anymore in newest RemoTAP version
-  - Truth_Xbdrf_Wave_Geo
+  - Truth_Xbdrf_Geo
   - Truth_Xbdrf_Wave_Av
   - Truth_Xbdrf_Wave_Par
   - Log_Truth_Mode2_TAU550
@@ -59,4 +59,4 @@ target_transform:
   _target_: rtm.utils.RTMCompose
   transforms:
     - _target_: rtm.utils.NumpyToTensor
-    - _target_: rtm.utils.LogTransform
+    # - _target_: rtm.utils.LogTransform

@@ -1,0 +1,27 @@
+# @package model
+name: LatentNNSurrogateRTMDiff
+_target_: rtm.models.LatentNNSurrogateRTMDiff
+
+input_latent_dim: 167 # 99.9999% explained variance
+output_latent_dim: 35 # 99.9999% explained variance
+
+lr: 1e-3
+l2_reg: 4e-5
+dropout_p: 0.0
+
+# define model components
+input_dim_reduction:
+  _target_: rtm.dimensionality_reduction.PCA
+  n_components: ${model.input_latent_dim}
+
+output_dim_reduction:
+  _target_: rtm.dimensionality_reduction.PCA
+  n_components: ${model.output_latent_dim}
+
+forward_model:
+  _target_: rtm.models.MLP
+  n_in: ${model.input_latent_dim}
+  n_out: ${model.output_latent_dim}
+  n_hidden: 200
+  n_fc_layers: 2 
+  dropout_p: ${model.dropout_p}
