@@ -246,8 +246,6 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
         self.output_dim_reduction = output_dim_reduction
         self.proxy_module = proxy_module
 
-        print(proxy_module)
-
         self.nonlinearity = getattr(F, nonlinearity) if nonlinearity else None
 
         # # TODO: add option to freeze all but last layer? (for end-to-end fine-tuning)
