@@ -28,7 +28,8 @@ class RTDataset(Dataset):
                  target_transform: utils.RTMTransform = utils.NumpyToTensor(),
                  seed: int = 0,
                  train: bool = True,
-                 test_size: float = 0.2,
+                 test_size: float = 0.2, # TODO: explicitly define train/val/test split
+                #  split_sizes: Dict[str, float] = {'train': 0.7, 'val': 0.1, 'test': 0.2},
                  **kwargs
                  ):
         
