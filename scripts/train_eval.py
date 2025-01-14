@@ -13,7 +13,7 @@ from pytorch_lightning.loggers import WandbLogger
 import torch
 from torch.utils.data import SubsetRandomSampler, Subset
 
-from rtm import utils, dimensionality_reduction
+from rtm import utils, wandb_utils, dimensionality_reduction
 
 def join_paths(*paths: List[str]) -> str:
     return osp.join(*[str(p) for p in paths])
@@ -29,8 +29,9 @@ def run(cfg: DictConfig):
 
     print('GPU available?', torch.cuda.is_available())
 
-    # setup logger
+    # setup logging
     os.makedirs(cfg.result_path, exist_ok=True)
+    os.makedirs(cfg.data_path, exist_ok=True)
     os.makedirs(cfg.logger.save_dir, exist_ok=True)
     logger = instantiate(cfg.logger)
     cfg.output_path = logger.experiment.dir
@@ -76,41 +77,12 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
 
     if cfg.verbose:
         print('####### Start model training ########')
-
-    # get training data
-    dataset = instantiate(cfg.dataset, train=True)
-
-    # split training data into training and validation sets
-    train_indices, val_indices = dataset.get_data_split(cfg.dataset.val_size)
-
-    # apply normalization based on training set statistics
-    dataset.add_normalization(train_indices)
-    dataset.add_transforms(*[utils.DoubleToFloat()]*3)
-
-    # save dataset as wandb artifact
-    data_artifact = wandb.Artifact(
-            "remotap_train_val", type="dataset",
-            description="Synthetic RemoTAP dataset, used for training and validation",
-            metadata={"source": "rtm.uvns_datasets.FlatRTDataset",
-                      "train_indices": train_indices,
-                      "val_indices": val_indices}
-    )
-    with data_artifact.new_file("training_dataset.pt", mode="wb") as file:
-        torch.save(dataset, file)
-    wandb.run.log_artifact(data_artifact)
-
-    transform_artifact = wandb.Artifact(
-            "transform", type="transform",
-            description="Transforms applied to the dataset"
-    )
-    for name, transf in zip(['pixel', 'profile', 'target'], dataset.get_transforms()):
-        with transform_artifact.new_file(f"{name}_transform.pt", mode="wb") as file:
-            torch.save(transf, file)
-    wandb.run.log_artifact(transform_artifact)
     
-    # define function to convert model outputs to physical targets
-    # def to_raw_targets(outputs, batch=None):
-    #     return dataset.target_transform.inverse(outputs)
+    # get training data
+    dataset, train_indices, val_indices = wandb_utils.load_train_dataset_from_wandb(
+        wandb.run, cfg.dataset, cfg.data_path)
+
+    # set function to convert model outputs to physical targets
     model.target_transform = dataset.target_transform
 
     # setup data loaders
@@ -154,30 +126,14 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
 
     if cfg.task.final_eval:
         # get test data
-        dataset = instantiate(cfg.dataset, train=False)
-
-        # make sure transforms (incl. normalization) are the same as for training
-        dataset.set_transforms(*transforms)
-
-        # save dataset as wandb artifact
-        data_artifact = wandb.Artifact(
-                "remotap_test", type="dataset",
-                description="Synthetic RemoTAP dataset, used for final testing",
-                metadata={"source": "rtm.uvns_datasets.FlatRTDataset"}
-        )
-        with data_artifact.new_file("test_dataset.pt", mode="wb") as file:
-            torch.save(dataset, file)
-        wandb.run.log_artifact(data_artifact)
+        dataset = wandb_utils.load_test_dataset_from_wandb(wandb.run, cfg.dataset, cfg.data_path, transforms)
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, shuffle=False)
     else:
         # get validation data
-        dataset = instantiate(cfg.dataset, train=True)
-        _, val_indices = dataset.get_data_split(cfg.dataset.val_size)
-        
-        # make sure transforms (incl. normalization) are the same as for training
-        dataset.set_transforms(*transforms)
+        dataset, train_indices, val_indices = wandb_utils.load_train_dataset_from_wandb(
+            wandb.run, cfg.dataset, cfg.data_path)
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 

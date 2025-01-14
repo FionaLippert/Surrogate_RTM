@@ -14,3 +14,6 @@ verbose: True
 result_dir: results
 result_path: ${join_paths:${device.root},${result_dir},${logger.project},${logger.group}}
 output_path: null
+
+# define place to save pytorch datasets to
+data_path: ${join_paths:${device.root},data}
