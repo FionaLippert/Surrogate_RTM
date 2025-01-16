@@ -193,16 +193,19 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         fp_targets = osp.join(cfg.output_path, f'targets.npy')
         np.save(fp_targets, targets)
 
+        # save corresponding wavelengths
+        fp_wavelengths = osp.join(cfg.output_path, 'wavelengths.npy')
+        np.save(fp_wavelengths, dataset.wavelengths)
+
         # save as wandb artifact
         prediction = wandb.Artifact(
             f'prediction-{wandb.run.id}', type="prediction",
             description="Predicted spectra and corresponding targets")
         prediction.add_file(fp_outputs)
         prediction.add_file(fp_targets)
+        prediction.add_file(fp_wavelengths)
         wandb.run.log_artifact(prediction)
 
-    # Save the artifact to W&B.
-    wandb.run.log_artifact(evaluation)
 
 
 

@@ -1,18 +1,18 @@
 # @package model
-name: LatentNNSurrogateRTM
+name: LatentNNSurrogateRTM_MLPEncoder_PCA
 _target_: rtm.models.LatentNNSurrogateRTM
 
 
 input_dim: ${dataset.input_dim} # all features
 output_dim: ${dataset.output_dim} # all wavelengths
 
-input_latent_dim: 320 # all features
+input_latent_dim: ${dataset.input_dim} # all features
 output_latent_dim: 26 # 99.9999% explained variance
 
 # nonlinearity used after the encoder and before the decoder
 nonlinearity: null
 
-lr: 1e-3
+lr: 1e-4
 l2_reg: 4e-5
 dropout_p: 0.0
 
@@ -29,7 +29,6 @@ input_dim_reduction:
   enc_dims: 
     - ${model.input_dim}
     - ${model.input_latent_dim}
-    # - ${model.input_latent_dim}
   noise_level: 0.0
   dropout_p: ${model.dropout_p}
   bias: true
@@ -43,7 +42,7 @@ forward_model:
   _target_: rtm.models.MLP_v2
   n_in: ${model.input_latent_dim}
   n_out: ${model.output_latent_dim}
-  n_hidden: 200
-  n_fc_layers: 2 
+  n_hidden: 128
+  n_fc_layers: 5
   dropout_p: ${model.dropout_p}
   nonlinearity: relu

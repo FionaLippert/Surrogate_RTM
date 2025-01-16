@@ -24,13 +24,13 @@ def prepare_train_dataset(dataset_cfg: DictConfig):
     return dataset, train_indices, val_indices
 
 def prepare_test_dataset(dataset_cfg: DictConfig, 
-                      transforms: Optional[List[utils.RTMTransform]] = [None, None, None]):
+                      transforms: Optional[List[utils.RTMTransform]] = None):
 
     # get test data
     dataset = instantiate(dataset_cfg, train=False)
 
     # apply transforms (if provided)
-    dataset.set_transforms(*transforms)
+    if transforms: dataset.set_transforms(*transforms)
 
     return dataset
 
@@ -46,9 +46,9 @@ def load_train_dataset_from_wandb(run, dataset_cfg: OmegaConf, data_path: Option
 
         print(f'Downloaded data to {dataset_path}')
 
-        dataset = torch.load(os.path.join(dataset_path, 'train_dataset.pt'))
-        train_indices = torch.load(os.path.join(dataset_path, 'train_indices.pt'))
-        val_indices = torch.load(os.path.join(dataset_path, 'val_indices.pt'))
+        dataset = torch.load(os.path.join(dataset_path, 'train_dataset.pt'), weights_only=False)
+        train_indices = torch.load(os.path.join(dataset_path, 'train_indices.pt'), weights_only=False)
+        val_indices = torch.load(os.path.join(dataset_path, 'val_indices.pt'), weights_only=False)
 
         print(f'Training data successfully loaded from project {wandb.run.project}')
     except:
@@ -61,7 +61,7 @@ def load_train_dataset_from_wandb(run, dataset_cfg: OmegaConf, data_path: Option
 def load_test_dataset_from_wandb(run, 
                                  dataset_cfg: OmegaConf, 
                                  data_path: Optional[str] = None, 
-                                 transforms: Optional[List[utils.RTMTransform]] = [None, None, None]):
+                                 transforms: Optional[List[utils.RTMTransform]] = None):
 
     # TODO: also allow for simply loading the dataset from disk
     try:
@@ -72,11 +72,16 @@ def load_test_dataset_from_wandb(run,
 
         print(f'Downloaded data to {dataset_path}')
 
-        dataset = torch.load(os.path.join(dataset_path, 'test_dataset.pt'))
+        dataset = torch.load(os.path.join(dataset_path, 'test_dataset.pt'), weights_only=False)
 
         print(f'Test data successfully loaded from project {wandb.run.project}')
     except:
         # if not, load and normalize dataset from scratch
+        if transforms is None:
+            # first determine transforms based on training data
+            train_dataset, _, _ = prepare_train_dataset(dataset_cfg)
+            transforms = train_dataset.get_transforms()
+        
         dataset = prepare_test_dataset(dataset_cfg, transforms=transforms)
 
     return dataset

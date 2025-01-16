@@ -26,7 +26,7 @@ metric:
 parameters:
   # random seed
   seed:
-    values: [0] #[0, 1, 2] # [0, 1, 2]
+    values: [0\] #[0, 1, 2] # [0, 1, 2]
   # learning rate
   model.lr:
     values: [1e-4] #[3e-4]

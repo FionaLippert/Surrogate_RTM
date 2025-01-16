@@ -35,6 +35,6 @@ forward_model:
   n_in: ${model.input_latent_dim}
   n_out: ${model.output_latent_dim}
   n_hidden: 128
-  n_fc_layers: 4 
+  n_fc_layers: 5
   dropout_p: ${model.dropout_p}
   nonlinearity: relu

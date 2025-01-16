@@ -2,7 +2,9 @@
 scripts/outputs/
 scripts/multirun/
 scripts/wandb/
+scripts/slurm_output_*
 results/
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
