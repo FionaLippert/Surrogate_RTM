@@ -2,10 +2,46 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Union, List, Dict, Tuple, Callable
+from typing import Union, List, Dict, Tuple, Callable, Optional
 
 from rtm import utils
 from rtm.utils import init_weights
+
+
+class Embedding(nn.Embedding):
+    """
+    nn.Embedding with custom initialization
+    """
+    def __init__(self, 
+                 num_embeddings: int, 
+                 embedding_dim: int, 
+                 padding_idx: Optional[int] = None, 
+                 **kwargs):
+        super().__init__(num_embeddings, 
+                         embedding_dim, 
+                         padding_idx=padding_idx, 
+                         **kwargs)
+        nn.init.normal_(self.weight, mean=0, std=embedding_dim**-0.5)
+        nn.init.constant_(self.weight[padding_idx], 0)
+
+
+class Linear(nn.Linear):
+    """
+    nn.Linear with custom initialization
+    """
+    def __init__(self, 
+                 in_features: int, 
+                 out_features: int, 
+                 bias: bool = True, 
+                 **kwargs):
+        super().__init__(in_features, 
+                         out_features, 
+                         bias=bias, 
+                         **kwargs)
+        nn.init.xavier_uniform_(self.weight)
+        if bias:
+            nn.init.constant_(self.bias, 0.0)
+
 
 
 class MLP(torch.nn.Module):
@@ -231,7 +267,7 @@ class MLPDecoder(Decoder):
 ##################################################
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, num_wavelengths, dropout=0.1):
+    def __init__(self, d_model, num_wavelengths, dropout=0.0):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -254,7 +290,7 @@ class PositionalEncoding(nn.Module):
 ##################################################
 
 class ResidualBlock1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, dropout_p=0.0):
         super().__init__()
 
         padding = (kernel_size - 1) // 2  # To maintain the same sequence length after the convolution
@@ -262,7 +298,10 @@ class ResidualBlock1D(nn.Module):
         self.bn1 = nn.BatchNorm1d(out_channels)
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=padding)
         self.bn2 = nn.BatchNorm1d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
+
+        # TODO: identify correct position to place dropout within the residual block
+        # self.droupout = nn.Dropout(p=dropout_p)
         
         if stride > 1 or in_channels != out_channels:
             # reduce channels and/or sequence length

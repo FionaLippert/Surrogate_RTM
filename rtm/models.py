@@ -30,6 +30,10 @@ class SurrogateRTM(pl.LightningModule):
     @property
     def target_transform(self) -> utils.RTMTransform:
         return self._target_transform
+    
+    @target_transform.setter
+    def target_transform(self, target_transform: utils.RTMTransform):
+        self._target_transform = target_transform
 
     def forward(self, **input_kwargs) -> torch.Tensor:
         """runs RTM prediction"""
@@ -263,8 +267,6 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
     @target_transform.setter
     def target_transform(self, target_transform: utils.RTMTransform):
         self._target_transform = target_transform
-        if hasattr(self.input_dim_reduction, 'target_transform'):
-            self.input_dim_reduction.target_transform = target_transform
         if hasattr(self.output_dim_reduction, 'target_transform'):
             self.output_dim_reduction.target_transform = target_transform
     
@@ -407,6 +409,61 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
         outputs, targets = self.prepare_outputs(targets, proxy, outputs)
 
         return outputs, targets
+    
+
+class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
+    def __init__(self, 
+                 input_dim_reduction: Union[DimensionalityReduction, Encoder] = None, 
+                 **kwargs):
+        super().__init__(**kwargs)
+
+        self.input_dim_reduction = input_dim_reduction
+
+
+    def forward(self, inputs, **kwargs) -> torch.Tensor:
+
+        if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+            inputs = self.input_dim_reduction.encode(inputs)
+
+        # inputs have shape [batch_size, n_features]
+        # proxy targets have shape [batch_size, n_wavelengths]
+        # expand inputs and add them as additional channels to proxy spectra
+        proxy = kwargs[self.proxy_quantity]
+        inputs = inputs.unsqueeze(-1).expand(-1, -1, proxy.shape[-1])
+        inputs = torch.cat([inputs, proxy.unsqueeze(1)], dim=1)
+
+        # forward model works on a sequence of shape (batch_size, n_channels, n_wavelengths)
+        outputs = self.forward_model(inputs).reshape(proxy.shape)
+
+        return outputs
+    
+    
+    def on_save_checkpoint(self, checkpoint):
+        # save additional objects to checkpoint 
+        if isinstance(self.input_dim_reduction, PCA):
+            checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
+        checkpoint['target_transform'] = self.target_transform
+    
+    def on_load_checkpoint(self, checkpoint):
+        print(f'Loading model state on device {self.device}...')
+        self.load_model_state(checkpoint, map_location=self.device)
+        
+    def load_model_state(self, checkpoint, map_location=None):
+        self.load_state_dict(checkpoint['state_dict'])
+
+        if isinstance(self.input_dim_reduction, PCA):
+            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
+            
+        self.target_transform = checkpoint['target_transform']
+
+        # make sure everything is on the same device
+        self.to(map_location)
+
+    def _apply(self, convert):
+        if isinstance(self.input_dim_reduction, PCA):
+            self.input_dim_reduction._apply(convert)
+        
+        return super()._apply(convert)
 
 
 
@@ -432,6 +489,39 @@ class HybridRTM(torch.nn.Module):
 
         return output
     
+
+class ResNet1D(torch.nn.Module):
+    def __init__(self, n_channels: List[int], n_out: int = 1, kernel_size: int = 3, stride: int = 1, **kwargs):
+        super().__init__()
+
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_channels = kwargs.get('n_fc_layers', 1)
+
+        self.layers = nn.ModuleList([
+            layers.ResidualBlock1D(n_channels[i], n_channels[i+1], 
+                                   kernel_size=kernel_size, stride=stride, 
+                                   dropout_p=self.dropout_p)
+                                   for i in range(len(n_channels) - 1)
+        ])
+        self.fc_out = torch.nn.Linear(n_channels[-1], n_out)
+
+    #     self.reset_parameters()
+
+    # def reset_parameters(self):
+
+    #     self.fc_hidden.apply(init_weights)
+    #     init_weights(self.fc_in)
+    #     init_weights(self.fc_out)
+
+    def forward(self, x):
+
+        for layer in self.layers:
+            x = layer(x)
+            x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+        x = self.fc_out(x.permute(0, 2, 1)).permute(0, 2, 1)
+
+        return x
 
 
 class MLP(torch.nn.Module):

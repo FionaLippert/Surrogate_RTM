@@ -1,0 +1,35 @@
+# @package model
+name: SequenceNNSurrogateRTMDiff
+_target_: rtm.models.SequenceNNSurrogateRTMDiff
+
+
+input_dim: ${dataset.input_dim} # all features
+output_dim: ${dataset.output_dim} # all wavelengths
+
+# input_latent_dim: ${dataset.input_dim} # all features
+input_latent_dim: 64
+
+
+lr: 1e-4
+l2_reg: 4e-5
+dropout_p: 0.0
+
+loss_terms:
+  - _target_: rtm.loss.WeightedMSE
+    weight: 1.0
+
+input_dim_reduction:
+  _target_: rtm.dimensionality_reduction.PCA
+  n_components: ${model.input_latent_dim}
+
+
+forward_model:
+  _target_: rtm.models.ResNet1D
+  n_channels: 
+    - ${add_values:${model.input_latent_dim},1}
+    - 32
+    - 16
+  n_out: 1
+  kernel_size: 3
+  stride: 1
+  dropout_p: ${model.dropout_p}

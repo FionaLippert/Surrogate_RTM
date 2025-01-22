@@ -81,6 +81,9 @@ def load_test_dataset_from_wandb(run,
             # first determine transforms based on training data
             train_dataset, _, _ = prepare_train_dataset(dataset_cfg)
             transforms = train_dataset.get_transforms()
+
+        print(f'Test data could not be loaded from project {wandb.run.project}')
+        print(f'Preparing dataset from scratch...')
         
         dataset = prepare_test_dataset(dataset_cfg, transforms=transforms)
 
