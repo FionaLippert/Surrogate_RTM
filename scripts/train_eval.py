@@ -15,10 +15,13 @@ from torch.utils.data import SubsetRandomSampler, Subset
 
 from rtm import utils, wandb_utils, dimensionality_reduction
 
-def join_paths(*paths: List[str]) -> str:
+def join_paths(*paths):
     return osp.join(*[str(p) for p in paths])
+def add_values(*values):
+    return sum(values)
 
 OmegaConf.register_new_resolver("join_paths", join_paths)
+OmegaConf.register_new_resolver("add_values", add_values)
 
 # main entry point
 @hydra.main(config_path="conf", config_name="config")
