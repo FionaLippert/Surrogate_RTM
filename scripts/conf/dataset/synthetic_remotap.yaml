@@ -39,7 +39,7 @@ pixel_features:
   - Truth_Xbdrf_Geo
   - Truth_Xbdrf_Wave_Av
   - Truth_Xbdrf_Wave_Par
-  - Log_Truth_Mode2_TAU550
+  - Log_Truth_Mode1_TAU550
   - Log_Truth_Mode2_TAU550
   - Truth_Mode2_Xalt
   - Truth_Mode1_Aerosol_Pars

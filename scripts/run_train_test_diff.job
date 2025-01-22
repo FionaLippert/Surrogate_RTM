@@ -17,4 +17,4 @@ source activate rtm_env
 
 nvidia-smi
 
-srun python train_eval.py device=snellius dataset=synthetic_remotap_diff model=LatentNNSurrogateRTMDiff logger.project=rtm_synthetic_remotap task.final_eval=true task.save_predictions=true seed=2
+srun python train_eval.py device=snellius dataset=synthetic_remotap_diff model=LatentNNSurrogateRTMDiff logger.project=rtm_synthetic_remotap task.final_eval=true task.save_predictions=true seed=0
