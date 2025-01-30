@@ -1,0 +1,39 @@
+program: train_eval.py
+name: test
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - device=snellius
+  - dataset=synthetic_remotap
+  - model=SequenceNNSurrogateRTM
+  - dataloader.batch_size=256
+  - trainer.max_epochs=200
+  - task=train+eval
+  - task.save_predictions=false
+  - task.load_best_model=true
+  - task.final_eval=false
+  - logger.project=compare_sequence_models
+  - logger.group=direct_without_proxy_inputs
+method: grid
+metric:
+  name: test/MAPE_continuum
+  goal: minimize
+parameters:
+  # random seed
+  seed:
+    values: [0]
+  # learning rate
+  model.lr:
+    values: [1e-4]
+  # input latent dimension
+  model.input_latent_dim:
+    values: [32, 64, 128]
+  model.forward_model.num_layers:
+    values: [1, 2, 3]
+  # number of attention heads (must be factor of d_model)
+  model.forward_model.nhead:
+    values: [4] #[1, 2, 4]
+  # model.forward_model.dim_feedforward:
+  #   values: [32, 64, 128, 256]

@@ -1,0 +1,11 @@
+# @package task
+name: eval
+
+# save predictions?
+save_predictions: true
+
+# final evaluation on test set?
+final_eval: true
+
+# use best instead of last model for evaluation and prediction?
+load_best_model: false
