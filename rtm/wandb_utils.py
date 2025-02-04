@@ -53,6 +53,9 @@ def load_train_dataset_from_wandb(run, dataset_cfg: OmegaConf, data_path: Option
         print(f'Training data successfully loaded from project {wandb.run.project}')
     except:
         # if not, load and normalize dataset from scratch
+        print(f'Training data could not be loaded from project {wandb.run.project}')
+        print(f'Preparing dataset from scratch...')
+
         dataset, train_indices, val_indices = prepare_train_dataset(dataset_cfg)
 
     return dataset, train_indices, val_indices

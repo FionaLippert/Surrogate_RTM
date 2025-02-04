@@ -96,6 +96,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
 
     # set function to convert model outputs to physical targets
     model.target_transform = dataset.target_transform
+    model.proxy_transform = dataset.proxy_transform
 
     # setup data loaders
     train_loader = instantiate(cfg.dataloader, dataset, 
@@ -154,6 +155,7 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
     # set transform if untrained model
     if not trained:
         model.target_transform = dataset.target_transform
+        model.proxy_transform = dataset.proxy_transform
 
     # evaluate model
     kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}

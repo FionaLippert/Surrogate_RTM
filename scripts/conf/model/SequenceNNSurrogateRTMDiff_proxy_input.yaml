@@ -49,32 +49,33 @@ proxy_module:
   dropout_p: ${model.dropout_p}
   nonlinearity: relu
 
+input_processing: null
 
 pos_encoding:
   _target_: rtm.layers.PositionalEncoding
-  d_model: ${model.input_latent_dim}
+  d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
   num_wavelengths: ${dataset.output_dim}
 
 
 # forward_model:
-#   _target_: rtm.models.ResNet1D
-#   n_channels: 
-#     - ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
-#     - 64
-#     - 64
-#     - 32
-#   n_out: 1
-#   kernel_size: 3
-#   stride: 1
+#   _target_: rtm.models.Transformer
+#   num_layers: 2
+#   d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+#   d_out: 1
+#   nhead: 1
+#   dim_feedforward: ${multiply_values:${model.forward_model.d_model},2} #32
 #   dropout_p: ${model.dropout_p}
 
 forward_model:
-  _target_: rtm.models.Transformer
-  num_layers: 2
-  d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
-  d_out: 1
-  nhead: 2 
-  dim_feedforward: ${multiply_values:${model.forward_model.d_model},2} #32
+  _target_: rtm.models.ResNet1D
+  n_channels: 
+    - ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+    - 128
+    - 64
+    - 32
+  n_out: 1
+  kernel_size: 3
+  stride: 1
   dropout_p: ${model.dropout_p}
 
 lr: 1e-4
