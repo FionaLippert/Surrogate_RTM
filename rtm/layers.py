@@ -282,6 +282,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pos_encoding', encoding.unsqueeze(0)) # Shape: [1, num_wavelengths, d_model]
 
     def forward(self, x):
+
         return self.dropout(x + self.pos_encoding)
     
 

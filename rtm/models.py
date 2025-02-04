@@ -16,6 +16,7 @@ class SurrogateRTM(pl.LightningModule):
                  target_quantity: str = 'targets',
                  proxy_quantity: str = 'proxy_targets',
                  target_transform: utils.RTMTransform = None,
+                 proxy_transform: utils.RTMTransform = None,
                  eval_scale: torch.Tensor = None, 
                  **kwargs):
 
@@ -24,6 +25,7 @@ class SurrogateRTM(pl.LightningModule):
         self.target_quantity = target_quantity
         self.proxy_quantity = proxy_quantity
         self._target_transform = target_transform
+        self._proxy_transform = proxy_transform
         self.eval_scale = eval_scale
 
         self.save_hyperparameters(ignore=['forward_model', 
@@ -37,6 +39,14 @@ class SurrogateRTM(pl.LightningModule):
     @target_transform.setter
     def target_transform(self, target_transform: utils.RTMTransform):
         self._target_transform = target_transform
+
+    @property
+    def proxy_transform(self) -> utils.RTMTransform:
+        return self._proxy_transform
+    
+    @proxy_transform.setter
+    def proxy_transform(self, proxy_transform: utils.RTMTransform):
+        self._proxy_transform = proxy_transform
 
     def forward(self, **input_kwargs) -> torch.Tensor:
         """runs RTM prediction"""
@@ -215,12 +225,15 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
         if self.target_transform:
             # undo normalization and transforms
             targets = self.target_transform.inverse(targets)
-            proxy = self.target_transform.inverse(proxy)
             outputs = self.target_transform.inverse(outputs)
         else:
             targets = targets.numpy()
-            proxy = proxy.numpy()
             outputs = outputs.numpy()
+
+        if self.proxy_transform:
+            proxy = self.proxy_transform.inverse(proxy)
+        else:
+            proxy = proxy.numpy()
 
         # compute actual spectra
         outputs = proxy + outputs
@@ -377,6 +390,14 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    # @property
+    # def proxy_transform(self) -> utils.RTMTransform:
+    #     return self._proxy_transform
+    
+    # @proxy_transform.setter
+    # def proxy_transform(self, proxy_transform: utils.RTMTransform):
+    #     self._proxy_transform = proxy_transform
+
     def prepare_outputs(self, 
                         targets: torch.Tensor, 
                         proxy: torch.Tensor, 
@@ -390,12 +411,15 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
         if self.target_transform:
             # undo normalization and transforms
             targets = self.target_transform.inverse(targets)
-            proxy = self.target_transform.inverse(proxy)
             outputs = self.target_transform.inverse(outputs)
         else:
             targets = targets.numpy()
-            proxy = proxy.numpy()
             outputs = outputs.numpy()
+
+        if self.proxy_transform:
+            proxy = self.proxy_transform.inverse(proxy)
+        else:
+            proxy = proxy.numpy()
 
         # compute actual spectra
         outputs = proxy + outputs
@@ -517,6 +541,7 @@ class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
         if isinstance(self.input_dim_reduction, PCA):
             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
         checkpoint['target_transform'] = self.target_transform
+        checkpoint['proxy_transform'] = self.proxy_transform
     
     def on_load_checkpoint(self, checkpoint):
         print(f'Loading model state on device {self.device}...')
@@ -529,6 +554,7 @@ class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
             
         self.target_transform = checkpoint['target_transform']
+        self.proxy_transform = checkpoint['proxy_transform']
 
         # make sure everything is on the same device
         self.to(map_location)

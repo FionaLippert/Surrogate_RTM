@@ -14,4 +14,4 @@ export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
 cd $HOME/SRON/surrogate_rtm/scripts
 source activate rtm_env
 
-srun python prepare_data.py device=snellius dataset=synthetic_remotap logger.project=test_sequence_models
+srun python prepare_data.py device=snellius dataset=synthetic_remotap_diff logger.project=test_sequence_models

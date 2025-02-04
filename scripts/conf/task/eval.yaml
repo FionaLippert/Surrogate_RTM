@@ -9,3 +9,5 @@ final_eval: true
 
 # use best instead of last model for evaluation and prediction?
 load_best_model: false
+
+model_path: null
