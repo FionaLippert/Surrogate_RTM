@@ -131,11 +131,15 @@ class RTDataset(Dataset):
             x_pixels = self.pixel_data[idx]
             if self.pixel_transform:
                 x_pixels = self.pixel_transform(x_pixels)
+        else:
+            x_pixels = None
 
         if self.profile_data is not None:
             x_profiles = self.profile_data[idx]
             if self.profile_transform:
                 x_profiles = self.profile_transform(x_profiles)
+        else:
+            x_profiles = None
 
         
         y = self.targets[idx]
@@ -385,11 +389,14 @@ class FlatRTDataset(RTDataset):
     
     def __getitem__(self, idx: int):
 
-        x = self.pixel_data[idx]
-        y = self.targets[idx]
+        if self.pixel_data is not None:
+            x = self.pixel_data[idx]
+            if self.pixel_transform:
+                x = self.pixel_transform(x)
+        else:
+            x = None
 
-        if self.pixel_transform:
-            x = self.pixel_transform(x)
+        y = self.targets[idx]
         if self.target_transform:
             y = self.target_transform(y)
 
@@ -401,8 +408,8 @@ class FlatRTDataset(RTDataset):
 
         if self.proxy is not None:
             proxy = self.proxy[idx]
-            if self.target_transform:
-                proxy = self.target_transform(proxy)
+            if self.proxy_transform:
+                proxy = self.proxy_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
         return data_dict

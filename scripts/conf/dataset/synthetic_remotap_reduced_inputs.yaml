@@ -67,3 +67,10 @@ target_transform:
   transforms:
     - _target_: rtm.utils.NumpyToTensor
     - _target_: rtm.utils.LogTransform
+
+# transforms for proxy input spectra
+proxy_transform:
+  _target_: rtm.utils.RTMCompose
+  transforms:
+    - _target_: rtm.utils.NumpyToTensor
+    # - _target_: rtm.utils.LogTransform
