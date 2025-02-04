@@ -63,9 +63,10 @@ def run(cfg: DictConfig):
     model = instantiate(cfg.model)
 
     # optional: load pretrained model weights
-    if cfg.model.get('model_path', None) is not None:
-        path_to_model = wandb.use_model(cfg.model.model_path)
-        model.load_state_dict(torch.load(path_to_model))
+    if cfg.task.get('model_path', None) is not None:
+        # path_to_model = wandb.use_model(cfg.task.model_path)
+        # model.load_state_dict(torch.load(path_to_model))
+        model.load_state_dict(torch.load(cfg.task.model_path)['state_dict'])
 
     if 'train' in cfg.task.name:
         transforms = train(trainer, model, cfg)
