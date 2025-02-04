@@ -39,11 +39,29 @@ pixel_features:
   - Truth_Xbdrf_Geo
   - Truth_Xbdrf_Wave_Av
   - Truth_Xbdrf_Wave_Par
-  - Log_Truth_Mode2_TAU550
+  - Log_Truth_Mode1_TAU550
   - Log_Truth_Mode2_TAU550
   - Truth_Mode2_Xalt
   - Truth_Mode1_Aerosol_Pars
   - Truth_Mode2_Aerosol_Pars
+  # new vars
+  # - Truth_Mode1_Aerosol_Pars_Abovecld
+  # - Truth_Mode2_Aerosol_Pars_Abovecld
+  # - Truth_Mode1_TAU550_Abovecld
+  # - Truth_Mode2_TAU550_Abovecld
+  # - Truth_Mode1_Mr
+  # - Truth_Mode2_Mr
+  # - Truth_Mode1_Mi
+  # - Truth_Mode2_Mi
+  # - Truth_Mode1_Aerosol_Pars_Lowcloud
+  # - Truth_Mode1_Mr_Lowcloud
+  # - Truth_Mode1_Mi_Lowcloud
+  # - Truth_Mode1_Aerosol_Pars_Cirrus
+  # - Truth_Mode1_Mr_Cirrus
+  # - Truth_Mode1_Mi_Cirrus
+  # - Truth_Xocean
+  # - Truth_Xbpdf
+  # - Truth_Vmol
 profile_features:
   # - temperature
   # - pressure
