@@ -70,3 +70,7 @@ transform:
 # transforms for output spectra
 target_transform:
   _target_: rtm.utils.NumpyToTensor
+
+
+# normalization settings
+norm_per_wavelength: true

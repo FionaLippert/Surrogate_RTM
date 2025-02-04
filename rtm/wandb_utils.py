@@ -18,7 +18,7 @@ def prepare_train_dataset(dataset_cfg: DictConfig):
     train_indices, val_indices = dataset.get_data_split(dataset_cfg.val_size)
 
     # apply normalization based on training set statistics
-    dataset.add_normalization(train_indices)
+    dataset.add_normalization(train_indices, per_wavelength=dataset_cfg.norm_per_wavelength)
     dataset.add_transforms(*[utils.DoubleToFloat()]*3)
 
     return dataset, train_indices, val_indices

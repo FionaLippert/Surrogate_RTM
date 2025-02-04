@@ -78,3 +78,6 @@ target_transform:
   transforms:
     - _target_: rtm.utils.NumpyToTensor
     # - _target_: rtm.utils.LogTransform
+
+# normalization settings
+norm_per_wavelength: true
