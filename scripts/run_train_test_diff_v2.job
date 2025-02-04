@@ -1,0 +1,20 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --gpus=1
+#SBATCH --job-name=train_test
+#SBATCH --time=2:00:00
+#SBATCH --output=slurm_output_%A_%a.out
+
+
+export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
+
+cd $HOME/SRON/surrogate_rtm/scripts
+source activate rtm_env
+
+nvidia-smi
+
+srun python train_eval.py device=snellius dataset=synthetic_remotap_diff_v2 model=LatentNNSurrogateRTMDiff logger.project=rtm_synthetic_remotap_diff_v2 task.final_eval=true task.save_predictions=true seed=2 model.input_latent_dim=401

@@ -7,21 +7,27 @@ import hydra
 from hydra.utils import instantiate
 from hydra.core.hydra_config import HydraConfig
 import wandb
-from typing import Any, List
+from typing import Any, List, Optional
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 import torch
 from torch.utils.data import SubsetRandomSampler, Subset
+from operator import mul
+from functools import reduce
 
 from rtm import utils, wandb_utils, dimensionality_reduction
 
 def join_paths(*paths):
     return osp.join(*[str(p) for p in paths])
+def multiply_values(*values):
+    return reduce(mul, values)
 def add_values(*values):
     return sum(values)
 
 OmegaConf.register_new_resolver("join_paths", join_paths)
 OmegaConf.register_new_resolver("add_values", add_values)
+OmegaConf.register_new_resolver("multiply_values", multiply_values)
+OmegaConf.register_new_resolver("eval", eval)
 
 # main entry point
 @hydra.main(config_path="conf", config_name="config")
@@ -57,15 +63,18 @@ def run(cfg: DictConfig):
     model = instantiate(cfg.model)
 
     # optional: load pretrained model weights
-    if cfg.model.get('model_path', None) is not None:
-        path_to_model = wandb.use_model(cfg.model.model_path)
-        model.load_state_dict(torch.load(path_to_model))
-
-    trained = False
+    if cfg.task.get('model_path', None) is not None:
+        # path_to_model = wandb.use_model(cfg.task.model_path)
+        # model.load_state_dict(torch.load(path_to_model))
+        model.load_state_dict(torch.load(cfg.task.model_path)['state_dict'])
 
     if 'train' in cfg.task.name:
         transforms = train(trainer, model, cfg)
         trained = True
+    else:
+        trained = False
+        transforms = None
+
     if 'eval' in cfg.task.name:
         eval(trainer, model, cfg, transforms, trained=trained)
     
@@ -122,7 +131,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
 
 
 def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
-         transforms: List[utils.RTMTransform] = [None, None, None], trained: bool = False):
+         transforms: Optional[List[utils.RTMTransform]] = None, trained: bool = False):
     
     if cfg.verbose:
         print('####### Start model evaluation ########')
@@ -142,6 +151,9 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
                                   batch_size=1, shuffle=False)
 
+    # set transform if untrained model
+    if not trained:
+        model.target_transform = dataset.target_transform
 
     # evaluate model
     kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}

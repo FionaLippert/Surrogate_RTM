@@ -12,9 +12,6 @@ output_latent_dim: 26 # 99.9999% explained variance
 # nonlinearity used after the encoder and before the decoder
 nonlinearity: null
 
-
-lr: 1e-4
-l2_reg: 4e-5
 dropout_p: 0.0
 
 loss_terms:
@@ -38,3 +35,23 @@ forward_model:
   n_fc_layers: 5
   dropout_p: ${model.dropout_p}
   nonlinearity: relu
+
+lr: 1e-4
+l2_reg: 0.0 # 4e-5
+lr_decay: 1.0
+lr_schedulers:
+        - _target_: torch.optim.lr_scheduler.LinearLR
+          _partial_: true
+          start_factor: 1e-5
+          end_factor: 1.0
+          total_iters: 10 # number of epochs
+        - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+          _partial_: true
+          T_max: ${trainer.max_epochs}
+          eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
+        # - _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+        #   _partial_: true
+        #   T_0: 50 # number of epochs between restarts
+        #   eta_min: ${eval:'${model.lr} * ${model.lr_decay}'} 
+lr_milestones:
+       - 10

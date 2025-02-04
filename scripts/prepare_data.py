@@ -12,13 +12,22 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 import torch
 from torch.utils.data import SubsetRandomSampler, Subset
+from operator import mul
+from functools import reduce
 
 from rtm import wandb_utils
 
-def join_paths(*paths: List[str]) -> str:
+def join_paths(*paths):
     return osp.join(*[str(p) for p in paths])
+def multiply_values(*values):
+    return reduce(mul, values)
+def add_values(*values):
+    return sum(values)
 
 OmegaConf.register_new_resolver("join_paths", join_paths)
+OmegaConf.register_new_resolver("add_values", add_values)
+OmegaConf.register_new_resolver("multiply_values", multiply_values)
+OmegaConf.register_new_resolver("eval", eval)
 
 # main entry point to script
 @hydra.main(config_path="conf", config_name="config")

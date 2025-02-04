@@ -2,6 +2,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import SequentialLR, ConstantLR
 from typing import Callable, Union, List, Dict, Tuple, Optional
 import numpy as np
 
@@ -13,6 +14,7 @@ from rtm.utils import init_weights
 class SurrogateRTM(pl.LightningModule):
     def __init__(self, 
                  target_quantity: str = 'targets',
+                 proxy_quantity: str = 'proxy_targets',
                  target_transform: utils.RTMTransform = None,
                  eval_scale: torch.Tensor = None, 
                  **kwargs):
@@ -20,6 +22,7 @@ class SurrogateRTM(pl.LightningModule):
         super().__init__()
 
         self.target_quantity = target_quantity
+        self.proxy_quantity = proxy_quantity
         self._target_transform = target_transform
         self.eval_scale = eval_scale
 
@@ -138,6 +141,10 @@ class NNSurrogateRTM(SurrogateRTM):
         # list of loss terms making up the overall loss
         self.loss_terms = kwargs.get('loss_terms', [torch.nn.MSELoss()])
 
+        # learning rate scheduling
+        self.lr_schedulers = kwargs.get('lr_schedulers', None)
+        self.lr_milestones = kwargs.get('lr_milestones', None)
+
     
     def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
         return self.forward_model(inputs)
@@ -176,15 +183,24 @@ class NNSurrogateRTM(SurrogateRTM):
         self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
+
+        if self.lr_schedulers is not None and self.lr_milestones is not None:
+            scheduler = SequentialLR(optimizer, 
+                                     [s_partial(optimizer) for s_partial in self.lr_schedulers], 
+                                     milestones=self.lr_milestones)
+        else:
+            # constant learning rate
+            scheduler = ConstantLR(optimizer, factor=1.0, total_iters=1e8)
+
+        return {"optimizer": optimizer,
+                "lr_scheduler": scheduler}
 
 
 class NNSurrogateRTMDiff(NNSurrogateRTM):
     """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
-    def __init__(self, proxy_quantity: str = 'proxy_targets', **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        self.proxy_quantity = proxy_quantity
 
     def prepare_outputs(self, 
                         targets: torch.Tensor, 
@@ -358,10 +374,8 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
     
 class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
     """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
-    def __init__(self, proxy_quantity: str = 'proxy_targets', **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        self.proxy_quantity = proxy_quantity
 
     def prepare_outputs(self, 
                         targets: torch.Tensor, 
@@ -413,29 +427,200 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
 
 class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
     def __init__(self, 
-                 input_dim_reduction: Union[DimensionalityReduction, Encoder] = None, 
+                 output_dim: int,
+                 input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
+                 proxy_module: Optional[torch.nn.Module] = None, 
+                 pos_encoding: Optional[torch.nn.Module] = None,
+                 input_processing: Optional[torch.nn.Module] = None,
+                 use_proxy_input: bool = True,
                  **kwargs):
         super().__init__(**kwargs)
 
         self.input_dim_reduction = input_dim_reduction
 
+        # note that the output dim of proxy_module and pos_encoding need to match
+        self.proxy_module = proxy_module
+        self.pos_encoding = pos_encoding
+        self.input_processing = input_processing
+
+        self.use_proxy_input = use_proxy_input
+        self.n_wavelengths = output_dim
+
+
+    # def forward(self, inputs, **kwargs) -> torch.Tensor:
+
+    #     if self.use_proxy_input:
+    #         # proxy targets have shape [batch_size, n_wavelengths]
+    #         # expand inputs and add them as additional channels to proxy spectra
+    #         proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+
+    #         if self.proxy_module:
+    #             proxy = self.proxy_module(proxy)
+
+    #         # if self.pos_encoding:
+    #             # pos encoding requires shape [batch_size, n_wavelengths, n_features]
+    #             # proxy = self.pos_encoding(proxy)
+
+    #     if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+    #         inputs = self.input_dim_reduction.encode(inputs)
+
+    #     # inputs have shape [batch_size, n_features]
+    #     # expand across wavelengths
+    #     inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
+
+    #     if self.pos_encoding:
+    #         # add positional information to inputs
+    #         inputs = self.pos_encoding(inputs)
+
+    #     if self.use_proxy_input:
+    #         inputs = torch.cat([inputs, proxy], dim=-1)
+
+    #     # forward model works on a sequence of shape (batch_size, n_wavelengths, n_channels)
+    #     outputs = self.forward_model(inputs).reshape(inputs.size(0), self.n_wavelengths)
+
+    #     return outputs
 
     def forward(self, inputs, **kwargs) -> torch.Tensor:
+
+        if self.use_proxy_input:
+            # proxy targets have shape [batch_size, n_wavelengths]
+            # expand inputs and add them as additional channels to proxy spectra
+            proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+
+            if self.proxy_module:
+                proxy = self.proxy_module(proxy)
 
         if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
             inputs = self.input_dim_reduction.encode(inputs)
 
         # inputs have shape [batch_size, n_features]
-        # proxy targets have shape [batch_size, n_wavelengths]
-        # expand inputs and add them as additional channels to proxy spectra
-        proxy = kwargs[self.proxy_quantity]
-        inputs = inputs.unsqueeze(-1).expand(-1, -1, proxy.shape[-1])
-        inputs = torch.cat([inputs, proxy.unsqueeze(1)], dim=1)
+        # expand across wavelengths
+        inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
 
-        # forward model works on a sequence of shape (batch_size, n_channels, n_wavelengths)
-        outputs = self.forward_model(inputs).reshape(proxy.shape)
+        if self.use_proxy_input:
+            inputs = torch.cat([inputs, proxy], dim=-1)
+
+        if self.input_processing:
+            inputs = self.input_processing(inputs)
+
+        if self.pos_encoding:
+            # add positional information to inputs
+            inputs = self.pos_encoding(inputs)
+
+        outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
 
         return outputs
+    
+    
+    def on_save_checkpoint(self, checkpoint):
+        # save additional objects to checkpoint 
+        if isinstance(self.input_dim_reduction, PCA):
+            checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
+        checkpoint['target_transform'] = self.target_transform
+    
+    def on_load_checkpoint(self, checkpoint):
+        print(f'Loading model state on device {self.device}...')
+        self.load_model_state(checkpoint, map_location=self.device)
+        
+    def load_model_state(self, checkpoint, map_location=None):
+        self.load_state_dict(checkpoint['state_dict'])
+
+        if isinstance(self.input_dim_reduction, PCA):
+            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
+            
+        self.target_transform = checkpoint['target_transform']
+
+        # make sure everything is on the same device
+        self.to(map_location)
+
+    def _apply(self, convert):
+        if isinstance(self.input_dim_reduction, PCA):
+            self.input_dim_reduction._apply(convert)
+        
+        return super()._apply(convert)
+    
+
+class SequenceNNSurrogateRTM(NNSurrogateRTM):
+    def __init__(self, 
+                 output_dim: int,
+                 input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
+                 pos_encoding: Optional[torch.nn.Module] = None,
+                 proxy_module: Optional[torch.nn.Module] = None,
+                 input_processing: Optional[torch.nn.Module] = None,
+                 use_proxy_input: bool = False,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+        self.n_wavelengths = output_dim
+        self.input_dim_reduction = input_dim_reduction
+        self.pos_encoding = pos_encoding
+        self.input_processing = input_processing
+
+        self.proxy_module = proxy_module
+        self.use_proxy_input = use_proxy_input
+
+
+    # def forward(self, inputs, **kwargs) -> torch.Tensor:
+
+    #     if self.use_proxy_input:
+    #         # proxy targets have shape [batch_size, n_wavelengths]
+    #         # expand inputs and add them as additional channels to proxy spectra
+    #         proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+
+    #         if self.proxy_module:
+    #             proxy = self.proxy_module(proxy)
+
+    #     if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+    #         inputs = self.input_dim_reduction.encode(inputs)
+
+    #     # inputs have shape [batch_size, n_features]
+    #     # expand across wavelengths
+    #     inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
+
+    #     if self.pos_encoding:
+    #         # add positional information to inputs
+    #         inputs = self.pos_encoding(inputs)
+
+    #     if self.use_proxy_input:
+    #         inputs = torch.cat([inputs, proxy], dim=-1)
+
+    #     outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
+
+    #     return outputs
+
+    def forward(self, inputs, **kwargs) -> torch.Tensor:
+
+        if self.use_proxy_input:
+            # proxy targets have shape [batch_size, n_wavelengths]
+            # expand inputs and add them as additional channels to proxy spectra
+            proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+
+            if self.proxy_module:
+                proxy = self.proxy_module(proxy)
+
+        if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+            inputs = self.input_dim_reduction.encode(inputs)
+
+        # inputs have shape [batch_size, n_features]
+        # expand across wavelengths
+        inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
+
+        if self.use_proxy_input:
+            inputs = torch.cat([inputs, proxy], dim=-1)
+
+        if self.input_processing:
+            inputs = self.input_processing(inputs)
+
+        if self.pos_encoding:
+            # add positional information to inputs
+            inputs = self.pos_encoding(inputs)
+
+
+        
+        outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
+
+        return outputs
+
     
     
     def on_save_checkpoint(self, checkpoint):
@@ -468,11 +653,13 @@ class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
 
 
 class NonScatteringRTM(SurrogateRTM):
-    def __init__(self, **kwargs):
+    def __init__(self, proxy_quantity='proxy_targets', **kwargs):
         super().__init__(**kwargs)
 
+        self.proxy_quantity = proxy_quantity
+
     def forward(self, **input_kwargs) -> torch.Tensor:
-        return input_kwargs['proxy_targets']
+        return input_kwargs[self.proxy_quantity]
 
 
         
@@ -490,12 +677,35 @@ class HybridRTM(torch.nn.Module):
         return output
     
 
+class Transformer(torch.nn.Module):
+    def __init__(self, num_layers, d_model, d_out, nhead=1, 
+                 dim_feedforward=128, dropout_p=0.0):
+        super().__init__()
+        
+        layer = torch.nn.TransformerEncoderLayer(d_model=d_model, 
+                                                 nhead=nhead, 
+                                                 dim_feedforward=dim_feedforward,
+                                                 dropout=dropout_p,
+                                                 batch_first=True)
+        self.transformer = torch.nn.TransformerEncoder(layer, num_layers=num_layers)
+
+        self.fc_out = torch.nn.Linear(d_model, d_out)
+
+    def forward(self, x):
+        # x has shape (batch_size, seq_length, n_features)
+        x = self.transformer(x)
+        x = self.fc_out(x)
+
+        return x
+    
+
 class ResNet1D(torch.nn.Module):
     def __init__(self, n_channels: List[int], n_out: int = 1, kernel_size: int = 3, stride: int = 1, **kwargs):
         super().__init__()
 
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_channels = kwargs.get('n_fc_layers', 1)
+        self.is_sequence_model = True
 
         self.layers = nn.ModuleList([
             layers.ResidualBlock1D(n_channels[i], n_channels[i+1], 
@@ -514,12 +724,16 @@ class ResNet1D(torch.nn.Module):
     #     init_weights(self.fc_out)
 
     def forward(self, x):
+        # x has shape (batch_size, seq_length, n_channels)
+        # conv1d expects shape (batch_size, n_channels, seq_length)
+        x = x.permute((0, 2, 1))
 
         for layer in self.layers:
             x = layer(x)
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
-        x = self.fc_out(x.permute(0, 2, 1)).permute(0, 2, 1)
+        x = x.permute(0, 2, 1)
+        x = self.fc_out(x)
 
         return x
 

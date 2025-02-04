@@ -5,19 +5,20 @@ command:
   - ${interpreter}
   - ${program}
   - ${args_no_hyphens}
+  - device=snellius
   - dataset=synthetic_remotap
-  - model=LatentNNSurrogateRTM
-  - model.output_latent_dim=26
-  - model.l2_reg=4e-5
-  - model.dropout_p=0.0
-  - model.forward_model.n_hidden=128
+  - model=SequenceNNSurrogateRTM
+  # - model.output_latent_dim=26
+  # - model.l2_reg=4e-5
+  # - model.dropout_p=0.0
+  # - model.forward_model.n_hidden=128
   - dataloader.batch_size=256
-  - trainer.max_epochs=15
+  - trainer.max_epochs=250
   - task=train+eval
   - task.save_predictions=true
   - task.load_best_model=true
   - task.final_eval=true
-  - logger.project=testing
+  - logger.project=test_sequence_models
   - logger.group=default
 method: grid
 metric:
@@ -32,7 +33,6 @@ parameters:
     values: [1e-4]
   # input latent dimension
   model.input_latent_dim:
-    values: [160]
-  # number of layers
-  model.forward_model.n_fc_layers:
-    values: [2]
+    values: [64]
+  # model.forward_model.kernel_size:
+  #   values: [3]
