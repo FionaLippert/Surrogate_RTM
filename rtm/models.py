@@ -96,6 +96,7 @@ class SurrogateRTM(pl.LightningModule):
         mape = utils.mape(outputs, targets, axis=0).mean()
         mape_continuum = utils.mape_continuum(outputs, targets, axis=0).mean()
         smape = utils.smape(outputs, targets, axis=0).mean()
+        rmse_continuum = utils.rmse_continuum(outputs, targets, axis=0).mean()
         rel_bias = utils.relative_bias(outputs, targets, axis=0).mean()
         r2 = utils.r2_score(outputs, targets, axis=0).mean()
 
@@ -108,6 +109,7 @@ class SurrogateRTM(pl.LightningModule):
                        'test/NRMSE': nrmse,
                        'test/MAPE': mape,
                        'test/MAPE_continuum': mape_continuum,
+                       'test/RMSE_continuum': rmse_continuum,
                        'test/SMAPE': smape,
                        'test/rel_bias': rel_bias,
                        'test/R2': r2,
@@ -261,6 +263,7 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
         outputs, targets = self.prepare_outputs(targets, proxy, outputs)
 
         return outputs, targets
+
 
 
   
@@ -532,6 +535,97 @@ class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
             inputs = self.pos_encoding(inputs)
 
         outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
+
+        return outputs
+    
+    
+    def on_save_checkpoint(self, checkpoint):
+        # save additional objects to checkpoint 
+        if isinstance(self.input_dim_reduction, PCA):
+            checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
+        checkpoint['target_transform'] = self.target_transform
+        checkpoint['proxy_transform'] = self.proxy_transform
+    
+    def on_load_checkpoint(self, checkpoint):
+        print(f'Loading model state on device {self.device}...')
+        self.load_model_state(checkpoint, map_location=self.device)
+        
+    def load_model_state(self, checkpoint, map_location=None):
+        self.load_state_dict(checkpoint['state_dict'])
+
+        if isinstance(self.input_dim_reduction, PCA):
+            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
+            
+        self.target_transform = checkpoint['target_transform']
+        self.proxy_transform = checkpoint['proxy_transform']
+
+        # make sure everything is on the same device
+        self.to(map_location)
+
+    def _apply(self, convert):
+        if isinstance(self.input_dim_reduction, PCA):
+            self.input_dim_reduction._apply(convert)
+        
+        return super()._apply(convert)
+    
+
+class SequenceNNSurrogateRTMDiff_v2(NNSurrogateRTM):
+    def __init__(self, 
+                 output_dim: int,
+                 input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
+                 proxy_module: Optional[torch.nn.Module] = None, 
+                 pos_encoding: Optional[torch.nn.Module] = None,
+                 input_processing: Optional[torch.nn.Module] = None,
+                 use_proxy_input: bool = True,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+        self.input_dim_reduction = input_dim_reduction
+
+        # note that the output dim of proxy_module and pos_encoding need to match
+        self.proxy_module = proxy_module
+        self.pos_encoding = pos_encoding
+        self.input_processing = input_processing
+
+        self.use_proxy_input = use_proxy_input
+        self.n_wavelengths = output_dim
+
+
+
+    def forward(self, inputs, **kwargs) -> torch.Tensor:
+
+        proxy = kwargs[self.proxy_quantity]
+
+        if self.use_proxy_input:
+            # proxy targets have shape [batch_size, n_wavelengths]
+            # expand inputs and add them as additional channels to proxy spectra
+            proxy_input = proxy.unsqueeze(-1)
+
+            if self.proxy_module:
+                proxy_input = self.proxy_module(proxy_input)
+
+        if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+            inputs = self.input_dim_reduction.encode(inputs)
+
+        # inputs have shape [batch_size, n_features]
+        # expand across wavelengths
+        inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
+
+        if self.use_proxy_input:
+            inputs = torch.cat([inputs, proxy_input], dim=-1)
+
+        if self.input_processing:
+            inputs = self.input_processing(inputs)
+
+        if self.pos_encoding:
+            # add positional information to inputs
+            inputs = self.pos_encoding(inputs)
+
+        outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
+
+        # train on (transformed) total radiance prediction
+        # IMPORTANT: make sure no log-transforms are used and proxy transform is coupled to target stats
+        outputs = outputs + proxy
 
         return outputs
     

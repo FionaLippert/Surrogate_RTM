@@ -12,8 +12,11 @@ input_latent_dim: 64
 dropout_p: 0.0
 
 loss_terms:
-  - _target_: rtm.loss.WeightedMSE
-    weight: 1.0
+  # - _target_: rtm.loss.WeightedMSE
+    # weight: 1.0
+  # - _target_: rtm.loss.WeightedMAE
+    # weight: 1.0
+  - _target_: rtm.loss.RelativeMSE
 
 # input_dim_reduction:
 #   _target_: rtm.dimensionality_reduction.PCA
