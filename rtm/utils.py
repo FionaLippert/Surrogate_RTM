@@ -413,3 +413,21 @@ def get_device(accelerator: str = 'gpu', **kwargs):
     else:
         return torch.device('cpu')
     
+
+##################################################
+# Learning rate scheduling
+##################################################
+
+class LRDampenedCosine:
+    def __init__(self, lr_min=1e-6, lr_max=1e-3, T_max=10, decay=0.95):
+        self.lr_min = lr_min
+        self.lr_max = lr_max
+        self.T_max = T_max
+        self.decay = decay
+
+    def __call__(self, epoch):
+        cosine = np.cos(epoch / self.T_max * np.pi)
+        scaled = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1 + cosine)
+        dampened = (self.decay ** epoch) * scaled
+        return dampened
+    
