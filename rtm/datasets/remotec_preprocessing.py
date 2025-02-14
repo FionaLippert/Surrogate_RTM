@@ -224,7 +224,7 @@ def load_surface_meteo(data_dir: str, prefix: str):
 
     # calculate total water vapor
     layers = {var: ds_meteo[var].data for var in ['hyai', 'hybi']}
-    tpw = utils.total_column_amount(ds_meteo['q'].data, meteo['sp'], layers['hyai'], layers['hybi'])
+    tpw = utils.total_column_amount(ds_meteo['q'].data, sp=meteo['sp'], a=layers['hyai'], b=layers['hybi'])
     meteo['H2O_column_total'] = tpw
     meteo['log_H2O_column_total'] = np.log(tpw)
 
@@ -242,7 +242,7 @@ def load_meteo_profiles(data_dir: str, prefix: str):
     meteo['H2O'] = meteo['q']
 
     # calculate pressure levels
-    meteo['p'] = utils.pressure_levels(ds_meteo['sp'].data, layers['hyai'], layers['hybi'])
+    meteo['p'] = utils.pressure_layer_midpoints(sp=ds_meteo['sp'].data, a=layers['hyai'], b=layers['hybi'])
 
     return meteo
 
@@ -264,8 +264,14 @@ def load_trace_gas_total_columns(data_dir: str, prefix: str, gas_names: List[str
         ds = xr.open_dataset(osp.join(data_dir, gas_file))
 
         gas_name = gas_name.upper()
-        column_total = utils.total_column_amount(ds[gas_name].data, ds['sp'].data, ds['hyai'].data, ds['hybi'].data)
-        column_avg = utils.column_averaged_amount(ds[gas_name].data, ds['sp'].data, ds['hyai'].data, ds['hybi'].data)
+        column_total = utils.total_column_amount(ds[gas_name].data, 
+                                                 sp=ds['sp'].data, 
+                                                 a=ds['hyai'].data, 
+                                                 b=ds['hybi'].data)
+        column_avg = utils.column_averaged_amount(ds[gas_name].data, 
+                                                  sp=ds['sp'].data, 
+                                                  a=ds['hyai'].data, 
+                                                  b=ds['hybi'].data)
 
         gas_data.update({
             f'{gas_name}_column_total': column_total,

@@ -30,7 +30,6 @@ if __name__ == '__main__':
     elif args.band == 'SWIR3':
         wl_range = (2305, 2385)
 
-
     aux_files = [f for f in os.listdir(args.data_dir) if f.startswith(args.prefix) and f.endswith('aux.nc')]
     aux_files.sort()
 
@@ -47,6 +46,7 @@ if __name__ == '__main__':
             print(f'Processing chunk {chunk}...')
         else:
             prefix = args.prefix
+            prefix_proxy = f'{args.prefix}_{args.postfix_proxy}'
 
         remotap_preprocessing.prepare_data(args.target_dir, args.data_dir, 
                                         prefix=prefix, 

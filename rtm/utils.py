@@ -15,13 +15,19 @@ def azimuth_difference(azimuth_1: np.ndarray, azimuth_2: np.ndarray) -> np.ndarr
     return diff
 
 def total_column_amount(column_concentrations: np.ndarray,
-                        sp: np.ndarray,
-                        a: np.ndarray,
-                        b: np.ndarray
+                        plev: np.ndarray = None,
+                        sp: np.ndarray = None,
+                        a: np.ndarray = None,
+                        b: np.ndarray = None,
                         ) -> np.ndarray:
+    # Note: either plev, or sp, a, b must be provided
+
+    if plev is None:
+        # calculate pressure levels from surface pressure and coefficients a and b
+        plev = pressure_half_levels(sp, a, b)
+
     # calculate number of air molecules per layer [#/m^2]
-    p = pressure_half_levels(sp, a, b)
-    vc_air = air_column(p) # total air column above each pressure level
+    vc_air = air_column(plev) # total air column above each pressure level
     vc_air = vc_air[:, 1:] - vc_air[:, :-1] # above half-level 0, air pressure is zero
 
     # calculate total column amount of trace gas
@@ -31,38 +37,56 @@ def total_column_amount(column_concentrations: np.ndarray,
     return total_gas
 
 def total_water(specific_humidity: np.ndarray,
-                sp: np.ndarray,
-                a: np.ndarray,
-                b: np.ndarray
+                plev: np.ndarray = None,
+                sp: np.ndarray = None,
+                a: np.ndarray = None,
+                b: np.ndarray = None,
                 ) -> np.ndarray:
+    # Note: either plev, or sp, a, b must be provided
+
+    if plev is None:
+        # calculate pressure levels from surface pressure and coefficients a and b
+        plev = pressure_half_levels(sp, a, b)
+
     # calculate total precipitable water content [kg/m^2]
-    p = pressure_half_levels(sp, a, b)
-    delta_p = p[:, 1:] - p[:, :-1] # pressure level thickness
+    delta_p = plev[:, 1:] - plev[:, :-1] # pressure level thickness
     g = constants["gravity"]
     tpw = g * np.sum(specific_humidity * delta_p, axis=-1)
 
     return tpw
 
 def column_averaged_water(specific_humidity: np.ndarray,
-                          sp: np.ndarray,
-                          a: np.ndarray,
-                          b: np.ndarray
+                          plev: np.ndarray = None,
+                          sp: np.ndarray = None,
+                          a: np.ndarray = None,
+                          b: np.ndarray = None,
                           ) -> np.ndarray:
+    # Note: either plev, or sp, a, b must be provided
+
+    if plev is None:
+        # calculate pressure levels from surface pressure and coefficients a and b
+        plev = pressure_half_levels(sp, a, b)
+
     # calculate column-averaged specific humidity [kg/kg]
-    p = pressure_half_levels(sp, a, b)
-    delta_p = p[:, 1:] - p[:, :-1] # pressure level thickness
+    delta_p = plev[:, 1:] - plev[:, :-1] # pressure level thickness
     q_avg = np.sum(specific_humidity * delta_p, axis=-1) / np.sum(delta_p, axis=-1)
 
     return q_avg
 
 def column_averaged_amount(column_concentrations: np.ndarray,
-                           sp: np.ndarray,
-                           a: np.ndarray,
-                           b: np.ndarray
+                           plev: np.ndarray = None,
+                           sp: np.ndarray = None,
+                           a: np.ndarray = None,
+                           b: np.ndarray = None,
                            ) -> np.ndarray:
+    # Note: either plev, or sp, a, b must be provided
+
+    if plev is None:
+        # calculate pressure levels from surface pressure and coefficients a and b
+        plev = pressure_half_levels(sp, a, b)
+                                    
     # calculate pressure level differences
-    p = pressure_half_levels(sp, a, b)
-    delta_p = p[:, 1:] - p[:, :-1]
+    delta_p = plev[:, 1:] - plev[:, :-1]
 
     # calculate column-averaged amount of trace gas
     vc_gas = column_concentrations * delta_p
@@ -73,22 +97,27 @@ def column_averaged_amount(column_concentrations: np.ndarray,
 def pressure_half_levels(sp: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
     # calculate pressure levels from surface pressure and coefficients a and b
     # sp: surface pressure in hPa (shape: nobs)
-    # a: coefficient a (shape: nlevels+1)
-    # b: coefficient b (shape: nlevels+1)
-    p_i = np.expand_dims(a, axis=0) + np.expand_dims(b, axis=0) * np.expand_dims(sp, axis=-1)
+    # a: coefficient a (shape: nlayers+1)
+    # b: coefficient b (shape: nlayers+1)
+    plev = np.expand_dims(a, axis=0) + np.expand_dims(b, axis=0) * np.expand_dims(sp, axis=-1)
 
-    return p_i # shape: (nobs, nlevels+1)
+    return plev # shape: (nobs, nlayers+1)
 
-def pressure_levels(sp: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    # calculate pressure levels from surface pressure and coefficients a and b
+def pressure_layer_midpoints(sp: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    # calculate pressure layer midpoints from surface pressure and coefficients a and b
     # sp: surface pressure in hPa (shape: nobs)
-    # a: coefficient a (shape: nlevels+1)
-    # b: coefficient b (shape: nlevels+1)
-    p_i = np.expand_dims(a, axis=0) + np.expand_dims(b, axis=0) * np.expand_dims(sp, axis=-1)
+    # a: coefficient a (shape: nlayers+1)
+    # b: coefficient b (shape: nlayers+1)
+    plev = np.expand_dims(a, axis=0) + np.expand_dims(b, axis=0) * np.expand_dims(sp, axis=-1)
 
-    # from half-levels to full levels
-    p = 0.5 * (p_i[:, :-1] + p_i[:, 1:])
-    return p # shape: (nobs, nlevels)
+    # from half-levels to full layers
+    p_mid = pressure_half_levels_to_midpoints(plev)
+    return p_mid # shape: (nobs, nlayers)
+
+def pressure_half_levels_to_midpoints(plev: np.ndarray) -> np.ndarray:
+    # convert pressure half-levels to layer midpoints
+    p_mid = 0.5 * (plev[:, :-1] + plev[:, 1:])
+    return p_mid
 
 def air_column(p: np.ndarray) -> np.ndarray:
     # calculate air column above each pressure level

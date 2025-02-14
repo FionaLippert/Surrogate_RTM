@@ -1,8 +1,9 @@
 #!/bin/bash
 
-BASE_DIR="/deos/fional/remotap/simulations/RemoTAP_FWD/s5_random_ensemble_1e5_only_CO2I"
-DATA_DIR="${BASE_DIR}/synth_chunked"
-PREFIX="syn_meas_s5_random_ensemble_1e5_only_CO2I"
+BASE_DIR="/deos/fional/remotap/simulations/RemoTAP_FWD/s5_random_ensemble_2e4_only_CO2I_ERA5"
+# DATA_DIR="${BASE_DIR}/synth_chunked"
+DATA_DIR="${BASE_DIR}/synth"
+PREFIX="syn_meas_s5_random_ensemble_2e4_only_CO2I"
 # DATA_DIR="/deos/fional/remotap/simulations/RemoTAP_FWD/s5_vary_AOT_fine_1e2/synth"
 # PREFIX="syn_meas_s5_vary_AOT_fine_1e2"
 # DATA_DIR="/deos/fional/remotap/simulations/RemoTAP_FWD/s5_extended_ensemble_1e5/synth_chunked"

@@ -101,6 +101,7 @@ def prepare_data(target_dir: str,
     profile_data_to_netcdf(profile_data, target_dir, prefix)
 
 
+
 def pixel_data_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
     # convert dict to netcdf format and write to disk
     for k, v in data.items():
@@ -283,30 +284,33 @@ def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
     ds = xr.open_dataset(osp.join(data_dir, fname))
     surface_dict = {var: ds[var].data for var in var_list}
 
+    if 'plev' in ds:
+        kwargs = {'plev': ds['plev'].data}
+    else:
+        kwargs = {
+            'sp': ds['surface_pressure_meteo'].data,
+            'a': ds['hybrid_a'].data,
+            'b': ds['hybrid_b'].data
+        }
+
+    # apply cube-root transformation to surface elevation
+    surface_dict['cbrt_surface_elevation_meteo'] = np.cbrt(surface_dict['surface_elevation_meteo'])
+    surface_dict['cbrt_surface_elevation_dem'] = np.cbrt(surface_dict['surface_elevation_dem'])
+
     # calculate total water vapor
-    layers = {var: ds[var].data for var in ['hybrid_a', 'hybrid_b']}
-    tpw = utils.total_column_amount(ds['specific_humidity'].data, 
-                                    surface_dict['surface_pressure_meteo'], 
-                                    layers['hybrid_a'], 
-                                    layers['hybrid_b'])
+    tpw = utils.total_column_amount(ds['specific_humidity'].data, **kwargs)
     surface_dict['H2O_column_total'] = tpw
-    surface_dict['log_H2O_column_total'] = np.log(tpw)
+    surface_dict['log_H2O_column_total'] = np.log(np.maximum(tpw, 1e-12))
 
     # calculate total column amounts for trace gases
     for gas in gas_names:
         gas_data = ds[f'MMR_{gas}'].data
-        column_total = utils.total_column_amount(gas_data, 
-                                                 surface_dict['surface_pressure_meteo'], 
-                                                 layers['hybrid_a'], 
-                                                 layers['hybrid_b'])
-        column_avg = utils.column_averaged_amount(gas_data, 
-                                                  surface_dict['surface_pressure_meteo'], 
-                                                  layers['hybrid_a'], 
-                                                  layers['hybrid_b'])
+        column_total = utils.total_column_amount(gas_data, **kwargs)
+        column_avg = utils.column_averaged_amount(gas_data, **kwargs)
 
         surface_dict[f'{gas}_column_total'] = column_total
         surface_dict[f'{gas}_column_avg'] = column_avg
-        surface_dict[f'log_{gas}_column_total'] = np.log(column_total)
+        surface_dict[f'log_{gas}_column_total'] = np.log(np.maximum(column_total, 1e-12))
 
     return surface_dict
 
@@ -318,8 +322,20 @@ def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
     atm_dict = {var: ds[var].data for var in var_list}
     layers = {var: ds[var].data for var in ['hybrid_a', 'hybrid_b']}
 
-    # calculate pressure levels
-    atm_dict['pressure'] = utils.pressure_levels(ds['surface_pressure_meteo'].data, layers['hybrid_a'], layers['hybrid_b'])
+    # apply log-transform and cube-root transformation to specific humidity
+    atm_dict['log_specific_humidity'] = np.log(np.maximum(atm_dict['specific_humidity'], 1e-12))
+    atm_dict['cbrt_specific_humidity'] = np.cbrt(atm_dict['specific_humidity'])
+
+    # calculate pressure at layer midpoints
+    if 'plev' in ds:
+        atm_dict['pressure'] = utils.pressure_half_levels_to_midpoints(ds['plev'].data)
+    else:
+        atm_dict['pressure'] = utils.pressure_layer_midpoints(
+            ds['surface_pressure_meteo'].data, 
+            layers['hybrid_a'], 
+            layers['hybrid_b']
+        )
+    atm_dict['log_pressure'] = np.log(np.maximum(atm_dict['pressure'], 1e-12))
 
     # extract MMR profiles for trace gases
     for gas in gas_names:
@@ -336,11 +352,9 @@ def load_state_vars(data_dir: str, prefix: str):
     props = {var: ds[var].data for var in var_list}
 
     # apply log-transform where applicable
-    if 'Truth_SSA' in props: props['Log_Truth_SSA'] = np.log(props['Truth_SSA'])
-    if 'Truth_Mode_AOT' in props: props['Log_Truth_Mode_AOT'] = np.log(props['Truth_Mode_AOT'])
-    if 'Truth_AOT' in props: props['Log_Truth_AOT'] = np.log(props['Truth_AOT'])
-    if 'Truth_Mode1_TAU550' in props: props['Log_Truth_Mode1_TAU550'] = np.log(props['Truth_Mode1_TAU550'])
-    if 'Truth_Mode2_TAU550' in props: props['Log_Truth_Mode2_TAU550'] = np.log(props['Truth_Mode2_TAU550'])
+    for var in var_list:
+        if np.all(props[var] >= 0):
+            props[f'Log_{var}'] = np.log(np.maximum(props[var], 1e-12))
 
     return props
 

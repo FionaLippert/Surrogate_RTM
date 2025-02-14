@@ -74,21 +74,12 @@ class RTDataset(Dataset):
             self.targets = self.targets - self.proxy
 
 
-    def set_transforms(self, 
-                       pixel_transform=None, 
-                       profile_transform=None, 
-                       target_transform=None,
-                       proxy_transform=None):
-        self.pixel_transform = pixel_transform
-        self.profile_transform = profile_transform
-        self.target_transform = target_transform
-        self.proxy_transform = proxy_transform
-
     def add_transforms(self, 
                        pixel_transform=None, 
                        profile_transform=None, 
                        target_transform=None,
                        proxy_transform=None):
+        # add new transforms to existing transforms
         if pixel_transform:
             self.pixel_transform = utils.RTMCompose([self.pixel_transform, pixel_transform]) \
                 if self.pixel_transform else pixel_transform
@@ -110,6 +101,7 @@ class RTDataset(Dataset):
                        profile_transform=None, 
                        target_transform=None,
                        proxy_transform=None):
+        # overwrite existing transforms
         if pixel_transform is not None:
             self.pixel_transform = pixel_transform
         if profile_transform is not None:
@@ -127,6 +119,7 @@ class RTDataset(Dataset):
 
     def __getitem__(self, idx: int):
 
+        # get pixel data and apply transform if available
         if self.pixel_data is not None:
             x_pixels = self.pixel_data[idx]
             if self.pixel_transform:
@@ -134,6 +127,7 @@ class RTDataset(Dataset):
         else:
             x_pixels = None
 
+        # get profile data and apply transform if available
         if self.profile_data is not None:
             x_profiles = self.profile_data[idx]
             if self.profile_transform:
@@ -141,7 +135,7 @@ class RTDataset(Dataset):
         else:
             x_profiles = None
 
-        
+        # get target data and apply transform if available
         y = self.targets[idx]
         if self.target_transform:
             y = self.target_transform(y)
@@ -152,6 +146,7 @@ class RTDataset(Dataset):
             'targets': y,
         }
 
+        # get proxy data and apply transform if available
         if self.proxy is not None:
             proxy = self.proxy[idx]
             if self.proxy_transform:
@@ -194,8 +189,7 @@ class RTDataset(Dataset):
             pixel_data = np.concatenate(pixel_data, axis=-1)
         else:
             pixel_data = None
-        # pixel_data = np.concatenate([ds[feature].data.reshape(n_pixels, -1) for feature in self.pixel_features], axis=-1)
-        
+          
         return pixel_data # shape: (nobs, nvars)
     
     def _collect_profile_data(self, data_dir: str, prefix: str):
@@ -224,7 +218,6 @@ class RTDataset(Dataset):
             profile_data = np.stack(profile_data, axis=-1)
         else:
             profile_data = None
-        # profile_data = np.stack([ds[feature].data for feature in self.profile_features], axis=-1)
         
         return profile_data # shape: (nobs, nlevels, nvars)
     
@@ -256,14 +249,18 @@ class RTDataset(Dataset):
         return wavelengths
         
     
-    def normalization(self, indices: List[int] = None, per_wavelength: bool = True):
+    def normalization(self, 
+                      indices: List[int] = None, 
+                      per_wavelength: bool = True,
+                      per_layer: bool = False,
+                      ):
         if indices is None: indices = range(len(self))
         pixel_stats = self.get_pixel_statistics(indices)
         profile_stats = self.get_profile_statistics(indices)
         target_stats = self.get_target_statistics(indices, per_wavelength)
         proxy_stats = self.get_proxy_statistics(indices, per_wavelength)
         pixel_norm = utils.normalization(pixel_stats) if pixel_stats else None
-        profile_norm = utils.normalization(profile_stats) if profile_stats else None
+        profile_norm = utils.normalization(profile_stats, per_layer) if profile_stats else None
         target_norm = utils.normalization(target_stats)
         proxy_norm = utils.normalization(proxy_stats)
 
@@ -290,7 +287,7 @@ class RTDataset(Dataset):
 
         return stats
     
-    def get_profile_statistics(self, indices: List[int]):
+    def get_profile_statistics(self, indices: List[int], per_layer: bool = False):
         if self.profile_transform and self.profile_data is not None:
             data = self.profile_transform(self.profile_data[indices])
         elif self.profile_data is not None:
@@ -302,11 +299,12 @@ class RTDataset(Dataset):
             data = data.numpy()
 
         # compute stats
+        kwargs = dict(axis=0) if per_layer else dict(axis=(0, 1))
         stats = {
-            'mean': data.mean(axis=(0, 1)),
-            'std': data.std(axis=(0, 1)),
-            'min': data.min(axis=(0, 1)),
-            'max': data.max(axis=(0, 1)),
+            'mean': data.mean(**kwargs),
+            'std': data.std(**kwargs),
+            'min': data.min(**kwargs),
+            'max': data.max(**kwargs),
         }
 
         return stats
