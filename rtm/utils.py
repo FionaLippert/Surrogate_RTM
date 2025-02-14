@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 from torchvision.transforms import Compose
@@ -299,6 +300,25 @@ def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable
     transform = Normalize(mean, std)
 
     return transform
+
+
+def load_transforms(dir: str, types=['pixel', 'profile', 'target', 'proxy']):
+    transforms = []
+    for t in types:
+        fname = os.path.join(dir, f'{t}_transform.pt')
+        if os.isfile(fname):
+            transf = torch.load(fname)
+            transforms.append(transf)
+        else:
+            transforms.append(None)
+    return transforms
+
+def save_transforms(transforms, dir: str, types=['pixel', 'profile', 'target', 'proxy']):
+    assert len(transforms) == len(types)
+    for i, t in enumerate(types):
+        fname = os.path.join(dir, f'{t}_transform.pt')
+        torch.save(transforms[i], fname)
+            
 
 
 

@@ -133,7 +133,7 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
                 f'{dataset_cfg.name}_transforms', type="normalization",
                 description="Transforms applied to the dataset"
         )
-        for name, transf in zip(['pixel', 'profile', 'target'], train_dataset.get_transforms()):
+        for name, transf in zip(['pixel', 'profile', 'target', 'proxy'], train_dataset.get_transforms()):
             with normalization.new_file(f"{name}_transform.pt", mode="wb") as file:
                 torch.save(transf, file)
         wandb.run.log_artifact(normalization)
