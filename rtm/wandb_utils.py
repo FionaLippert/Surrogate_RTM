@@ -80,12 +80,14 @@ def load_test_dataset_from_wandb(run,
         print(f'Test data successfully loaded from project {wandb.run.project}')
     except:
         # if not, load and normalize dataset from scratch
+        print(f'Test data could not be loaded from project {wandb.run.project}')
+
         if transforms is None:
             # first determine transforms based on training data
+            print(f'Loading training data to determine transforms...')
             train_dataset, _, _ = prepare_train_dataset(dataset_cfg)
             transforms = train_dataset.get_transforms()
 
-        print(f'Test data could not be loaded from project {wandb.run.project}')
         print(f'Preparing dataset from scratch...')
         
         dataset = prepare_test_dataset(dataset_cfg, transforms=transforms)
@@ -94,47 +96,61 @@ def load_test_dataset_from_wandb(run,
 
 
 def prepare_data_and_log(dataset_cfg: DictConfig, 
-                      wandb_project: Optional[str] = None):
+                      wandb_project: Optional[str] = None,
+                      transforms: Optional[List[utils.RTMTransform]] = None):
     # load training and test data, as well as transforms, and log everything as artifacts to wandb
 
     with wandb.init(project=wandb_project, job_type='prepare-data') as run:
 
-        train_dataset, train_indices, val_indices = prepare_train_dataset(dataset_cfg)
-        test_dataset = prepare_test_dataset(dataset_cfg, transforms=train_dataset.get_transforms())
+        if dataset_cfg.test_size < 1.0:
+            # prepare training data
+            train_dataset, train_indices, val_indices = prepare_train_dataset(dataset_cfg)
+            transforms = train_dataset.get_transforms()
+        
+            print('Logging training data to W&B...')
+            train_data_artifact = wandb.Artifact(
+                        f'{dataset_cfg.name}_train_val', type="dataset",
+                        description="Training dataset, can be further split into training and validation sets",
+                        metadata={"source": dataset_cfg._target_,
+                                "config": OmegaConf.to_container(dataset_cfg, resolve=True)}
+                )
+            with train_data_artifact.new_file("train_dataset.pt", mode="wb") as file:
+                torch.save(train_dataset, file)
+            with train_data_artifact.new_file("train_indices.pt", mode="wb") as file:
+                torch.save(train_indices, file)
+            with train_data_artifact.new_file("val_indices.pt", mode="wb") as file:
+                torch.save(val_indices, file)
+            wandb.run.log_artifact(train_data_artifact)
 
-        print('Logging training data to W&B...')
-        train_data_artifact = wandb.Artifact(
-                    f'{dataset_cfg.name}_train_val', type="dataset",
-                    description="Training dataset, can be further split into training and validation sets",
-                    metadata={"source": dataset_cfg._target_,
-                            "config": OmegaConf.to_container(dataset_cfg, resolve=True)}
+            print('Logging normalization to W&B...')
+            normalization = wandb.Artifact(
+                    f'{dataset_cfg.name}_transforms', type="normalization",
+                    description="Transforms applied to the dataset"
             )
-        with train_data_artifact.new_file("train_dataset.pt", mode="wb") as file:
-            torch.save(train_dataset, file)
-        with train_data_artifact.new_file("train_indices.pt", mode="wb") as file:
-            torch.save(train_indices, file)
-        with train_data_artifact.new_file("val_indices.pt", mode="wb") as file:
-            torch.save(val_indices, file)
-        wandb.run.log_artifact(train_data_artifact)
+            for name, transf in zip(['pixel', 'profile', 'target'], transforms):
+                with normalization.new_file(f"{name}_transform.pt", mode="wb") as file:
+                    torch.save(transf, file)
+            wandb.run.log_artifact(normalization)
 
-        print('Logging test data to W&B...')
-        test_data_artifact = wandb.Artifact(
-                    f'{dataset_cfg.name}_test', type="dataset",
-                    description="Test dataset",
-                    metadata={"source": dataset_cfg._target_,
-                              "config": OmegaConf.to_container(dataset_cfg, resolve=True)}
-            )
-        with test_data_artifact.new_file("test_dataset.pt", mode="wb") as file:
-            torch.save(test_dataset, file)
-        wandb.run.log_artifact(test_data_artifact)
+        elif transforms is None:
+            # use all data for testing, but no transforms provided
+            print('No transforms provided for independent test set! Please provide transforms to load test data.')
 
-        print('Logging normalization to W&B...')
-        normalization = wandb.Artifact(
-                f'{dataset_cfg.name}_transforms', type="normalization",
-                description="Transforms applied to the dataset"
-        )
-        for name, transf in zip(['pixel', 'profile', 'target'], train_dataset.get_transforms()):
-            with normalization.new_file(f"{name}_transform.pt", mode="wb") as file:
-                torch.save(transf, file)
-        wandb.run.log_artifact(normalization)
+
+        if dataset_cfg.test_size > 0.0:
+            # prepare test data
+            test_dataset = prepare_test_dataset(dataset_cfg, transforms=transforms)
+
+            print('Logging test data to W&B...')
+            test_data_artifact = wandb.Artifact(
+                        f'{dataset_cfg.name}_test', type="dataset",
+                        description="Test dataset",
+                        metadata={"source": dataset_cfg._target_,
+                                "config": OmegaConf.to_container(dataset_cfg, resolve=True)}
+                )
+            with test_data_artifact.new_file("test_dataset.pt", mode="wb") as file:
+                torch.save(test_dataset, file)
+            wandb.run.log_artifact(test_data_artifact)
+
+        
 
