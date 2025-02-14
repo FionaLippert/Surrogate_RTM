@@ -87,4 +87,6 @@ proxy_transform:
     # - _target_: rtm.utils.LogTransform
 
 # normalization settings
-norm_per_wavelength: true
+normalization:
+  per_wavelength: true # normalize channels separately
+  coupled_proxy: false # separate proxy and target normalization

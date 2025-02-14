@@ -74,3 +74,8 @@ proxy_transform:
   transforms:
     - _target_: rtm.utils.NumpyToTensor
     # - _target_: rtm.utils.LogTransform
+
+# normalization settings
+normalization:
+  per_wavelength: true # normalize channels separately
+  coupled_proxy: false # separate proxy and target normalization

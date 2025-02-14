@@ -1,0 +1,99 @@
+# @package model
+name: SequenceNNSurrogateRTMDiff_v2_proxy_input
+_target_: rtm.models.SequenceNNSurrogateRTMDiff_v2
+
+
+input_dim: ${dataset.input_dim} # all features
+output_dim: ${dataset.output_dim} # all wavelengths
+
+# input_latent_dim: ${dataset.input_dim} # all features
+input_latent_dim: 64
+
+dropout_p: 0.0
+
+loss_terms:
+  - _target_: rtm.loss.WeightedMSE
+    weight: 1.0
+
+# input_dim_reduction:
+#   _target_: rtm.dimensionality_reduction.PCA
+#   n_components: ${model.input_latent_dim}
+
+input_dim_reduction:
+  _target_: rtm.dimensionality_reduction.MLPEncoder
+  enc_dims: 
+    - ${model.input_dim}
+    # - 128
+    - ${model.input_latent_dim}
+  noise_level: 0.0
+  dropout_p: ${model.dropout_p}
+  bias: true
+  nonlinearity: relu
+
+use_proxy_input: true
+proxy_module:
+  # _target_: rtm.models.ResNet1D
+  # n_channels: 
+  #   - 1
+  #   - 32
+  #   - 32
+  # n_out: 32
+  # kernel_size: 3
+  # stride: 1
+  # dropout_p: ${model.dropout_p}
+  _target_: rtm.models.MLP_v2
+  n_in: 1
+  n_out: 32
+  n_hidden: 32
+  n_fc_layers: 1
+  dropout_p: ${model.dropout_p}
+  nonlinearity: relu
+
+input_processing: null
+
+pos_encoding:
+  _target_: rtm.layers.PositionalEncoding
+  d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+  num_wavelengths: ${dataset.output_dim}
+
+
+# forward_model:
+#   _target_: rtm.models.Transformer
+#   num_layers: 2
+#   d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+#   d_out: 1
+#   nhead: 1
+#   dim_feedforward: ${multiply_values:${model.forward_model.d_model},2} #32
+#   dropout_p: ${model.dropout_p}
+
+forward_model:
+  _target_: rtm.models.ResNet1D
+  n_channels: 
+    - ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+    - 128
+    - 64
+    - 32
+  n_out: 1
+  kernel_size: 3
+  stride: 1
+  dropout_p: ${model.dropout_p}
+
+lr: 1e-4
+l2_reg: 0.0 # 4e-5
+lr_decay: 1.0
+lr_schedulers:
+        - _target_: torch.optim.lr_scheduler.LinearLR
+          _partial_: true
+          start_factor: 1e-5
+          end_factor: 1.0
+          total_iters: 10 # number of epochs
+        - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+          _partial_: true
+          T_max: ${trainer.max_epochs}
+          eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
+        # - _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+        #   _partial_: true
+        #   T_0: 50 # number of epochs between restarts
+        #   eta_min: ${eval:'${model.lr} * ${model.lr_decay}'} 
+lr_milestones:
+       - 10

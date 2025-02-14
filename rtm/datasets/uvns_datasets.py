@@ -119,8 +119,10 @@ class RTDataset(Dataset):
         if proxy_transform is not None:
             self.proxy_transform = proxy_transform
             
-    def add_normalization(self, indices: List[int] = None, per_wavelength: bool = True):
-        self.add_transforms(*self.normalization(indices, per_wavelength))
+    def add_normalization(self, 
+                          indices: List[int] = None, 
+                          **kwargs):
+        self.add_transforms(*self.normalization(indices, **kwargs))
     
     def __len__(self):
         return len(self.indices)
@@ -256,7 +258,11 @@ class RTDataset(Dataset):
         return wavelengths
         
     
-    def normalization(self, indices: List[int] = None, per_wavelength: bool = True):
+    def normalization(self, 
+                      indices: List[int] = None, 
+                      per_wavelength: bool = True, 
+                      coupled_proxy: bool = False, 
+                      **kwargs):
         if indices is None: indices = range(len(self))
         pixel_stats = self.get_pixel_statistics(indices)
         profile_stats = self.get_profile_statistics(indices)
@@ -266,6 +272,9 @@ class RTDataset(Dataset):
         profile_norm = utils.normalization(profile_stats) if profile_stats else None
         target_norm = utils.normalization(target_stats)
         proxy_norm = utils.normalization(proxy_stats)
+
+        if coupled_proxy:
+            proxy_norm = target_norm
 
         return pixel_norm, profile_norm, target_norm, proxy_norm
     

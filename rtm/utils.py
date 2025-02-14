@@ -259,9 +259,9 @@ def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable
     if isinstance(std, np.ndarray):
         std = torch.from_numpy(std.copy())
 
-    if isinstance(mean, float):
+    if isinstance(mean, (float, np.floating)):
         mean = torch.tensor(mean)
-    if isinstance(std, float):
+    if isinstance(std, (float, np.floating)):
         std = torch.tensor(std)
 
     # if no variation, replace with 1 to avoid division by zero
