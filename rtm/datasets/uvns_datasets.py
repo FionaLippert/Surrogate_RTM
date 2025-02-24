@@ -259,11 +259,11 @@ class RTDataset(Dataset):
                       **kwargs):
         if indices is None: indices = range(len(self))
         pixel_stats = self.get_pixel_statistics(indices)
-        profile_stats = self.get_profile_statistics(indices)
+        profile_stats = self.get_profile_statistics(indices, per_layer)
         target_stats = self.get_target_statistics(indices, per_wavelength)
         proxy_stats = self.get_proxy_statistics(indices, per_wavelength)
         pixel_norm = utils.normalization(pixel_stats) if pixel_stats else None
-        profile_norm = utils.normalization(profile_stats, per_layer) if profile_stats else None
+        profile_norm = utils.normalization(profile_stats) if profile_stats else None
         target_norm = utils.normalization(target_stats)
         proxy_norm = utils.normalization(proxy_stats)
 

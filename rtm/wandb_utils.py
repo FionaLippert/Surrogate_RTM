@@ -134,8 +134,7 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
 
         elif transforms is None:
             # use all data for testing, but no transforms provided
-            print('No transforms provided for independent test set! Please provide transforms to load test data.')
-
+            print('No transforms provided for independent test set! Please set transforms manually before testing.')
 
         if dataset_cfg.test_size > 0.0:
             # prepare test data
@@ -151,6 +150,4 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
             with test_data_artifact.new_file("test_dataset.pt", mode="wb") as file:
                 torch.save(test_dataset, file)
             wandb.run.log_artifact(test_data_artifact)
-
-        
 
