@@ -11,3 +11,4 @@ final_eval: true
 load_best_model: false
 
 model_path: null
+normalization_path: null

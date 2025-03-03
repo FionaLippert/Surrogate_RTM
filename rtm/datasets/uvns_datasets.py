@@ -143,7 +143,7 @@ class RTDataset(Dataset):
             y = self.target_transform(y)
 
         data_dict = {
-            'pixel_inputs': x_pixels,
+            'inputs': x_pixels,
             'profile_inputs': x_profiles,
             'targets': y,
         }

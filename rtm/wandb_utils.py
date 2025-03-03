@@ -19,7 +19,7 @@ def prepare_train_dataset(dataset_cfg: DictConfig):
 
     # apply normalization based on training set statistics
     dataset.add_normalization(train_indices, **dataset_cfg.normalization)
-    dataset.add_transforms(*[utils.DoubleToFloat()]*3)
+    dataset.add_transforms(*[utils.DoubleToFloat()]*4)
 
     return dataset, train_indices, val_indices
 
@@ -96,6 +96,9 @@ def load_test_dataset(dataset_cfg: OmegaConf,
 
             dataset = torch.load(os.path.join(dataset_path, 'test_dataset.pt'), weights_only=False)
 
+            if transforms is not None:
+                dataset.set_transforms(*transforms)
+
             print(f'Test data successfully loaded from project {wandb.run.project}')
         except:
             # if not, load and normalize dataset from scratch
@@ -115,8 +118,9 @@ def load_test_dataset(dataset_cfg: OmegaConf,
 
 
 def prepare_data_and_log(dataset_cfg: DictConfig, 
-                      wandb_project: Optional[str] = None,
-                      transforms: Optional[List[utils.RTMTransform]] = None):
+                         data_path: str,
+                         wandb_project: Optional[str] = None,
+                         transforms: Optional[List[utils.RTMTransform]] = None):
     # load training and test data, as well as transforms, and log everything as artifacts to wandb
 
     with wandb.init(project=wandb_project, job_type='prepare-data') as run:
@@ -125,6 +129,10 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
             # prepare training data
             train_dataset, train_indices, val_indices = prepare_train_dataset(dataset_cfg)
             transforms = train_dataset.get_transforms()
+            print(train_dataset.target_transform)
+            print(train_dataset.proxy_transform)
+            train_data_path = os.path.join(data_path, f'{dataset_cfg.name}_train_val')
+            os.makedirs(train_data_path, exist_ok=True)
         
             print('Logging training data to W&B...')
             train_data_artifact = wandb.Artifact(
@@ -132,13 +140,28 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
                         description="Training dataset, can be further split into training and validation sets",
                         metadata={"source": dataset_cfg._target_,
                                 "config": OmegaConf.to_container(dataset_cfg, resolve=True)}
-                )
-            with train_data_artifact.new_file("train_dataset.pt", mode="wb") as file:
-                torch.save(train_dataset, file)
-            with train_data_artifact.new_file("train_indices.pt", mode="wb") as file:
-                torch.save(train_indices, file)
-            with train_data_artifact.new_file("val_indices.pt", mode="wb") as file:
-                torch.save(val_indices, file)
+            )
+
+            fn_train_dataset = os.path.join(train_data_path, "train_dataset.pt")
+            torch.save(train_dataset, fn_train_dataset)
+            train_data_artifact.add_file(fn_train_dataset)
+
+            fn_train_indices = os.path.join(train_data_path, "train_indices.pt")
+            torch.save(train_indices, fn_train_indices)
+            train_data_artifact.add_file(fn_train_indices)
+
+            fn_val_indices = os.path.join(train_data_path, "val_indices.pt")
+            torch.save(train_indices, fn_val_indices)
+            train_data_artifact.add_file(fn_val_indices)
+
+        
+            # with train_data_artifact.new_file("train_dataset.pt", mode="wb") as file:
+            #     torch.save(train_dataset, file)
+            # with train_data_artifact.new_file("train_indices.pt", mode="wb") as file:
+            #     torch.save(train_indices, file)
+            # with train_data_artifact.new_file("val_indices.pt", mode="wb") as file:
+            #     torch.save(val_indices, file)
+
             wandb.run.log_artifact(train_data_artifact)
 
             print('Logging normalization to W&B...')
@@ -146,9 +169,16 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
                     f'{dataset_cfg.name}_transforms', type="normalization",
                     description="Transforms applied to the dataset"
             )
+            normalization_path = os.path.join(data_path, f'{dataset_cfg.name}_transforms')
+            os.makedirs(normalization_path, exist_ok=True)
+
             for name, transf in zip(['pixel', 'profile', 'target', 'proxy'], transforms):
-                with normalization.new_file(f"{name}_transform.pt", mode="wb") as file:
-                    torch.save(transf, file)
+                fn_transf = os.path.join(normalization_path, f"{name}_transform.pt")
+                torch.save(transf, fn_transf)
+                normalization.add_file(fn_val_indices)
+                # with normalization.new_file(f"{name}_transform.pt", mode="wb") as file:
+                    # torch.save(transf, file)
+
             wandb.run.log_artifact(normalization)
 
         elif transforms is None:
@@ -166,8 +196,16 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
                         metadata={"source": dataset_cfg._target_,
                                 "config": OmegaConf.to_container(dataset_cfg, resolve=True)}
                 )
-            with test_data_artifact.new_file("test_dataset.pt", mode="wb") as file:
-                torch.save(test_dataset, file)
+            # with test_data_artifact.new_file("test_dataset.pt", mode="wb") as file:
+                # torch.save(test_dataset, file)
+
+            test_data_path = os.path.join(data_path, f'{dataset_cfg.name}_test')
+            os.makedirs(test_data_path, exist_ok=True)
+
+            fn_test_dataset = os.path.join(test_data_path, "test_dataset.pt")
+            torch.save(test_dataset, fn_test_dataset)
+            test_data_artifact.add_file(fn_test_dataset)
+
             wandb.run.log_artifact(test_data_artifact)
 
 

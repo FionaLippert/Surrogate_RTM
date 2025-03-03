@@ -207,6 +207,26 @@ class NNSurrogateRTM(SurrogateRTM):
 
         return {"optimizer": optimizer,
                 "lr_scheduler": scheduler}
+    
+    def on_save_checkpoint(self, checkpoint):
+        # save additional objects to checkpoint 
+        checkpoint['target_transform'] = self.target_transform
+        checkpoint['proxy_transform'] = self.proxy_transform
+    
+    def on_load_checkpoint(self, checkpoint):
+        print(f'Loading model state on device {self.device}...')
+        self.load_model_state(checkpoint, map_location=self.device)
+        
+    def load_model_state(self, checkpoint, map_location=None):
+        # load standard pytorch state_dict
+        self.load_state_dict(checkpoint['state_dict'])
+
+        # load additional objects from checkpoint
+        self.target_transform = checkpoint['target_transform']
+        self.proxy_transform = checkpoint['proxy_transform']
+
+        # make sure everything is on the same device
+        self.to(map_location)
 
 
 class NNSurrogateRTMDiff(NNSurrogateRTM):
@@ -359,25 +379,18 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
         if isinstance(self.output_dim_reduction, PCA):
             checkpoint['output_dim_reduction'] = self.output_dim_reduction.pca_dict()
-        checkpoint['target_transform'] = self.target_transform
 
-    def on_load_checkpoint(self, checkpoint):
-        print(f'Loading model state on device {self.device}...')
-        self.load_model_state(checkpoint, map_location=self.device)
+        super().on_save_checkpoint(checkpoint)
+        
         
     def load_model_state(self, checkpoint, map_location=None):
-        self.load_state_dict(checkpoint['state_dict'])
-
+        # load PCA parameters
         if isinstance(self.input_dim_reduction, PCA):
             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
-            
         if isinstance(self.output_dim_reduction, PCA):
             self.output_dim_reduction.load_pca_dict(checkpoint['output_dim_reduction'], map_location)
 
-        self.target_transform = checkpoint['target_transform']
-
-        # make sure everything is on the same device
-        self.to(map_location)
+        super().load_model_state(checkpoint, map_location=map_location)
 
     def _apply(self, convert):
         if isinstance(self.input_dim_reduction, PCA):
@@ -543,24 +556,14 @@ class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
         # save additional objects to checkpoint 
         if isinstance(self.input_dim_reduction, PCA):
             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
-        checkpoint['target_transform'] = self.target_transform
-        checkpoint['proxy_transform'] = self.proxy_transform
-    
-    def on_load_checkpoint(self, checkpoint):
-        print(f'Loading model state on device {self.device}...')
-        self.load_model_state(checkpoint, map_location=self.device)
+        super().on_save_checkpoint(checkpoint)
         
     def load_model_state(self, checkpoint, map_location=None):
-        self.load_state_dict(checkpoint['state_dict'])
 
         if isinstance(self.input_dim_reduction, PCA):
             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
             
-        self.target_transform = checkpoint['target_transform']
-        self.proxy_transform = checkpoint['proxy_transform']
-
-        # make sure everything is on the same device
-        self.to(map_location)
+        super().load_model_state(checkpoint, map_location=map_location)
 
     def _apply(self, convert):
         if isinstance(self.input_dim_reduction, PCA):
@@ -634,24 +637,14 @@ class SequenceNNSurrogateRTMDiff_v2(NNSurrogateRTM):
         # save additional objects to checkpoint 
         if isinstance(self.input_dim_reduction, PCA):
             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
-        checkpoint['target_transform'] = self.target_transform
-        checkpoint['proxy_transform'] = self.proxy_transform
-    
-    def on_load_checkpoint(self, checkpoint):
-        print(f'Loading model state on device {self.device}...')
-        self.load_model_state(checkpoint, map_location=self.device)
+        super().on_save_checkpoint(checkpoint)
         
     def load_model_state(self, checkpoint, map_location=None):
-        self.load_state_dict(checkpoint['state_dict'])
 
         if isinstance(self.input_dim_reduction, PCA):
             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
             
-        self.target_transform = checkpoint['target_transform']
-        self.proxy_transform = checkpoint['proxy_transform']
-
-        # make sure everything is on the same device
-        self.to(map_location)
+        super().load_model_state(checkpoint, map_location=map_location)
 
     def _apply(self, convert):
         if isinstance(self.input_dim_reduction, PCA):
@@ -666,8 +659,10 @@ class SequenceNNSurrogateRTM(NNSurrogateRTM):
                  input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
                  pos_encoding: Optional[torch.nn.Module] = None,
                  proxy_module: Optional[torch.nn.Module] = None,
+                 profile_module: Optional[torch.nn.Module] = None,
                  input_processing: Optional[torch.nn.Module] = None,
                  use_proxy_input: bool = False,
+                 use_profile_input: bool = False,
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -676,37 +671,14 @@ class SequenceNNSurrogateRTM(NNSurrogateRTM):
         self.pos_encoding = pos_encoding
         self.input_processing = input_processing
 
+        print(profile_module)
+
         self.proxy_module = proxy_module
         self.use_proxy_input = use_proxy_input
 
+        self.profile_module = profile_module
+        self.use_profile_input = use_profile_input
 
-    # def forward(self, inputs, **kwargs) -> torch.Tensor:
-
-    #     if self.use_proxy_input:
-    #         # proxy targets have shape [batch_size, n_wavelengths]
-    #         # expand inputs and add them as additional channels to proxy spectra
-    #         proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
-
-    #         if self.proxy_module:
-    #             proxy = self.proxy_module(proxy)
-
-    #     if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
-    #         inputs = self.input_dim_reduction.encode(inputs)
-
-    #     # inputs have shape [batch_size, n_features]
-    #     # expand across wavelengths
-    #     inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
-
-    #     if self.pos_encoding:
-    #         # add positional information to inputs
-    #         inputs = self.pos_encoding(inputs)
-
-    #     if self.use_proxy_input:
-    #         inputs = torch.cat([inputs, proxy], dim=-1)
-
-    #     outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
-
-    #     return outputs
 
     def forward(self, inputs, **kwargs) -> torch.Tensor:
 
@@ -721,6 +693,14 @@ class SequenceNNSurrogateRTM(NNSurrogateRTM):
         if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
             inputs = self.input_dim_reduction.encode(inputs)
 
+        if self.use_profile_input:
+            # profile inputs have shape [batch_size, n_layers, n_vars]
+            profile_input = kwargs['profile_inputs']
+
+            if self.profile_module:
+                profile_input = self.profile_module(profile_input)
+                inputs = torch.cat([inputs, profile_input], dim=1)
+
         # inputs have shape [batch_size, n_features]
         # expand across wavelengths
         inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
@@ -728,13 +708,13 @@ class SequenceNNSurrogateRTM(NNSurrogateRTM):
         if self.use_proxy_input:
             inputs = torch.cat([inputs, proxy], dim=-1)
 
+
         if self.input_processing:
             inputs = self.input_processing(inputs)
 
         if self.pos_encoding:
             # add positional information to inputs
             inputs = self.pos_encoding(inputs)
-
 
         
         outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
@@ -747,22 +727,14 @@ class SequenceNNSurrogateRTM(NNSurrogateRTM):
         # save additional objects to checkpoint 
         if isinstance(self.input_dim_reduction, PCA):
             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
-        checkpoint['target_transform'] = self.target_transform
-    
-    def on_load_checkpoint(self, checkpoint):
-        print(f'Loading model state on device {self.device}...')
-        self.load_model_state(checkpoint, map_location=self.device)
+        super().on_save_checkpoint(checkpoint)
         
     def load_model_state(self, checkpoint, map_location=None):
-        self.load_state_dict(checkpoint['state_dict'])
 
         if isinstance(self.input_dim_reduction, PCA):
             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
             
-        self.target_transform = checkpoint['target_transform']
-
-        # make sure everything is on the same device
-        self.to(map_location)
+        super().load_model_state(checkpoint, map_location=map_location)
 
     def _apply(self, convert):
         if isinstance(self.input_dim_reduction, PCA):
@@ -795,6 +767,32 @@ class HybridRTM(torch.nn.Module):
         output = transmission + offset
 
         return output
+
+
+class BidirectionalLSTMEncoder(torch.nn.Module):
+    """
+    Encodes a multi-dimensional sequence to a hidden feature vector
+    """
+    def __init__(self, n_in, n_hidden, n_out, n_layers=1, dropout_p=0.0):
+        super().__init__()
+
+        self.lstm = torch.nn.LSTM(input_size=n_in, 
+                                  hidden_size=n_hidden, 
+                                  num_layers=n_layers, 
+                                  batch_first=True, 
+                                  dropout=dropout_p, 
+                                  bidirectional=True)
+        
+        self.fc_out = torch.nn.Linear(2 * n_hidden, n_out)
+
+    def forward(self, sequence):
+        
+        out, _ = self.lstm(sequence)
+
+        # use concatenation of last forward and backward hidden state to define features
+        out = self.fc_out(out[:, -1, :])
+
+        return out
     
 
 class Transformer(torch.nn.Module):

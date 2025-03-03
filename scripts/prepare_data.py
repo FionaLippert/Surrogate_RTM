@@ -42,7 +42,6 @@ def run(cfg: DictConfig):
     else:
         transforms = None
 
-
     # prepare training and test data
     # wandb_utils.prepare_data_and_log(cfg.dataset, cfg.logger.project, transforms)
     wandb_utils.prepare_data_and_save(cfg.dataset, cfg.data_path, transforms)
@@ -50,7 +49,6 @@ def run(cfg: DictConfig):
     # test if loading works
     dataset, train_indices, val_indices = wandb_utils.load_train_dataset(
         cfg.dataset, data_path=cfg.data_path)
-
 
 if __name__ == "__main__":
     run()
