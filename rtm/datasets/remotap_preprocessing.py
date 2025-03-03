@@ -12,6 +12,7 @@ def save_netcdf_file(data: xr.Dataset, save_path: str):
         # remove existing file
         os.remove(save_path)
     data.to_netcdf(save_path, format='NETCDF4')
+    data.close()
 
 
 def combine_chunks(data_dir: str, prefix: str, n_chunks: int, combined_dir: str = 'combined'):
@@ -61,6 +62,7 @@ def combine_netcdf_files(data_dir: str, file_list: List[str]):
             # adjust pixelID to avoid duplicates
             ds['pixelID'] = ds['pixelID'] + combined['pixelID'].max() + 1
             combined = xr.concat([combined, ds], dim='pixelID')
+        ds.close()
 
     return combined
 
@@ -244,6 +246,7 @@ def load_geometry(data_dir: str, prefix: str, instrument: str = 'instr2_noise0')
         ]
     ds = xr.open_dataset(osp.join(data_dir, fname))
     geom_dict = {var: ds[var].data.squeeze() for var in var_list}
+    ds.close()
 
     vars = list(geom_dict.keys())
     for var in vars:
@@ -264,6 +267,7 @@ def load_coords(data_dir: str, prefix: str, instrument: str = 'instr2_noise0'):
     var_list = ['UTC_Date', 'Fracday', 'Julday', 'Lon', 'Lat']
     ds = xr.open_dataset(osp.join(data_dir, fname))
     coords = {var: ds[var].data for var in var_list}
+    ds.close()
 
     # TODO: convert UTC_Date (int) and Fracday (float) to datetime?
 
@@ -312,6 +316,8 @@ def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
         surface_dict[f'{gas}_column_avg'] = column_avg
         surface_dict[f'log_{gas}_column_total'] = np.log(np.maximum(column_total, 1e-12))
 
+    ds.close()
+
     return surface_dict
 
 def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
@@ -341,6 +347,8 @@ def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
     for gas in gas_names:
         atm_dict[f'MMR_{gas}'] = ds[f'MMR_{gas}'].data
 
+    ds.close()
+
     return atm_dict
 
 def load_state_vars(data_dir: str, prefix: str):
@@ -355,6 +363,8 @@ def load_state_vars(data_dir: str, prefix: str):
     for var in var_list:
         if np.all(props[var] >= 0):
             props[f'Log_{var}'] = np.log(np.maximum(props[var], 1e-12))
+
+    ds.close()
 
     return props
 
@@ -390,6 +400,8 @@ def load_spectra(data_dir: str, prefix: str, wl_range: str,
             spectra['proxy'] = tr_spectra['Radiance'].data[:, 0, wl_idx]
         else:
             print(f'No proxy spectra found for {prefix_proxy}')
+
+    ds.close()
         
     return spectra
     
@@ -398,9 +410,12 @@ def load_wavelengths(data_dir: str, prefix: str,
                      instrument: str = 'instr2_noise0'):
     # extract wavelengths of spectra from netCDF file
     fname = f'{prefix}_{instrument}.nc'
-    wl = xr.open_dataset(osp.join(data_dir, fname))['wavelength'].data
+    ds = xr.open_dataset(osp.join(data_dir, fname))
+    wl = ds['wavelength'].data
 
     # select wavelength range
     wl = wl[wl >= wl_range[0] and wl <= wl_range[1]]
+
+    ds.close()
 
     return wl # shape: (nwave)

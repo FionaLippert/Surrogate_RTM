@@ -1,0 +1,94 @@
+# @package dataset
+name: synthetic_remotap_extended_era5
+_target_: rtm.datasets.uvns_datasets.FlatRTDataset
+
+# don't touch to ensure the same data split is used for all experiments
+seed: 0 # random seed used to define data split
+test_size: 0.2 # fraction of the dataset to be used for testing
+val_size: 0.1 # fraction of the training dataset to be used for validation
+
+# point to data files
+data_dir: ${device.data_root}/random_ensemble_1e6/SWIR1_preprocessed/combined_nchunks=16
+prefix: syn_meas_s5_random_ensemble_1e6_combined
+# data_dir: ${device.data_root}/random_ensemble_1e6/SWIR1_preprocessed
+# prefix: syn_meas_s5_random_ensemble_1e6_01
+
+# define output quantity
+target_quantity: radiance
+predict_difference: false
+
+# should be adjusted to the actual number of features and wavelengths in 
+# the dataset (is used to define the model input/output dimensions)
+input_dim: 410 # all features
+output_dim: 851 # all wavelengths
+
+# define input features
+pixel_features:
+  - Cos_SolarZenithAngle
+  - Cos_ViewingZenithAngle
+  - Cos_RelativeAzimuthAngle
+  # - Air_Mass_Factor
+  - surface_pressure_meteo
+  - cbrt_surface_elevation_meteo
+  - Log_Truth_SSA
+  - Truth_Mode_AAOT
+  - Truth_AAOT
+  - Log_Truth_Mode_AOT
+  - Log_Truth_AOT
+  - Truth_Xbdrf_Geo
+  - Truth_Xbdrf_Wave_Av
+  - Truth_Xbdrf_Wave_Par
+  - Log_Truth_Mode1_TAU550
+  - Log_Truth_Mode2_TAU550
+  - Truth_Mode2_Xalt
+  - Truth_Mode1_Aerosol_Pars
+  - Truth_Mode2_Aerosol_Pars
+  # new vars
+  # - Truth_Mode1_Aerosol_Pars_Abovecld
+  # - Truth_Mode2_Aerosol_Pars_Abovecld
+  # - Truth_Mode1_TAU550_Abovecld
+  # - Truth_Mode2_TAU550_Abovecld
+  # - Truth_Mode1_Mr # is always constant
+  # - Truth_Mode2_Mr # is always constant
+  # - Truth_Mode1_Mi # is always constant
+  # - Truth_Mode2_Mi # is always constant
+  # - Truth_Mode1_Aerosol_Pars_Lowcloud
+  # - Truth_Mode1_Mr_Lowcloud
+  # - Truth_Mode1_Mi_Lowcloud
+  # - Truth_Mode1_Aerosol_Pars_Cirrus
+  # - Truth_Mode1_Mr_Cirrus
+  # - Truth_Mode1_Mi_Cirrus
+  # - Truth_Xocean
+  - Truth_Xbpdf
+  # - Truth_Vmol
+profile_features:
+  - temperature
+  - pressure
+  - log_specific_humidity
+  # - cbrt_specific_humidity
+  - MMR_co2
+  - MMR_ch4
+
+  # transforms for input features
+transform:
+  _target_: rtm.utils.NumpyToTensor
+
+# transforms for output spectra
+target_transform:
+  _target_: rtm.utils.RTMCompose
+  transforms:
+    - _target_: rtm.utils.NumpyToTensor
+    - _target_: rtm.utils.LogTransform
+
+# transforms for proxy input spectra
+proxy_transform:
+  _target_: rtm.utils.RTMCompose
+  transforms:
+    - _target_: rtm.utils.NumpyToTensor
+
+
+# normalization settings
+normalization:
+  per_wavelength: true # normalize spectral channels separately
+  per_layer: true # normalize vertical layers separately
+  coupled_proxy: false # separate proxy and target normalization

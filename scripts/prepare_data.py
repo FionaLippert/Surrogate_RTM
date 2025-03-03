@@ -39,10 +39,17 @@ def run(cfg: DictConfig):
     # optional: load transforms from different dataset
     if cfg.dataset.get('transforms_path', None) is not None:
         transforms = utils.load_transforms(cfg.dataset.transforms_path)
+    else:
+        transforms = None
 
 
     # prepare training and test data
-    wandb_utils.prepare_data_and_log(cfg.dataset, cfg.logger.project, transforms)
+    # wandb_utils.prepare_data_and_log(cfg.dataset, cfg.logger.project, transforms)
+    wandb_utils.prepare_data_and_save(cfg.dataset, cfg.data_path, transforms)
+
+    # test if loading works
+    dataset, train_indices, val_indices = wandb_utils.load_train_dataset(
+        cfg.dataset, data_path=cfg.data_path)
 
 
 if __name__ == "__main__":

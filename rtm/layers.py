@@ -2,6 +2,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from sklearn.decomposition import PCA
 from typing import Union, List, Dict, Tuple, Callable, Optional
 
 from rtm import utils
@@ -199,6 +200,44 @@ class MLPEncoder(Encoder):
         x = self.encoder_layers[-1](x)
         return x
     
+class PCAEncoder(Encoder):
+    """
+    Simple encoder using pre-defined PCA components
+
+    Args:
+    n_components: number of PCA components
+    fixed_components: if true, keep PCA components fixed during training, otherwise allow to adjust
+    """
+    def __init__(self,
+                 n_components: int, 
+                 fixed_components: bool = True,
+                 **kwargs
+                 ):
+        super().__init__(**kwargs)
+
+        self._latent_dim = n_components
+        self.fixed_components = fixed_components
+        self.pca = PCA(n_components=n_components)
+
+    def fit(self, data):
+        self.pca.fit(data)
+
+        components = torch.tensor(self.pca.components_, dtype=torch.float32)
+        mean = torch.tensor(self.pca.mean_, dtype=torch.float32)
+
+        if self.fixed_components:
+            # keep PCA transform as is
+            self.register_buffer('components', components) # shape (n_components, features)
+            self.register_buffer('mean', mean) # shape (features,)
+        else:
+            # alternatively, allow to adjust transformation during training
+            self.components = torch.nn.Parameter(components, requires_grad=True)
+            self.mean = torch.nn.Parameter(mean, requires_grad=True)
+    
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        z = F.linear(x, self.components, - self.mean @ self.components.T)
+        return z
+    
 
 ##################################################
 # Decoder modules
@@ -259,6 +298,45 @@ class MLPDecoder(Decoder):
             z = F.dropout(z, p=self.dropout_p, training=self.training)
         # no activation on last layer
         x = self.decoder_layers[-1](z)
+        return x
+    
+
+class PCADecoder(Decoder):
+    """
+    Simple decoder using pre-defined PCA components
+
+    Args:
+    n_components: number of PCA components
+    fixed_components: if true, keep PCA components fixed during training, otherwise allow to adjust
+    """
+    def __init__(self,
+                 n_components: int, 
+                 fixed_components: bool = True,
+                 **kwargs
+                 ):
+        super().__init__(**kwargs)
+
+        self._latent_dim = n_components
+        self.fixed_components = fixed_components
+        self.pca = PCA(n_components=n_components)
+
+    def fit(self, data):
+        self.pca.fit(data)
+
+        components = torch.tensor(self.pca.components_, dtype=torch.float32)
+        mean = torch.tensor(self.pca.mean_, dtype=torch.float32)
+
+        if self.fixed_components:
+            # keep PCA transform as is
+            self.register_buffer('components', components) # shape (n_components, features)
+            self.register_buffer('mean', mean) # shape (features,)
+        else:
+            # alternatively, allow to adjust transformation during training
+            self.components = torch.nn.Parameter(components, requires_grad=True)
+            self.mean = torch.nn.Parameter(mean, requires_grad=True)
+    
+    def decode(self, z: torch.Tensor) -> torch.Tensor:
+        x = F.linear(z, self.components.T, self.mean)
         return x
 
 

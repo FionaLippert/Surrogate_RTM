@@ -91,8 +91,8 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
         print('####### Start model training ########')
     
     # get training data
-    dataset, train_indices, val_indices = wandb_utils.load_train_dataset_from_wandb(
-        wandb.run, cfg.dataset, cfg.data_path)
+    dataset, train_indices, val_indices = wandb_utils.load_train_dataset(
+        cfg.dataset, data_path=cfg.data_path, run=wandb.run)
 
     # set function to convert model outputs to physical targets
     model.target_transform = dataset.target_transform
@@ -139,14 +139,17 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
 
     if cfg.task.final_eval:
         # get test data
-        dataset = wandb_utils.load_test_dataset_from_wandb(wandb.run, cfg.dataset, cfg.data_path, transforms)
+        dataset = wandb_utils.load_test_dataset(cfg.dataset, 
+                                                data_path=cfg.data_path, 
+                                                transforms=transforms,
+                                                run=wandb.run)
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, shuffle=False)
     else:
         # get validation data
-        dataset, train_indices, val_indices = wandb_utils.load_train_dataset_from_wandb(
-            wandb.run, cfg.dataset, cfg.data_path)
+        dataset, train_indices, val_indices = wandb_utils.load_train_dataset(
+            cfg.dataset, data_path=cfg.data_path, run=wandb.run)
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
