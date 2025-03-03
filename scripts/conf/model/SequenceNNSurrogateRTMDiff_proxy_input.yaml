@@ -7,16 +7,16 @@ input_dim: ${dataset.input_dim} # all features
 output_dim: ${dataset.output_dim} # all wavelengths
 
 # input_latent_dim: ${dataset.input_dim} # all features
-input_latent_dim: 64
+input_latent_dim: 128
 
 dropout_p: 0.0
 
 loss_terms:
-  # - _target_: rtm.loss.WeightedMSE
-    # weight: 1.0
+  - _target_: rtm.loss.WeightedMSE
+    weight: 1.0
   # - _target_: rtm.loss.WeightedMAE
     # weight: 1.0
-  - _target_: rtm.loss.RelativeMSE
+  # - _target_: rtm.loss.RelativeMSE
 
 # input_dim_reduction:
 #   _target_: rtm.dimensionality_reduction.PCA
@@ -81,9 +81,9 @@ forward_model:
   stride: 1
   dropout_p: ${model.dropout_p}
 
-lr: 1e-4
+lr: 1e-3
 l2_reg: 0.0 # 4e-5
-lr_decay: 1.0
+lr_decay: 0.001
 lr_schedulers:
         - _target_: torch.optim.lr_scheduler.LinearLR
           _partial_: true
@@ -94,9 +94,5 @@ lr_schedulers:
           _partial_: true
           T_max: ${trainer.max_epochs}
           eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
-        # - _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
-        #   _partial_: true
-        #   T_0: 50 # number of epochs between restarts
-        #   eta_min: ${eval:'${model.lr} * ${model.lr_decay}'} 
 lr_milestones:
        - 10

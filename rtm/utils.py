@@ -306,7 +306,7 @@ def load_transforms(dir: str, types=['pixel', 'profile', 'target', 'proxy']):
     transforms = []
     for t in types:
         fname = os.path.join(dir, f'{t}_transform.pt')
-        if os.isfile(fname):
+        if os.path.isfile(fname):
             transf = torch.load(fname)
             transforms.append(transf)
         else:

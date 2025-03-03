@@ -60,7 +60,6 @@ target_transform:
   _target_: rtm.utils.RTMCompose
   transforms:
     - _target_: rtm.utils.NumpyToTensor
-    - _target_: rtm.utils.DoubleToFloat
 
 # transforms for proxy input spectra
 proxy_transform:
@@ -68,7 +67,6 @@ proxy_transform:
   transforms:
     - _target_: rtm.utils.NumpyToTensor
     - _target_: rtm.utils.LogTransform
-    - _target_: rtm.utils.DoubleToFloat
 
 
 # normalization settings

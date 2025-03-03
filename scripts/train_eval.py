@@ -66,7 +66,9 @@ def run(cfg: DictConfig):
     if cfg.task.get('model_path', None) is not None:
         # path_to_model = wandb.use_model(cfg.task.model_path)
         # model.load_state_dict(torch.load(path_to_model))
-        model.load_state_dict(torch.load(cfg.task.model_path)['state_dict'])
+        checkpoint = torch.load(cfg.task.model_path)
+        print('Loading model state from checkpoint...')
+        model.load_model_state(checkpoint)
 
     if 'train' in cfg.task.name:
         transforms = train(trainer, model, cfg)
@@ -74,6 +76,11 @@ def run(cfg: DictConfig):
     else:
         trained = False
         transforms = None
+
+    # optional: load transforms explicitly
+    if cfg.task.get('normalization_path', None) is not None:
+        print(f'Loading transforms from {cfg.task.normalization_path}...')
+        transforms = utils.load_transforms(cfg.task.normalization_path)
 
     if 'eval' in cfg.task.name:
         eval(trainer, model, cfg, transforms, trained=trained)
@@ -93,6 +100,10 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     # get training data
     dataset, train_indices, val_indices = wandb_utils.load_train_dataset_from_wandb(
         wandb.run, cfg.dataset, cfg.data_path)
+    
+    print(dataset.target_transform)
+
+    print(dataset.proxy_transform)
 
     # set function to convert model outputs to physical targets
     model.target_transform = dataset.target_transform

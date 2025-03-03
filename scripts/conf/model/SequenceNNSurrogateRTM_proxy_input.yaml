@@ -57,43 +57,39 @@ pos_encoding:
   num_wavelengths: ${dataset.output_dim}
 
 
-forward_model:
-  _target_: rtm.models.Transformer
-  num_layers: 2
-  d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
-  d_out: 1
-  nhead: 1
-  dim_feedforward: ${multiply_values:${model.forward_model.d_model},2} #32
-  dropout_p: ${model.dropout_p}
-
 # forward_model:
-#   _target_: rtm.models.ResNet1D
-#   n_channels: 
-#     - ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
-#     - 128
-#     - 64
-#     - 32
-#   n_out: 1
-#   kernel_size: 3
-#   stride: 1
+#   _target_: rtm.models.Transformer
+#   num_layers: 2
+#   d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+#   d_out: 1
+#   nhead: 1
+#   dim_feedforward: ${multiply_values:${model.forward_model.d_model},2} #32
 #   dropout_p: ${model.dropout_p}
 
-lr: 1e-4
+forward_model:
+  _target_: rtm.models.ResNet1D
+  n_channels: 
+    - ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+    - 128
+    - 64
+    - 32
+  n_out: 1
+  kernel_size: 3
+  stride: 1
+  dropout_p: ${model.dropout_p}
+
+lr: 1e-3
 l2_reg: 0.0 # 4e-5
-lr_decay: 1.0
+lr_decay: 0.001
 lr_schedulers:
-        - _target_: torch.optim.lr_scheduler.LinearLR
-          _partial_: true
-          start_factor: 1e-5
-          end_factor: 1.0
-          total_iters: 10 # number of epochs
-        - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-          _partial_: true
-          T_max: ${trainer.max_epochs}
-          eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
-        # - _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
-        #   _partial_: true
-        #   T_0: 50 # number of epochs between restarts
-        #   eta_min: ${eval:'${model.lr} * ${model.lr_decay}'} 
+  - _target_: torch.optim.lr_scheduler.LinearLR
+    _partial_: true
+    start_factor: 1e-5
+    end_factor: 1.0
+    total_iters: 10 # number of epochs
+  - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+    _partial_: true
+    T_max: ${trainer.max_epochs}
+    eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
 lr_milestones:
-       - 10
+  - 10

@@ -16,5 +16,5 @@ cd $HOME/SRON/surrogate_rtm/scripts
 source activate rtm_env
 
 # srun python train_eval.py device=snellius dataset=synthetic_remotap model=SequenceNNSurrogateRTM_proxy_input logger.project=test_sequence_models task.final_eval=true task.save_predictions=true seed=0 model.input_latent_dim=128 model.forward_model.d_model=160 model.forward_model.nhead=1 model.input_processing=null model.lr_decay=0.001 model.lr=1e-3
-# srun python train_eval.py device=snellius dataset=synthetic_remotap model=SequenceNNSurrogateRTM_proxy_input logger.project=test_sequence_models task.final_eval=true task.save_predictions=true seed=0 model.input_latent_dim=128 model.input_processing=null model.lr_decay=0.001 model.lr=1e-3
-srun python train_eval.py device=snellius dataset=synthetic_remotap model=LatentNNSurrogateRTM logger.project=test_sequence_models task.final_eval=true task.save_predictions=true seed=0
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_era5_single_norm_only_gas_profiles model=SequenceNNSurrogateRTM_proxy_input logger.project=era5_inputs task.final_eval=true task.save_predictions=true seed=0
+srun python train_eval.py device=snellius dataset=synthetic_remotap_nir_era5_only_gas_profiles model=LatentNNSurrogateRTM logger.project=era5_inputs_nir task.final_eval=true task.save_predictions=true seed=0 #model.input_latent_dim=303

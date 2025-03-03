@@ -160,7 +160,7 @@ class PCA(DimensionalityReduction):
         self.pca = torch_pca.PCA(n_components=n_components)
 
         self._latent_dim = n_components
-        self._input_dim = -1
+        self._input_dim = None
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         z = self.encode(x)
@@ -197,9 +197,8 @@ class PCA(DimensionalityReduction):
     def load_pca_dict(self, state_dict, map_location=None):
         for key, value in state_dict['pca'].items():
             if isinstance(value, torch.Tensor):
-                state_dict['pca'][key] = value.to(map_location)
-            else:
-                setattr(self.pca, key, value)
+                value = value.to(map_location)
+            setattr(self.pca, key, value)
         self._input_dim = state_dict['_input_dim']
         self._latent_dim = state_dict['_latent_dim']
 
