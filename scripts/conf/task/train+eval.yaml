@@ -1,6 +1,9 @@
 # @package task
 name: train+eval
 
+# fraction of the training set to be used for training
+train_frac: 1.0
+
 # save predictions?
 save_predictions: false
 

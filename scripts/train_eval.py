@@ -29,6 +29,19 @@ OmegaConf.register_new_resolver("add_values", add_values)
 OmegaConf.register_new_resolver("multiply_values", multiply_values)
 OmegaConf.register_new_resolver("eval", eval)
 
+
+##################################################################
+## Notes on computing gradients w.r.t. inputs for retrievals
+#
+# inputs.requires_grad = True
+# optimizer.zero_grad()
+# output = model(data)
+# output.backward()
+# grad = inputs.grad
+##################################################################
+
+
+
 # main entry point
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
@@ -100,6 +113,11 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     # get training data
     dataset, train_indices, val_indices = wandb_utils.load_train_dataset(
         cfg.dataset, data_path=cfg.data_path, run=wandb.run)
+    
+    # possibly select smaller subset of the training data
+    if cfg.task.get('train_frac', 1.0) < 1.0:
+        n_subset = int(cfg.task.data_frac * len(train_indices))
+        train_indices = np.random.choice(train_indices, n_subset, replace=False)
 
     # set function to convert model outputs to physical targets
     model.target_transform = dataset.target_transform

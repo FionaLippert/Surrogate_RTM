@@ -1,11 +1,11 @@
 # @package dataset
-name: synthetic_remotap_extended_era5
+name: synthetic_remotap_swir1_extended_era5
 _target_: rtm.datasets.uvns_datasets.FlatRTDataset
 
 # don't touch to ensure the same data split is used for all experiments
 seed: 0 # random seed used to define data split
-test_size: 0.2 # fraction of the dataset to be used for testing
-val_size: 0.1 # fraction of the training dataset to be used for validation
+test_size: 0.1 # fraction of the dataset to be used for testing
+val_size: 0.05 # fraction of the training dataset to be used for validation
 
 # point to data files
 data_dir: ${device.data_root}/random_ensemble_1e6/SWIR1_preprocessed/combined_nchunks=16
@@ -30,7 +30,7 @@ pixel_features:
   # - Air_Mass_Factor
   - surface_pressure_meteo
   - cbrt_surface_elevation_meteo
-  - Log_Truth_SSA
+  - Log_Truth_SSA # consider not using log-transform
   - Truth_Mode_AAOT
   - Truth_AAOT
   - Log_Truth_Mode_AOT
