@@ -159,6 +159,7 @@ class NNSurrogateRTM(SurrogateRTM):
 
     
     def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
+
         return self.forward_model(inputs)
 
 

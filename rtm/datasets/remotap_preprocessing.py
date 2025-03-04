@@ -302,9 +302,10 @@ def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
     surface_dict['cbrt_surface_elevation_dem'] = np.cbrt(surface_dict['surface_elevation_dem'])
 
     # calculate total water vapor
-    tpw = utils.total_column_amount(ds['specific_humidity'].data, **kwargs)
+    tpw = utils.total_water(ds['specific_humidity'].data, **kwargs)
     surface_dict['H2O_column_total'] = tpw
     surface_dict['log_H2O_column_total'] = np.log(np.maximum(tpw, 1e-12))
+    surface_dict['H2O_column_avg'] = utils.column_averaged_water(ds['specific_humidity'].data, **kwargs)
 
     # calculate total column amounts for trace gases
     for gas in gas_names:
@@ -331,6 +332,7 @@ def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
     # apply log-transform and cube-root transformation to specific humidity
     atm_dict['log_specific_humidity'] = np.log(np.maximum(atm_dict['specific_humidity'], 1e-12))
     atm_dict['cbrt_specific_humidity'] = np.cbrt(atm_dict['specific_humidity'])
+    atm_dict['MMR_h2o'] = utils.specific_humididty_to_mmr(atm_dict['specific_humidity'])
 
     # calculate pressure at layer midpoints
     if 'plev' in ds:

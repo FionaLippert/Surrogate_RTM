@@ -74,6 +74,11 @@ def column_averaged_water(specific_humidity: np.ndarray,
 
     return q_avg
 
+def specific_humididty_to_mmr(specific_humidity: np.ndarray) -> np.ndarray:
+    # convert specific humidity to mass mixing ratio
+    mmr = specific_humidity / (1 - specific_humidity)
+    return mmr
+
 def column_averaged_amount(column_concentrations: np.ndarray,
                            plev: np.ndarray = None,
                            sp: np.ndarray = None,
