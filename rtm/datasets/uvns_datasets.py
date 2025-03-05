@@ -31,6 +31,7 @@ class RTDataset(Dataset):
                  train: bool = True,
                  test_size: float = 0.2, # TODO: explicitly define train/val/test split
                 #  split_sizes: Dict[str, float] = {'train': 0.7, 'val': 0.1, 'test': 0.2},
+                 radiance_thr: float = None,
                  **kwargs
                  ):
         
@@ -55,14 +56,26 @@ class RTDataset(Dataset):
         self.targets, self.proxy = self._collect_spectra(data_dir, prefix)
         self.wavelengths = self._load_wavelengths(data_dir, prefix)
         self.n_wavelengths = len(self.wavelengths)
-        self.indices = np.arange(self.targets.shape[0])
+        self.radiance_thr = radiance_thr
 
         # fix random seed for reproducibility
         self.seed = seed
 
+        # optional: filter out large radiances
+        if radiance_thr is not None:
+            continuum = self.targets.max(1)
+            self.indices = np.where(continuum < radiance_thr)[0]
+            p_filtered = self.targets.shape[0] - len(self.indices)
+            print(f'Filtered out {p_filtered} pixels with continuum above {self.radiance_thr}')
+        else:
+            self.indices = np.arange(self.targets.shape[0])
+        
+
         # define train/test split
         self.train = train
-        self.train_indices, self.test_indices = self.get_data_split(test_size)
+        train_indices, test_indices = self.get_data_split(test_size)
+        self.train_indices = self.indices[train_indices]
+        self.test_indices = self.indices[test_indices]
         self.indices = self.train_indices if self.train else self.test_indices
 
         if self.pixel_data is not None: self.pixel_data = self.pixel_data[self.indices]
