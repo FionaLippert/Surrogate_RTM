@@ -79,6 +79,38 @@ def specific_humididty_to_mmr(specific_humidity: np.ndarray) -> np.ndarray:
     mmr = specific_humidity / (1 - specific_humidity)
     return mmr
 
+def column_averaged_mole_fraction(column_mmr: np.ndarray, 
+                                  gas: str,
+                                  plev: np.ndarray = None,
+                                  sp: np.ndarray = None,
+                                  a: np.ndarray = None,
+                                  b: np.ndarray = None,
+                                  ) -> np.ndarray:
+    # calculate column-averaged mole fraction
+    # column_mmr: mass mixing ratio in kg/kg (shape: nobs, nlevels)
+    # return: column-averaged mole fraction in mol/mol (shape: nobs)
+
+    # Note: either plev, or sp, a, b must be provided
+    if plev is None:
+        # calculate pressure levels from surface pressure and coefficients a and b
+        plev = pressure_half_levels(sp, a, b)
+
+   # calculate pressure level differences
+    delta_p = plev[:, 1:] - plev[:, :-1]
+
+    # calculate total column mass of trace gas
+    tc_gas = np.sum(column_mmr * delta_p / constants["gravity"], axis=-1) # in kg/m^2
+    tc_gas = tc_gas / constants["mass"][gas] # in mol/m^2
+
+    # calculate total column amount of air
+    tc_air = np.sum(delta_p / constants["gravity"], axis=-1) # in kg/m^2
+    tc_air = tc_air / constants["mass"]["dry_air"] # in mol/m^2
+
+    # calculate column-averaged mole fraction
+    mole_fraction = tc_gas / tc_air # in mol/mol
+
+    return mole_fraction
+
 def column_averaged_amount(column_concentrations: np.ndarray,
                            plev: np.ndarray = None,
                            sp: np.ndarray = None,

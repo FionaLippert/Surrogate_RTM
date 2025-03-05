@@ -312,10 +312,12 @@ def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
         gas_data = ds[f'MMR_{gas}'].data
         column_total = utils.total_column_amount(gas_data, **kwargs)
         column_avg = utils.column_averaged_amount(gas_data, **kwargs)
+        avg_mole_fraction = utils.column_averaged_mole_fraction(gas_data, gas, **kwargs)
 
         surface_dict[f'{gas}_column_total'] = column_total
         surface_dict[f'{gas}_column_avg'] = column_avg
         surface_dict[f'log_{gas}_column_total'] = np.log(np.maximum(column_total, 1e-12))
+        surface_dict[f'x{gas}'] = avg_mole_fraction
 
     ds.close()
 
