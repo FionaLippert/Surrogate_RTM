@@ -70,6 +70,7 @@ forward_model:
   _target_: rtm.models.ResNet1D
   n_channels: 
     - ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+    - 256
     - 128
     - 64
     - 32
@@ -81,15 +82,16 @@ forward_model:
 lr: 1e-3
 l2_reg: 0.0 # 4e-5
 lr_decay: 0.001
+lr_scheduler_interval: step
 lr_schedulers:
   - _target_: torch.optim.lr_scheduler.LinearLR
     _partial_: true
     start_factor: 1e-5
     end_factor: 1.0
-    total_iters: 10 # number of epochs
+    total_iters: 3000 # number of steps #10 # number of epochs
   - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
     _partial_: true
-    T_max: ${trainer.max_epochs}
+    T_max: 1e6
     eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
 lr_milestones:
-  - 10
+  - 3000 #10
