@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 from torchvision.transforms import Compose
+from torch.optim.lr_scheduler import ChainedScheduler
 from typing import Callable, Union, List, Dict, Tuple
 
 from rtm.constants import constants
@@ -444,15 +445,31 @@ def get_device(accelerator: str = 'gpu', **kwargs):
 ##################################################
 
 class LRDampenedCosine:
-    def __init__(self, lr_min=1e-6, lr_max=1e-3, T_max=10, decay=0.95):
+    def __init__(self, lr_min=0.0, lr_max=1.0, T_max=10, gamma=0.95, gamma_interval=1):
         self.lr_min = lr_min
         self.lr_max = lr_max
         self.T_max = T_max
-        self.decay = decay
+        self.gamma = gamma
+        self.gamma_interval = gamma_interval
 
     def __call__(self, epoch):
         cosine = np.cos(epoch / self.T_max * np.pi)
-        scaled = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1 + cosine)
-        dampened = (self.decay ** epoch) * scaled
-        return dampened
+        scaling = self.gamma ** (epoch // self.gamma_interval)
+        lr_out = self.lr_min + scaling * 0.5 * (self.lr_max - self.lr_min) * (1 + cosine)
+
+        return lr_out
     
+class test_lr_func:
+    def __init__(self):
+        pass
+    
+    def __call__(self, epoch):
+        return 10
+    
+class CustomChainedScheduler(ChainedScheduler):
+    def __init__(self, optimizer, schedulers, **kwargs):
+
+        # initialize partially defined lr schedulers
+        schedulers = [s_partial(optimizer) for s_partial in schedulers]
+
+        super().__init__(schedulers, optimizer=optimizer, **kwargs)

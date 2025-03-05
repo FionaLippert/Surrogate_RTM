@@ -156,6 +156,7 @@ class NNSurrogateRTM(SurrogateRTM):
         # learning rate scheduling
         self.lr_schedulers = kwargs.get('lr_schedulers', None)
         self.lr_milestones = kwargs.get('lr_milestones', None)
+        self.lr_scheduler_interval = kwargs.get('lr_scheduler_interval', 'epoch')
 
     
     def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
@@ -206,8 +207,13 @@ class NNSurrogateRTM(SurrogateRTM):
             # constant learning rate
             scheduler = ConstantLR(optimizer, factor=1.0, total_iters=1e8)
 
+        lr_scheduler_config = {
+            'scheduler': scheduler,
+            'interval': self.lr_scheduler_interval
+        }
+
         return {"optimizer": optimizer,
-                "lr_scheduler": scheduler}
+                "lr_scheduler": lr_scheduler_config}
     
     def on_save_checkpoint(self, checkpoint):
         # save additional objects to checkpoint 

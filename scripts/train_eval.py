@@ -116,7 +116,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     
     # possibly select smaller subset of the training data
     if cfg.task.get('train_frac', 1.0) < 1.0:
-        n_subset = int(cfg.task.data_frac * len(train_indices))
+        n_subset = int(cfg.task.train_frac * len(train_indices))
         train_indices = np.random.choice(train_indices, n_subset, replace=False)
 
     # set function to convert model outputs to physical targets

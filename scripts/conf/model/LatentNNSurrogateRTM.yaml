@@ -15,7 +15,7 @@ nonlinearity: null
 dropout_p: 0.0
 
 loss_terms:
-  - _target_: rtm.loss.WeightedMSE
+  - _target_: rtm.loss.WeightedMAE
     weight: 1.0
     # log_transformed: false
 
@@ -39,15 +39,25 @@ forward_model:
 lr: 1e-3
 l2_reg: 0.0 # 4e-5
 lr_decay: 0.001
+lr_scheduler_interval: step
 lr_schedulers:
         - _target_: torch.optim.lr_scheduler.LinearLR
           _partial_: true
           start_factor: 1e-5
           end_factor: 1.0
-          total_iters: 10 # number of epochs
-        - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+          total_iters: 5000  # 10 # number of intervals (steps or epochs)
+        # - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+        #   _partial_: true
+        #   T_max: 1e5 #${trainer.max_epochs}
+        #   eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
+        - _target_: torch.optim.lr_scheduler.LambdaLR
           _partial_: true
-          T_max: ${trainer.max_epochs}
-          eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
+          lr_lambda: 
+            _target_: rtm.utils.LRDampenedCosine
+            lr_min: ${model.lr_decay}
+            lr_max: 1.0
+            T_max: 50000
+            gamma: 0.95
+            gamma_interval: 1000
 lr_milestones:
-       - 10
+       - 5000 # 10
