@@ -12,21 +12,21 @@ from torch.utils.data import Dataset, random_split
 from torchvision.transforms import Compose
 from scipy.interpolate import interp1d
 
-from rtm import utils
+from rtm import utils, transforms
 
 class RTDataset(Dataset):
     """Synthetic measurements generated with RemoTeC forward model"""
     def __init__(self, 
                  data_dir: str,
-                 prefix: str = 'syn_meas_s5_random_ensemble_1e5_combined',
+                 prefix: str,
                  pixel_features: Union[str, List[str]] = 'all',
                  profile_features: Union[str, List[str]] = 'all',
                  target_quantity: str = 'radiance',
                  predict_difference: bool = False,
-                 pixel_transform: utils.RTMTransform = utils.NumpyToTensor(),
-                 profile_transform: utils.RTMTransform = utils.NumpyToTensor(),
-                 target_transform: utils.RTMTransform = utils.NumpyToTensor(),
-                 proxy_transform: utils.RTMTransform = utils.NumpyToTensor(),
+                 pixel_transform: transforms.RTMTransform = None,
+                 profile_transform: transforms.RTMTransform = None,
+                 target_transform: transforms.RTMTransform = None,
+                 proxy_transform: transforms.RTMTransform = None,
                  seed: int = 0,
                  train: bool = True,
                  test_size: float = 0.2, # TODO: explicitly define train/val/test split
@@ -78,13 +78,28 @@ class RTDataset(Dataset):
         self.test_indices = self.indices[test_indices]
         self.indices = self.train_indices if self.train else self.test_indices
 
-        if self.pixel_data is not None: self.pixel_data = self.pixel_data[self.indices]
-        if self.profile_data is not None: self.profile_data = self.profile_data[self.indices]
+
+        # prepare final data
+        if self.pixel_data is not None: 
+            self.pixel_data = self.pixel_data[self.indices]
+            self.pixel_data = transforms.numpy_to_tensor(self.pixel_data)
+
+        if self.profile_data is not None: 
+            self.profile_data = self.profile_data[self.indices]
+            self.profile_data = transforms.numpy_to_tensor(self.profile_data)
+
         self.targets = self.targets[self.indices]
-        self.proxy = self.proxy[self.indices] if self.proxy is not None else None
+        self.targets = transforms.numpy_to_tensor(self.targets)
+
+        if self.proxy is not None:
+            self.proxy = self.proxy[self.indices]
+            self.proxy = transforms.numpy_to_tensor(self.proxy)
 
         if self.predict_difference:
-            self.targets = self.targets - self.proxy
+            if self.proxy is None:
+                raise ValueError('Proxy spectra are required to predict differences')
+            else:
+                self.targets = self.targets - self.proxy
 
 
     def add_transforms(self, 
@@ -127,6 +142,7 @@ class RTDataset(Dataset):
     def add_normalization(self, 
                           indices: List[int] = None, 
                           **kwargs):
+        # add normalization to existing transforms
         self.add_transforms(*self.normalization(indices, **kwargs))
     
     def __len__(self):

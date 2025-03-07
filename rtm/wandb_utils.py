@@ -86,6 +86,8 @@ def load_test_dataset(dataset_cfg: OmegaConf,
     if data_path is not None and os.path.exists(data_path):
         print(f'Loading test data from {data_path}...')
         dataset = torch.load(os.path.join(data_path, 'test_dataset.pt'), weights_only=False)
+        if transforms is not None:
+                dataset.set_transforms(*transforms)
     else:
         try:
             # if possible, load dataset from wandb project

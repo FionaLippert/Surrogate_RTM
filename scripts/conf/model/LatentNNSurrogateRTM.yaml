@@ -21,10 +21,12 @@ loss_terms:
 
 input_dim_reduction:
   _target_: rtm.dimensionality_reduction.PCA
+  # _target_: rtm.layers.PCAEncoder
   n_components: ${model.input_latent_dim}
 
 output_dim_reduction:
   _target_: rtm.dimensionality_reduction.PCA
+  # _target_: rtm.laeers.PCADecoder
   n_components: ${model.output_latent_dim}
 
 forward_model:

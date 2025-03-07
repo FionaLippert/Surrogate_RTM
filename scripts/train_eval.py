@@ -15,7 +15,7 @@ from torch.utils.data import SubsetRandomSampler, Subset
 from operator import mul
 from functools import reduce
 
-from rtm import utils, wandb_utils, dimensionality_reduction
+from rtm import utils, wandb_utils, dimensionality_reduction, layers
 
 def join_paths(*paths):
     return osp.join(*[str(p) for p in paths])
@@ -132,12 +132,14 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     # fit PCA to training data, if applicable
     train_data = dataset[train_indices]
     device = utils.get_device(**cfg.device)
-    if isinstance(getattr(model, 'input_dim_reduction', None), dimensionality_reduction.PCA):
+    if isinstance(getattr(model, 'input_dim_reduction', None), 
+                  (dimensionality_reduction.PCA, layers.PCAEncoder)):
         model.input_dim_reduction.fit(train_data['inputs'].to(device))
         exp_var = 100 * model.input_dim_reduction.explained_variance_ratio()
         print(f'Explained input variance (%): {exp_var:.4f}')
 
-    if isinstance(getattr(model, 'output_dim_reduction', None), dimensionality_reduction.PCA):
+    if isinstance(getattr(model, 'output_dim_reduction', None), 
+                  (dimensionality_reduction.PCA, layers.PCADecoder)):
         model.output_dim_reduction.fit(train_data['targets'].to(device))
         exp_var = 100 * model.output_dim_reduction.explained_variance_ratio()
         print(f'Explained output variance (%): {exp_var:.4f}')
@@ -145,8 +147,8 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     
     # adjust loss scale based on target variance
     targets = train_data['targets']
-    if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
-        targets = model.output_dim_reduction.encode(targets.to(device))
+    # if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
+    #     targets = model.output_dim_reduction.encode(targets.to(device))
     model.loss_scale = targets.std().item()
 
     # train model

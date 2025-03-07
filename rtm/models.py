@@ -6,7 +6,7 @@ from torch.optim.lr_scheduler import SequentialLR, ConstantLR
 from typing import Callable, Union, List, Dict, Tuple, Optional
 import numpy as np
 
-from rtm import utils, layers
+from rtm import utils, layers, transforms
 from rtm.dimensionality_reduction import DimensionalityReduction, Encoder, Decoder, PCA
 from rtm.utils import init_weights
 
@@ -15,8 +15,8 @@ class SurrogateRTM(pl.LightningModule):
     def __init__(self, 
                  target_quantity: str = 'targets',
                  proxy_quantity: str = 'proxy_targets',
-                 target_transform: utils.RTMTransform = None,
-                 proxy_transform: utils.RTMTransform = None,
+                 target_transform: transforms.RTMTransform = None,
+                 proxy_transform: transforms.RTMTransform = None,
                  eval_scale: torch.Tensor = None, 
                  **kwargs):
 
@@ -33,19 +33,19 @@ class SurrogateRTM(pl.LightningModule):
                                           'output_dim_reduction'])    
 
     @property
-    def target_transform(self) -> utils.RTMTransform:
+    def target_transform(self) -> transforms.RTMTransform:
         return self._target_transform
     
     @target_transform.setter
-    def target_transform(self, target_transform: utils.RTMTransform):
+    def target_transform(self, target_transform: transforms.RTMTransform):
         self._target_transform = target_transform
 
     @property
-    def proxy_transform(self) -> utils.RTMTransform:
+    def proxy_transform(self) -> transforms.RTMTransform:
         return self._proxy_transform
     
     @proxy_transform.setter
-    def proxy_transform(self, proxy_transform: utils.RTMTransform):
+    def proxy_transform(self, proxy_transform: transforms.RTMTransform):
         self._proxy_transform = proxy_transform
 
     def forward(self, **input_kwargs) -> torch.Tensor:
@@ -72,9 +72,9 @@ class SurrogateRTM(pl.LightningModule):
             # undo normalization and transforms
             targets = self.target_transform.inverse(targets)
             outputs = self.target_transform.inverse(outputs)
-        else:
-            targets = targets.numpy()
-            outputs = outputs.numpy()
+
+        targets = targets.numpy()
+        outputs = outputs.numpy()
 
         self.outputs.append(outputs)
         self.targets.append(targets)
@@ -128,9 +128,9 @@ class SurrogateRTM(pl.LightningModule):
             # undo normalization and transforms
             targets = self.target_transform.inverse(targets)
             outputs = self.target_transform.inverse(outputs)
-        else:
-            targets = targets.numpy()
-            outputs = outputs.numpy()
+
+        targets = targets.numpy()
+        outputs = outputs.numpy()
 
         return outputs, targets
 
@@ -255,18 +255,16 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
             # undo normalization and transforms
             targets = self.target_transform.inverse(targets)
             outputs = self.target_transform.inverse(outputs)
-        else:
-            targets = targets.numpy()
-            outputs = outputs.numpy()
 
         if self.proxy_transform:
             proxy = self.proxy_transform.inverse(proxy)
-        else:
-            proxy = proxy.numpy()
 
         # compute actual spectra
         outputs = proxy + outputs
         targets = proxy + targets
+
+        outputs = outputs.numpy()
+        targets = targets.numpy()
 
         return outputs, targets
 
@@ -317,14 +315,14 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
         #     utils.freeze_weights(self.input_dim_reduction)
         #     utils.freeze_weights(self.output_dim_reduction)
 
-        self.latent_loss = kwargs.get('latent_loss', False)
+        # self.latent_loss = kwargs.get('latent_loss', False)
 
     @property
-    def target_transform(self) -> utils.RTMTransform:
+    def target_transform(self) -> transforms.RTMTransform:
         return self._target_transform
     
     @target_transform.setter
-    def target_transform(self, target_transform: utils.RTMTransform):
+    def target_transform(self, target_transform: transforms.RTMTransform):
         self._target_transform = target_transform
         if hasattr(self.output_dim_reduction, 'target_transform'):
             self.output_dim_reduction.target_transform = target_transform
@@ -366,12 +364,12 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
 
         # outputs = self.forward_model(inputs)
 
-        if isinstance(self.output_dim_reduction, (DimensionalityReduction, Decoder)):
-            if self.latent_loss:
-                targets = self.output_dim_reduction.encode(targets)
-                outputs = self.output_dim_reduction.encode(outputs)
-            # else:
-            #     outputs = self.output_dim_reduction.decode(outputs)
+        # if isinstance(self.output_dim_reduction, (DimensionalityReduction, Decoder)):
+        #     if self.latent_loss:
+        #         targets = self.output_dim_reduction.encode(targets)
+        #         outputs = self.output_dim_reduction.encode(outputs)
+        #    # else:
+        #    #     outputs = self.output_dim_reduction.decode(outputs)
             
         loss = self.compute_loss(outputs, targets)
 
@@ -435,18 +433,16 @@ class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
             # undo normalization and transforms
             targets = self.target_transform.inverse(targets)
             outputs = self.target_transform.inverse(outputs)
-        else:
-            targets = targets.numpy()
-            outputs = outputs.numpy()
 
         if self.proxy_transform:
             proxy = self.proxy_transform.inverse(proxy)
-        else:
-            proxy = proxy.numpy()
 
         # compute actual spectra
         outputs = proxy + outputs
         targets = proxy + targets
+
+        outputs = outputs.numpy()
+        targets = targets.numpy()
 
         return outputs, targets
 
@@ -677,8 +673,6 @@ class SequenceNNSurrogateRTM(NNSurrogateRTM):
         self.input_dim_reduction = input_dim_reduction
         self.pos_encoding = pos_encoding
         self.input_processing = input_processing
-
-        print(profile_module)
 
         self.proxy_module = proxy_module
         self.use_proxy_input = use_proxy_input
