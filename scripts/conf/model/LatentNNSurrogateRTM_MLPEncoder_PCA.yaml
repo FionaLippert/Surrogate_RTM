@@ -39,7 +39,7 @@ output_dim_reduction:
   n_components: ${model.output_latent_dim}
 
 forward_model:
-  _target_: rtm.models.MLP_v2
+  _target_: rtm.layers.MLP
   n_in: ${model.input_latent_dim}
   n_out: ${model.output_latent_dim}
   n_hidden: 128

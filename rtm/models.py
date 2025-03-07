@@ -161,7 +161,7 @@ class NNSurrogateRTM(SurrogateRTM):
     
     def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
 
-        return self.forward_model(inputs)
+        return self.forward_model(inputs, **kwargs)
 
 
     def compute_loss(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -215,10 +215,11 @@ class NNSurrogateRTM(SurrogateRTM):
         return {"optimizer": optimizer,
                 "lr_scheduler": lr_scheduler_config}
     
-    def on_save_checkpoint(self, checkpoint):
-        # save additional objects to checkpoint 
-        checkpoint['target_transform'] = self.target_transform
-        checkpoint['proxy_transform'] = self.proxy_transform
+    # transforms are torch.nn.Module objects now and dont' need to be saved separately
+    # def on_save_checkpoint(self, checkpoint):
+    #     # save additional objects to checkpoint 
+    #     checkpoint['target_transform'] = self.target_transform
+    #     checkpoint['proxy_transform'] = self.proxy_transform
     
     def on_load_checkpoint(self, checkpoint):
         print(f'Loading model state on device {self.device}...')
@@ -228,9 +229,9 @@ class NNSurrogateRTM(SurrogateRTM):
         # load standard pytorch state_dict
         self.load_state_dict(checkpoint['state_dict'])
 
-        # load additional objects from checkpoint
-        self.target_transform = checkpoint['target_transform']
-        self.proxy_transform = checkpoint['proxy_transform']
+        # # load additional objects from checkpoint
+        # self.target_transform = checkpoint['target_transform']
+        # self.proxy_transform = checkpoint['proxy_transform']
 
         # make sure everything is on the same device
         self.to(map_location)
@@ -290,6 +291,130 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
         return outputs, targets
 
 
+class LatentNNForwardModel(torch.nn.Module):
+    """
+    Simple forward model that first encodes to the input features to a 
+    lower-dimensional latent space (e.g. using PCA or autoencoder),
+    then passes them through an MLP, and finally applies a decoder 
+    to obtain the final output.
+    """
+    def __init__(self,  
+                 core_nn: torch.nn.Module, 
+                 proxy_nn: Optional[torch.nn.Module] = None,
+                 proxy_quantity: Optional[str] = 'proxy_targets',
+                 encoder: Optional[Encoder] = None, 
+                 decoder: Optional[Decoder] = None,
+                 **kwargs):
+        super().__init__()
+
+        self.core_nn = core_nn
+
+        # optional proxy processing (e.g. non-scattering radiances)
+        self.proxy_nn = proxy_nn
+        self.proxy_quantity = proxy_quantity
+
+        # optional encoder and decoder
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, 
+                inputs: torch.Tensor, 
+                **kwargs
+                ) -> torch.Tensor:
+        # predicts radiance spectrum from input features, and optionally proxy spectra
+        
+        if self.encoder is not None:
+            inputs = self.encoder.encode(inputs)
+
+        if self.proxy_nn is not None:
+            proxy = self.proxy_nn(kwargs[self.proxy_quantity])
+            inputs = torch.cat([inputs, proxy], dim=-1)
+
+        outputs = self.core_nn(inputs)
+
+        if self.decoder is not None:
+            outputs = self.decoder.decode(outputs)
+
+        return outputs
+
+
+
+class SequenceNNForwardModel(torch.nn.Module):
+    def __init__(self, 
+                 sequence_length: int,
+                 encoder: Optional[Encoder] = None,
+                 pos_encoding: Optional[torch.nn.Module] = None,
+                 proxy_module: Optional[torch.nn.Module] = None,
+                 proxy_quantity: Optional[str] = 'proxy_targets',
+                 profile_module: Optional[torch.nn.Module] = None,
+                 profile_quantity: Optional[str] = 'profile_inputs',
+                 input_processing: Optional[torch.nn.Module] = None,
+                 use_proxy_input: bool = False,
+                 use_profile_input: bool = False,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+        self.sequence_length = sequence_length
+
+        self.encoder = encoder
+        self.pos_encoding = pos_encoding
+        self.input_processing = input_processing
+
+        self.proxy_module = proxy_module
+        self.use_proxy_input = use_proxy_input
+        self.proxy_quantity = proxy_quantity
+
+        self.profile_module = profile_module
+        self.use_profile_input = use_profile_input
+        self.profile_quantity = profile_quantity
+
+
+    def forward(self, inputs, **kwargs) -> torch.Tensor:
+
+        if self.encoder is not None:
+            inputs = self.encoder.encode(inputs)
+
+        if self.use_profile_input:
+            # profile inputs have shape [batch_size, n_layers, n_vars]
+            profile_input = kwargs[self.profile_quantity]
+
+            if self.profile_module is not None:
+                profile_input = self.profile_module(profile_input)
+
+            # make sure profile features are flattened
+            profile_input = profile_input.reshape(inputs.size(0), -1)
+            
+            # add profile information to inputs
+            inputs = torch.cat([inputs, profile_input], dim=1)
+
+        # inputs have shape [batch_size, n_features] --> expand across wavelengths
+        inputs = inputs.unsqueeze(1).expand(-1, self.sequence_length, -1)
+
+        if self.use_proxy_input:
+            # proxy targets have shape [batch_size, n_wavelengths]
+            # expand inputs and add them as additional channels to proxy spectra
+            proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+
+            if self.proxy_module:
+                proxy = self.proxy_module(proxy)
+
+            # add proxy information to inputs
+            inputs = torch.cat([inputs, proxy], dim=-1)
+
+        if self.input_processing:
+            inputs = self.input_processing(inputs)
+
+        if self.pos_encoding:
+            # add positional information to inputs
+            inputs = self.pos_encoding(inputs)
+
+        # make prediction
+        outputs = self.forward_model(inputs)
+        outputs = outputs.reshape(-1, self.sequence_length)
+
+        return outputs
+
+        
 
   
 
@@ -351,32 +476,10 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
             outputs = self.output_dim_reduction.decode(outputs)
 
         return outputs
+
     
-    def eval_step(self, batch) -> torch.Tensor:
-        targets = batch[self.target_quantity]
-
-        outputs = self.forward(**batch)
-
-        # inputs = batch['inputs']
-        
-        # if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
-        #     inputs = self.input_dim_reduction.encode(inputs)
-
-        # outputs = self.forward_model(inputs)
-
-        # if isinstance(self.output_dim_reduction, (DimensionalityReduction, Decoder)):
-        #     if self.latent_loss:
-        #         targets = self.output_dim_reduction.encode(targets)
-        #         outputs = self.output_dim_reduction.encode(outputs)
-        #    # else:
-        #    #     outputs = self.output_dim_reduction.decode(outputs)
-            
-        loss = self.compute_loss(outputs, targets)
-
-        return loss
-    
-    def validation_step(self, batch, batch_idx):
-        return super().validation_step(batch, batch_idx)
+    # def validation_step(self, batch, batch_idx):
+    #     return super().validation_step(batch, batch_idx)
     
     def on_save_checkpoint(self, checkpoint):
         # save additional objects to checkpoint 
@@ -755,20 +858,6 @@ class NonScatteringRTM(SurrogateRTM):
         return input_kwargs[self.proxy_quantity]
 
 
-        
-class HybridRTM(torch.nn.Module):
-    def __init__(self, n_in, n_hidden, n_out, **kwargs):
-        super().__init__()
-
-        self.mlp = MLP(n_in=n_in, n_hidden=n_hidden, n_out=n_out)
-
-    def forward(self, inputs, transmission, **kwargs) -> torch.Tensor:
-        # use NN to predict difference between RTM and proxy
-        offset = self.mlp(inputs)
-        output = transmission + offset
-
-        return output
-
 
 class BidirectionalLSTMEncoder(torch.nn.Module):
     """
@@ -856,75 +945,5 @@ class ResNet1D(torch.nn.Module):
 
         return x
 
-
-class MLP(torch.nn.Module):
-    def __init__(self, n_in, n_hidden, n_out, **kwargs):
-        super(MLP, self).__init__()
-
-        self.dropout_p = kwargs.get('dropout_p', 0)
-        self.n_layers = kwargs.get('n_fc_layers', 1)
-
-        self.fc_in = torch.nn.Linear(n_in, n_hidden)
-        self.fc_hidden = nn.ModuleList([torch.nn.Linear(n_hidden, n_hidden)
-                                        for _ in range(self.n_layers - 1)])
-        self.fc_out = torch.nn.Linear(n_hidden, n_out)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-
-        self.fc_hidden.apply(init_weights)
-        init_weights(self.fc_in)
-        init_weights(self.fc_out)
-
-    def forward(self, features):
-
-        x = F.relu(self.fc_in(features))
-        x = F.dropout(x, p=self.dropout_p, training=self.training)
-
-        for l in self.fc_hidden:
-            x = F.relu(l(x))
-            x = F.dropout(x, p=self.dropout_p, training=self.training)
-
-        x = self.fc_out(x)
-
-        return x
-    
-
-class MLP_v2(torch.nn.Module):
-    def __init__(self, n_in, n_hidden, n_out, **kwargs):
-        super().__init__()
-
-        self.dropout_p = kwargs.get('dropout_p', 0)
-        self.n_layers = kwargs.get('n_fc_layers', 1)
-
-        nonlinearity = kwargs.get('nonlinearity', 'relu')
-        self.nonlinearity = getattr(F, nonlinearity)
-
-        self.fc_in = torch.nn.Linear(n_in, n_hidden)
-        self.fc_hidden = nn.ModuleList([torch.nn.Linear(n_hidden, n_hidden)
-                                        for _ in range(self.n_layers - 1)])
-        self.fc_out = torch.nn.Linear(n_hidden, n_out)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-
-        self.fc_hidden.apply(init_weights)
-        init_weights(self.fc_in)
-        init_weights(self.fc_out)
-
-    def forward(self, features):
-
-        x = self.nonlinearity(self.fc_in(features))
-        x = F.dropout(x, p=self.dropout_p, training=self.training)
-
-        for l in self.fc_hidden:
-            x = self.nonlinearity(l(x))
-            x = F.dropout(x, p=self.dropout_p, training=self.training)
-
-        x = self.fc_out(x)
-
-        return x
     
 

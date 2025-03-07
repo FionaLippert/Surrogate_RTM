@@ -41,7 +41,7 @@ proxy_module:
   # kernel_size: 3
   # stride: 1
   # dropout_p: ${model.dropout_p}
-  _target_: rtm.models.MLP_v2
+  _target_: rtm.layers.MLP
   n_in: 1
   n_out: 32
   n_hidden: 32
