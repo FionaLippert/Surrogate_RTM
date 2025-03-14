@@ -87,7 +87,8 @@ def prepare_data(target_dir: str,
                          instrument=instrument)
 
     # load pixel data
-    pixel_data = load_pixel_data(data_dir, prefix, gas_names, 
+    pixel_data = load_pixel_data(data_dir, prefix, wl_range,
+                                 gas_names=gas_names, 
                                  instrument=instrument)
     if 'proxy' in spectral_data:
         # add proxy radiances as additional features
@@ -212,6 +213,7 @@ def spectra_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str, qu
 
 def load_pixel_data(data_dir: str,
                       prefix: str,
+                      wl_range: Tuple[float, float],
                       gas_names: List[str] = ['co2', 'ch4'],
                       instrument: str = 'instr2_noise0',
                      ):
@@ -219,7 +221,7 @@ def load_pixel_data(data_dir: str,
     data = {}
     data.update(load_geometry(data_dir, prefix, instrument))
     data.update(load_surface(data_dir, prefix, gas_names))
-    data.update(load_state_vars(data_dir, prefix))
+    data.update(load_state_vars(data_dir, prefix, wl_range, gases=gas_names))
 
     return data
 
@@ -252,11 +254,11 @@ def load_geometry(data_dir: str, prefix: str, instrument: str = 'instr2_noise0')
     for var in vars:
         if 'Angle' in var:
             data = geom_dict[var]
-            geom_dict[f'Cos_{var}'] = np.cos(np.deg2rad(data))
-            geom_dict[f'Sin_{var}'] = np.sin(np.deg2rad(data))
+            geom_dict[f'cos_{var}'] = np.cos(np.deg2rad(data))
+            geom_dict[f'sin_{var}'] = np.sin(np.deg2rad(data))
 
-    geom_dict['Air_Mass_Factor'] = (1 / geom_dict['Cos_SolarZenithAngle']) + \
-                                   (1 / geom_dict['Cos_ViewingZenithAngle'])
+    geom_dict['air_mass_factor'] = (1 / geom_dict['cos_SolarZenithAngle']) + \
+                                   (1 / geom_dict['cos_ViewingZenithAngle'])
     
     return geom_dict
 
@@ -303,9 +305,12 @@ def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
 
     # calculate total water vapor
     tpw = utils.total_water(ds['specific_humidity'].data, **kwargs)
-    surface_dict['H2O_column_total'] = tpw
-    surface_dict['log_H2O_column_total'] = np.log(np.maximum(tpw, 1e-12))
-    surface_dict['H2O_column_avg'] = utils.column_averaged_water(ds['specific_humidity'].data, **kwargs)
+    surface_dict['h2o_column_total'] = tpw
+    surface_dict['log_h2o_column_total'] = np.log(np.maximum(tpw, 1e-12))
+    surface_dict['h2o_column_avg'] = utils.column_averaged_water(ds['specific_humidity'].data, **kwargs)
+
+    MMR_h2o = utils.specific_humididty_to_mmr(ds['specific_humidity'].data)
+    surface_dict['xh2o'] = utils.column_averaged_mole_fraction(MMR_h2o, 'h2o', **kwargs)
 
     # calculate total column amounts for trace gases
     for gas in gas_names:
@@ -355,20 +360,98 @@ def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
 
     return atm_dict
 
-def load_state_vars(data_dir: str, prefix: str):
-    # load ground truth state variables (aerosol characteristics, optical depth, etc) from netCDF file
+def load_state_vars(data_dir: str, 
+                    prefix: str, 
+                    wl_range: Tuple[float, float], 
+                    gases: List[str] = ['co2', 'ch4'], 
+                    nmodes: int = 2):
+    
+    # load ground truth state variables (aerosol and surface characteristics, etc) from netCDF file
     fname = f'{prefix}-truth.nc'
     ds = xr.open_dataset(osp.join(data_dir, fname))
 
-    var_list = [var for var in ds.data_vars if 'Truth' in var]
-    props = {var: ds[var].data for var in var_list}
+    props = {}
 
-    # apply log-transform where applicable
-    for var in var_list:
-        if np.all(props[var] >= 0):
-            props[f'Log_{var}'] = np.log(np.maximum(props[var], 1e-12))
+    # extract total column denisty for trace gases
+    for gas in gases:
+        hitran_idx = utils.gas_to_hitran_index(gas)
+        props[f'vmol_{gas}'] = ds[f'Truth_Vmol'].data[:, hitran_idx]
+
+    # find wavelengths in Wave_Opt that are within the specified range of the considered band
+    wl_opt = ds['Wave_Opt'].data
+    wl_opt_idx = np.where((wl_opt >= wl_range[0]) & (wl_opt <= wl_range[1]))[0]
+    wl = ds['Wavelength'].data
+    wl_idx = np.where((wl >= wl_range[0]) & (wl <= wl_range[1]))[0]
+    wl_band = ds['Band_Win'].data
+    wl_band_idx = np.where((wl_band >= wl_range[0]) & (wl_band <= wl_range[1]))[0]
+
+    # extract total aerosol optical thickness at wavelengths within band
+    props['AOT'] = ds['Truth_AOT'].data[:, wl_opt_idx].squeeze() # total
+
+    # extract aerosol absorption optical thickness at wavelengths within band
+    props['AAOT'] = ds['Truth_AAOT'].data[:, wl_opt_idx].squeeze() # total
+
+    # extract aerosol single scattering albedo at wavelengths within band
+    props['SSA'] = ds['Truth_SSA'].data[:, wl_opt_idx].squeeze()
+
+    # extract mode-specific aerosol parameters
+    for m in range(nmodes):
+        # aerosol optical thickness
+        props[f'AOT_mode{m+1}'] = ds['Truth_Mode_AOT'].data[:, wl_opt_idx, m].squeeze() # at wavelengths within band
+        props[f'AOT_550_mode{m+1}'] = ds[f'Truth_Mode{m+1}_TAU550'].data # at 550nm
+
+        # aerosol absorption optical thickness
+        props[f'AAOT_mode{m+1}'] = ds['Truth_Mode_AAOT'].data[:, wl_opt_idx, m].squeeze() # at wavelengths within band
+
+        # effective radius and variance
+        props[f'reff_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 0]
+        props[f'veff_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 1]
+
+
+        # real and imaginary refractive index
+        props[f'RRI_550_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 2] # at 550nm
+        props[f'RRI_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Mr'].data[:, wl_idx].squeeze() # at central wavelength
+        props[f'IRI_550_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 3] # at 550nm
+        props[f'IRI_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Mi'].data[:, wl_idx].squeeze() # at central wavelength
+
+        # aerosol column density
+        props[f'N_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 4]
+
+        # spherical fraction for fine and coarse mode
+        props[f'f_sphere_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 5]
+
+        # species fractions
+        nspecies = ds[f'Truth_Mode{m+1}_Refrcoef'].shape[1]
+        for i in range(nspecies):
+            props[f'vfrac_mode{m+1}_species{i+1}'] = ds[f'Truth_Mode{m+1}_Refrcoef'].data[:, i]
+
+        # center of aerosol height distribution
+        props[f'z_aer_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Xalt'].data[:, 0]
+        props[f'w_aer_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Xalt'].data[:, 1]
+
+    # extract Ross-Li BRDF parameters
+    props['k_geo'] = ds['Truth_Xbdrf_Geo'].data[:, 4]
+    props['k_vol'] = ds['Truth_Xbdrf_Geo'].data[:, 5]
+
+    # extract surface albedo
+    props['albedo'] = ds['Truth_Xbdrf_Wave_Av'].data[:, wl_idx].squeeze() # at central wavelength
+    for i in range(ds['Truth_Xbdrf_Wave_Par'].shape[1]):
+        # get albedo coefficient of polynomial fit
+        props[f'albedo_coef{i}'] = ds['Truth_Xbdrf_Wave_Par'].data[:, i, wl_band_idx].squeeze()
+
+    # extract Maigan-Breon XBPDF parameters
+    props['B_pol'] = ds['Truth_Xbpdf'].data[:, 0]
+    props['v_pol'] = ds['Truth_Xbpdf'].data[:, 3]
 
     ds.close()
+
+    # apply log-transform where applicable
+    vars = props.keys()
+    log_props = {}
+    for var in vars:
+        if np.all(props[var] >= 0):
+            log_props[f'log_{var}'] = np.log(np.maximum(props[var], 1e-12))
+    props.update(log_props)
 
     return props
 

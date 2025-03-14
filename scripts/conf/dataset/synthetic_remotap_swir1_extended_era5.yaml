@@ -24,43 +24,53 @@ output_dim: 851 # all wavelengths
 
 # define input features
 pixel_features:
-  - Cos_SolarZenithAngle
-  - Cos_ViewingZenithAngle
-  - Cos_RelativeAzimuthAngle
-  # - Air_Mass_Factor
+  - cos_SolarZenithAngle
+  - cos_ViewingZenithAngle
+  - cos_RelativeAzimuthAngle
+  # - air_mass_factor
+  - ScatteringAngle
   - surface_pressure_meteo
   - cbrt_surface_elevation_meteo
-  - Log_Truth_SSA # consider not using log-transform
-  - Truth_Mode_AAOT
-  - Truth_AAOT
-  - Log_Truth_Mode_AOT
-  - Log_Truth_AOT
-  - Truth_Xbdrf_Geo
-  - Truth_Xbdrf_Wave_Av
-  - Truth_Xbdrf_Wave_Par
-  - Log_Truth_Mode1_TAU550
-  - Log_Truth_Mode2_TAU550
-  - Truth_Mode2_Xalt
-  - Truth_Mode1_Aerosol_Pars
-  - Truth_Mode2_Aerosol_Pars
-  # new vars
-  # - Truth_Mode1_Aerosol_Pars_Abovecld
-  # - Truth_Mode2_Aerosol_Pars_Abovecld
-  # - Truth_Mode1_TAU550_Abovecld
-  # - Truth_Mode2_TAU550_Abovecld
-  # - Truth_Mode1_Mr # is always constant
-  # - Truth_Mode2_Mr # is always constant
-  # - Truth_Mode1_Mi # is always constant
-  # - Truth_Mode2_Mi # is always constant
-  # - Truth_Mode1_Aerosol_Pars_Lowcloud
-  # - Truth_Mode1_Mr_Lowcloud
-  # - Truth_Mode1_Mi_Lowcloud
-  # - Truth_Mode1_Aerosol_Pars_Cirrus
-  # - Truth_Mode1_Mr_Cirrus
-  # - Truth_Mode1_Mi_Cirrus
-  # - Truth_Xocean
-  - Truth_Xbpdf
-  # - Truth_Vmol
+  - tropopause_height
+  # - xco
+  - xch4
+  - xh2o
+  - xco2
+  # - vmol_co
+  # - vmol_ch4
+  # - vmol_h2o
+  # - vmol_co2
+  - log_AOT
+  - log_AOT_mode1
+  - log_AOT_mode2
+  - log_AAOT
+  - log_AAOT_mode1
+  - log_AAOT_mode2
+  - SSA
+  - log_N_mode1
+  - log_N_mode2
+  - reff_mode1
+  - reff_mode2
+  - veff_mode1
+  - veff_mode2
+  - RRI_mode1
+  - RRI_mode2
+  - IRI_mode1
+  - IRI_mode2
+  - f_sphere_mode1
+  - f_sphere_mode2
+  - vfrac_mode1_species1
+  - vfrac_mode1_species4
+  - vfrac_mode1_species5
+  - vfrac_mode2_species2
+  - vfrac_mode2_species5
+  - z_aer_mode1
+  # - z_aer_mode2 # same as for mode 1
+  - k_geo
+  - k_vol
+  - albedo
+  - B_pol
+  # - v_pol # fixed to 0.1
 profile_features:
   - temperature
   - pressure
@@ -68,23 +78,18 @@ profile_features:
   # - cbrt_specific_humidity
   - MMR_co2
   - MMR_ch4
+  - MMR_h2o
+  # - MMR_co
 
-  # transforms for input features
-transform:
-  _target_: rtm.utils.NumpyToTensor
+# transforms for input features
+transform: null
 
 # transforms for output spectra
 target_transform:
-  _target_: rtm.utils.RTMCompose
-  transforms:
-    - _target_: rtm.utils.NumpyToTensor
-    - _target_: rtm.utils.LogTransform
+  _target_: rtm.transforms.LogTransform
 
 # transforms for proxy input spectra
-proxy_transform:
-  _target_: rtm.utils.RTMCompose
-  transforms:
-    - _target_: rtm.utils.NumpyToTensor
+proxy_transform: null
 
 
 # normalization settings

@@ -81,6 +81,21 @@ class LogTransform(RTMTransform):
     def __repr__(self):
         return 'LogTransform()'
     
+class PowerTransform(RTMTransform):
+    def __init__(self, exponent: float):
+        super().__init__()
+
+        self.exponent = exponent
+
+    def forward(self, data: torch.Tensor) -> torch.Tensor:
+        return torch.pow(data, self.exponent)
+    
+    def inverse(self, data: torch.Tensor) -> torch.Tensor:
+        return torch.pow(data, 1/self.exponent)
+    
+    def __repr__(self):
+        return f'PowerTransform(exponent={self.exponent})'
+    
 class FTransform(RTMTransform):
     def __init__(self, f: Callable, f_inv: Callable):
         super().__init__()

@@ -109,16 +109,16 @@ class RTDataset(Dataset):
                        proxy_transform=None):
         # add new transforms to existing transforms
         if pixel_transform:
-            self.pixel_transform = utils.RTMCompose([self.pixel_transform, pixel_transform]) \
+            self.pixel_transform = transforms.RTMCompose([self.pixel_transform, pixel_transform]) \
                 if self.pixel_transform else pixel_transform
         if profile_transform:
-            self.profile_transform = utils.RTMCompose([self.profile_transform, profile_transform]) \
+            self.profile_transform = transforms.RTMCompose([self.profile_transform, profile_transform]) \
                 if self.profile_transform else profile_transform
         if target_transform:
-            self.target_transform = utils.RTMCompose([self.target_transform, target_transform]) \
+            self.target_transform = transforms.RTMCompose([self.target_transform, target_transform]) \
                 if self.target_transform else target_transform
         if proxy_transform:
-            self.proxy_transform = utils.RTMCompose([self.proxy_transform, proxy_transform]) \
+            self.proxy_transform = transforms.RTMCompose([self.proxy_transform, proxy_transform]) \
                 if self.proxy_transform else proxy_transform
             
     def get_transforms(self):
@@ -291,10 +291,10 @@ class RTDataset(Dataset):
         profile_stats = self.get_profile_statistics(indices, per_layer)
         target_stats = self.get_target_statistics(indices, per_wavelength)
         proxy_stats = self.get_proxy_statistics(indices, per_wavelength)
-        pixel_norm = utils.normalization(pixel_stats) if pixel_stats else None
-        profile_norm = utils.normalization(profile_stats) if profile_stats else None
-        target_norm = utils.normalization(target_stats)
-        proxy_norm = utils.normalization(proxy_stats)
+        pixel_norm = transforms.normalization(pixel_stats) if pixel_stats else None
+        profile_norm = transforms.normalization(profile_stats) if profile_stats else None
+        target_norm = transforms.normalization(target_stats)
+        proxy_norm = transforms.normalization(proxy_stats)
 
         if coupled_proxy:
             proxy_norm = target_norm
@@ -410,10 +410,10 @@ class FlatRTDataset(RTDataset):
         # flatten profile data and concatenate with pixel data
         if self.n_profile_features > 0:
             n_flat = self.n_levels * self.n_profile_features
-            profile_data = np.transpose(self.profile_data, (0, 2, 1))
+            profile_data = torch.permute(self.profile_data, (0, 2, 1))
             profile_data = profile_data.reshape(-1, n_flat)
             if self.pixel_data is not None:
-                self.pixel_data = np.concatenate([self.pixel_data, profile_data], axis=-1)
+                self.pixel_data = torch.cat([self.pixel_data, profile_data], dim=-1)
             else:
                 self.pixel_data = profile_data
 
