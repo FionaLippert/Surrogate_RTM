@@ -6,7 +6,7 @@ from hydra.utils import instantiate
 from typing import Any, List, Optional
 import os
 
-from rtm import utils
+from rtm import utils, transforms
 
 
 def prepare_train_dataset(dataset_cfg: DictConfig):
@@ -19,12 +19,12 @@ def prepare_train_dataset(dataset_cfg: DictConfig):
 
     # apply normalization based on training set statistics
     dataset.add_normalization(train_indices, **dataset_cfg.normalization)
-    dataset.add_transforms(*[utils.DoubleToFloat()]*4)
+    dataset.add_transforms(*[transforms.DoubleToFloat()]*4)
 
     return dataset, train_indices, val_indices
 
 def prepare_test_dataset(dataset_cfg: DictConfig, 
-                      transforms: Optional[List[utils.RTMTransform]] = None):
+                      transforms: Optional[List[transforms.RTMTransform]] = None):
 
     # get test data
     dataset = instantiate(dataset_cfg, train=False)
@@ -74,7 +74,7 @@ def load_train_dataset(dataset_cfg: OmegaConf,
 
 def load_test_dataset(dataset_cfg: OmegaConf, 
                       data_path: Optional[str] = None, 
-                      transforms: Optional[List[utils.RTMTransform]] = None,
+                      transforms: Optional[List[transforms.RTMTransform]] = None,
                       run = None):
     
     artifact_name = f'{dataset_cfg.name}_test'
@@ -122,7 +122,7 @@ def load_test_dataset(dataset_cfg: OmegaConf,
 def prepare_data_and_log(dataset_cfg: DictConfig, 
                          data_path: str,
                          wandb_project: Optional[str] = None,
-                         transforms: Optional[List[utils.RTMTransform]] = None):
+                         transforms: Optional[List[transforms.RTMTransform]] = None):
     # load training and test data, as well as transforms, and log everything as artifacts to wandb
 
     with wandb.init(project=wandb_project, job_type='prepare-data') as run:
@@ -213,7 +213,7 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
 
 def prepare_data_and_save(dataset_cfg: DictConfig, 
                           data_path: str,
-                          transforms: Optional[List[utils.RTMTransform]] = None):
+                          transforms: Optional[List[transforms.RTMTransform]] = None):
     # load training and test data, as well as transforms, and save everything to disk
 
     # convert OmegaConf to dict

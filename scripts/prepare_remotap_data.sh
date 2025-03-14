@@ -15,7 +15,7 @@ NCHUNKS=$3
 
 DATA_DIR="${BASE_DIR}/synth"
 
-INSTRUMENT="instr1_noise0" # instr2_noise0 if MAP is also simulated
+INSTRUMENT="instr1_noise2" # instr2_noise2 if MAP is also simulated
 PROXY="ns" # include non-scattering spectra as proxy
 
 script_path="/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts"

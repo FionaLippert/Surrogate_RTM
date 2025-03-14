@@ -12,7 +12,7 @@ if __name__ == '__main__':
     parser.add_argument('--prefix', type=str, 
                         help='file prefix')
     parser.add_argument('--band', type=str, 
-                        help='band name (NIR, SWIR1, or SWIR3)')
+                        help='band name (NIR, NIR1, NIR2, SWIR1, or SWIR3)')
     parser.add_argument('--n_chunks', type=int, default=1,
                         help='number of chunks to load and combine')
     parser.add_argument('--instrument', type=str, default='instr2_noise0',
@@ -21,14 +21,9 @@ if __name__ == '__main__':
                         help='postfix of the files containing proxy spectra')
     args = parser.parse_args()
 
-    gas_names = ['co2', 'ch4'] # for now co is left out because it is not present in the synthetic data
-
-    if args.band == 'NIR':
-        wl_range = (755, 773)
-    elif args.band == 'SWIR1':
-        wl_range = (1590, 1675)
-    elif args.band == 'SWIR3':
-        wl_range = (2305, 2385)
+    gas_names = ['co', 'co2', 'ch4'] # TODO: add o2 
+    # gas_names = ['co2', 'ch4']
+    wl_range = rtm.utils.s5_band_to_wl_range(args.band)
 
     aux_files = [f for f in os.listdir(args.data_dir) if f.startswith(args.prefix) and f.endswith('aux.nc')]
     aux_files.sort()

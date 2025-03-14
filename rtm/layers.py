@@ -43,82 +43,114 @@ class Linear(nn.Linear):
         if bias:
             nn.init.constant_(self.bias, 0.0)
 
+# class MLP(torch.nn.Module):
+#     def __init__(self, n_in, n_hidden, n_out, **kwargs):
+#         super(MLP, self).__init__()
 
+#         self.dropout_p = kwargs.get('dropout_p', 0)
+#         self.n_layers = kwargs.get('n_fc_layers', 1)
+
+#         self.fc_in = torch.nn.Linear(n_in, n_hidden)
+#         self.fc_hidden = nn.ModuleList([torch.nn.Linear(n_hidden, n_hidden)
+#                                         for _ in range(self.n_layers - 1)])
+#         self.fc_out = torch.nn.Linear(n_hidden, n_out)
+
+#         self.reset_parameters()
+
+#     def reset_parameters(self):
+
+#         self.fc_hidden.apply(init_weights)
+#         init_weights(self.fc_in)
+#         init_weights(self.fc_out)
+
+#     def forward(self, features):
+
+#         x = F.relu(self.fc_in(features))
+#         x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+#         for l in self.fc_hidden:
+#             x = F.relu(l(x))
+#             x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+#         x = self.fc_out(x)
+
+#         return x
+    
 
 class MLP(torch.nn.Module):
-    """
-    Simple MLP layer with varying layer widths
-
-    Args:
-    hidden_dims: list of hidden dimensions (i.e. layer widths)
-    dropout_p: dropout probability
-    """
-    def __init__(self,
-                 hidden_dims: List[int],
-                 dropout_p: float = 0.0,
-                 **kwargs
-                 ):
+    def __init__(self, n_in, n_hidden, n_out, **kwargs):
         super().__init__()
 
-        self.fc_layers = torch.nn.ModuleList(
-            [torch.nn.Linear(hidden_dims[i], hidden_dims[i+1]) for i in range(len(hidden_dims) - 1)]
-            )
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_layers = kwargs.get('n_fc_layers', 1)
 
-        self.dropout_p = dropout_p
+        nonlinearity = kwargs.get('nonlinearity', 'relu')
+        self.nonlinearity = getattr(F, nonlinearity)
 
-        # initialize weights
+        self.fc_in = torch.nn.Linear(n_in, n_hidden)
+        self.fc_hidden = nn.ModuleList([torch.nn.Linear(n_hidden, n_hidden)
+                                        for _ in range(self.n_layers - 1)])
+        self.fc_out = torch.nn.Linear(n_hidden, n_out)
+
         self.reset_parameters()
 
     def reset_parameters(self):
-        for layer in self.fc_layers:
-            init_weights(layer)
-    
-    def forward(self, z: torch.Tensor) -> torch.Tensor:
-        for layer in self.fc_layers[:-1]:
-            z = F.relu(layer(z))
-            z = F.dropout(z, p=self.dropout_p, training=self.training)
-        # no activation on last layer
-        x = self.fc_layers[-1](z)
+
+        self.fc_hidden.apply(init_weights)
+        init_weights(self.fc_in)
+        init_weights(self.fc_out)
+
+    def forward(self, features):
+
+        x = self.nonlinearity(self.fc_in(features))
+        x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+        for l in self.fc_hidden:
+            x = self.nonlinearity(l(x))
+            x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+        x = self.fc_out(x)
+
         return x
     
 
-class MLP_v2(torch.nn.Module):
-    """
-    Simple MLP layer with varying layer widths
+# class MLP(torch.nn.Module):
+#     """
+#     Simple MLP layer with varying layer widths
 
-    Args:
-    hidden_dims: list of hidden dimensions (i.e. layer widths)
-    dropout_p: dropout probability
-    """
-    def __init__(self,
-                 hidden_dims: List[int],
-                 dropout_p: float = 0.0,
-                 nonlinearity: Callable = F.relu,
-                 **kwargs
-                 ):
-        super().__init__()
+#     Args:
+#     hidden_dims: list of hidden dimensions (i.e. layer widths)
+#     dropout_p: dropout probability
+#     """
+#     def __init__(self,
+#                  hidden_dims: List[int],
+#                  dropout_p: float = 0.0,
+#                  nonlinearity: Callable = F.relu,
+#                  **kwargs
+#                  ):
+#         super().__init__()
 
-        self.fc_layers = torch.nn.ModuleList(
-            [torch.nn.Linear(hidden_dims[i], hidden_dims[i+1]) for i in range(len(hidden_dims) - 1)]
-            )
+#         self.fc_layers = torch.nn.ModuleList(
+#             [torch.nn.Linear(hidden_dims[i], hidden_dims[i+1]) for i in range(len(hidden_dims) - 1)]
+#             )
 
-        self.dropout_p = dropout_p
-        self.nonlinearity = nonlinearity
+#         self.dropout_p = dropout_p
+#         self.nonlinearity = nonlinearity
 
-        # initialize weights
-        self.reset_parameters()
+#         # initialize weights
+#         self.reset_parameters()
 
-    def reset_parameters(self):
-        for layer in self.fc_layers:
-            init_weights(layer)
+#     def reset_parameters(self):
+#         for layer in self.fc_layers:
+#             init_weights(layer)
     
-    def forward(self, z: torch.Tensor) -> torch.Tensor:
-        for layer in self.fc_layers[:-1]:
-            z = self.nonlinearity(layer(z))
-            z = F.dropout(z, p=self.dropout_p, training=self.training)
-        # no activation on last layer
-        x = self.fc_layers[-1](z)
-        return x
+#     def forward(self, z: torch.Tensor) -> torch.Tensor:
+#         for layer in self.fc_layers[:-1]:
+#             z = self.nonlinearity(layer(z))
+#             z = F.dropout(z, p=self.dropout_p, training=self.training)
+#         # no activation on last layer
+#         x = self.fc_layers[-1](z)
+#         return x
 
 
 
@@ -233,6 +265,9 @@ class PCAEncoder(Encoder):
             # alternatively, allow to adjust transformation during training
             self.components = torch.nn.Parameter(components, requires_grad=True)
             self.mean = torch.nn.Parameter(mean, requires_grad=True)
+
+    def explained_variance_ratio(self):
+        return self.pca.explained_variance_ratio_
     
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         z = F.linear(x, self.components, - self.mean @ self.components.T)
@@ -334,6 +369,9 @@ class PCADecoder(Decoder):
             # alternatively, allow to adjust transformation during training
             self.components = torch.nn.Parameter(components, requires_grad=True)
             self.mean = torch.nn.Parameter(mean, requires_grad=True)
+
+    def explained_variance_ratio(self):
+        return self.pca.explained_variance_ratio_
     
     def decode(self, z: torch.Tensor) -> torch.Tensor:
         x = F.linear(z, self.components.T, self.mean)

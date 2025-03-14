@@ -12,21 +12,21 @@ from torch.utils.data import Dataset, random_split
 from torchvision.transforms import Compose
 from scipy.interpolate import interp1d
 
-from rtm import utils
+from rtm import utils, transforms
 
 class RTDataset(Dataset):
     """Synthetic measurements generated with RemoTeC forward model"""
     def __init__(self, 
                  data_dir: str,
-                 prefix: str = 'syn_meas_s5_random_ensemble_1e5_combined',
+                 prefix: str,
                  pixel_features: Union[str, List[str]] = 'all',
                  profile_features: Union[str, List[str]] = 'all',
                  target_quantity: str = 'radiance',
                  predict_difference: bool = False,
-                 pixel_transform: utils.RTMTransform = utils.NumpyToTensor(),
-                 profile_transform: utils.RTMTransform = utils.NumpyToTensor(),
-                 target_transform: utils.RTMTransform = utils.NumpyToTensor(),
-                 proxy_transform: utils.RTMTransform = utils.NumpyToTensor(),
+                 pixel_transform: transforms.RTMTransform = None,
+                 profile_transform: transforms.RTMTransform = None,
+                 target_transform: transforms.RTMTransform = None,
+                 proxy_transform: transforms.RTMTransform = None,
                  seed: int = 0,
                  train: bool = True,
                  test_size: float = 0.2, # TODO: explicitly define train/val/test split
@@ -78,13 +78,28 @@ class RTDataset(Dataset):
         self.test_indices = self.indices[test_indices]
         self.indices = self.train_indices if self.train else self.test_indices
 
-        if self.pixel_data is not None: self.pixel_data = self.pixel_data[self.indices]
-        if self.profile_data is not None: self.profile_data = self.profile_data[self.indices]
+
+        # prepare final data
+        if self.pixel_data is not None: 
+            self.pixel_data = self.pixel_data[self.indices]
+            self.pixel_data = transforms.numpy_to_tensor(self.pixel_data)
+
+        if self.profile_data is not None: 
+            self.profile_data = self.profile_data[self.indices]
+            self.profile_data = transforms.numpy_to_tensor(self.profile_data)
+
         self.targets = self.targets[self.indices]
-        self.proxy = self.proxy[self.indices] if self.proxy is not None else None
+        self.targets = transforms.numpy_to_tensor(self.targets)
+
+        if self.proxy is not None:
+            self.proxy = self.proxy[self.indices]
+            self.proxy = transforms.numpy_to_tensor(self.proxy)
 
         if self.predict_difference:
-            self.targets = self.targets - self.proxy
+            if self.proxy is None:
+                raise ValueError('Proxy spectra are required to predict differences')
+            else:
+                self.targets = self.targets - self.proxy
 
 
     def add_transforms(self, 
@@ -94,16 +109,16 @@ class RTDataset(Dataset):
                        proxy_transform=None):
         # add new transforms to existing transforms
         if pixel_transform:
-            self.pixel_transform = utils.RTMCompose([self.pixel_transform, pixel_transform]) \
+            self.pixel_transform = transforms.RTMCompose([self.pixel_transform, pixel_transform]) \
                 if self.pixel_transform else pixel_transform
         if profile_transform:
-            self.profile_transform = utils.RTMCompose([self.profile_transform, profile_transform]) \
+            self.profile_transform = transforms.RTMCompose([self.profile_transform, profile_transform]) \
                 if self.profile_transform else profile_transform
         if target_transform:
-            self.target_transform = utils.RTMCompose([self.target_transform, target_transform]) \
+            self.target_transform = transforms.RTMCompose([self.target_transform, target_transform]) \
                 if self.target_transform else target_transform
         if proxy_transform:
-            self.proxy_transform = utils.RTMCompose([self.proxy_transform, proxy_transform]) \
+            self.proxy_transform = transforms.RTMCompose([self.proxy_transform, proxy_transform]) \
                 if self.proxy_transform else proxy_transform
             
     def get_transforms(self):
@@ -127,6 +142,7 @@ class RTDataset(Dataset):
     def add_normalization(self, 
                           indices: List[int] = None, 
                           **kwargs):
+        # add normalization to existing transforms
         self.add_transforms(*self.normalization(indices, **kwargs))
     
     def __len__(self):
@@ -275,10 +291,10 @@ class RTDataset(Dataset):
         profile_stats = self.get_profile_statistics(indices, per_layer)
         target_stats = self.get_target_statistics(indices, per_wavelength)
         proxy_stats = self.get_proxy_statistics(indices, per_wavelength)
-        pixel_norm = utils.normalization(pixel_stats) if pixel_stats else None
-        profile_norm = utils.normalization(profile_stats) if profile_stats else None
-        target_norm = utils.normalization(target_stats)
-        proxy_norm = utils.normalization(proxy_stats)
+        pixel_norm = transforms.normalization(pixel_stats) if pixel_stats else None
+        profile_norm = transforms.normalization(profile_stats) if profile_stats else None
+        target_norm = transforms.normalization(target_stats)
+        proxy_norm = transforms.normalization(proxy_stats)
 
         if coupled_proxy:
             proxy_norm = target_norm
@@ -394,10 +410,10 @@ class FlatRTDataset(RTDataset):
         # flatten profile data and concatenate with pixel data
         if self.n_profile_features > 0:
             n_flat = self.n_levels * self.n_profile_features
-            profile_data = np.transpose(self.profile_data, (0, 2, 1))
+            profile_data = torch.permute(self.profile_data, (0, 2, 1))
             profile_data = profile_data.reshape(-1, n_flat)
             if self.pixel_data is not None:
-                self.pixel_data = np.concatenate([self.pixel_data, profile_data], axis=-1)
+                self.pixel_data = torch.cat([self.pixel_data, profile_data], dim=-1)
             else:
                 self.pixel_data = profile_data
 

@@ -8,6 +8,47 @@ from typing import Callable, Union, List, Dict, Tuple
 from rtm.constants import constants
 
 ##################################################
+# S5 specific functions
+##################################################
+
+def s5_band_to_wl_range(band: str) -> Tuple[int, int]:
+    # get wavelength range for a given band
+    if band in ['NIR', '3']:
+        wl_range = (745, 773)
+    elif band in ['NIR1', '3a']:
+        wl_range = (745, 755)
+    elif band in ['NIR2', '3b']:
+        wl_range = (755, 773)
+    elif band in ['SWIR1', '4']:
+        wl_range = (1590, 1675)
+    elif band in ['SWIR3', '5']:
+        wl_range = (2305, 2385)
+    else:
+        raise ValueError(f'Band {band} not recognized')
+    return wl_range
+
+def s5_band_to_absorbers(band: str) -> List[str]:
+    if band in ['NIR', 'NIR1', 'NIR2', '3', '3a', '3b']:
+        absorbers = ['o2']
+    elif band in ['SWIR1', '4']:
+        absorbers = ['h2o', 'co2', 'ch4']
+    elif band in ['SWIR3', '5']:
+        absorbers = ['h2o', 'co', 'ch4']
+    else:
+        raise ValueError(f'Band {band} not recognized')
+    return absorbers
+
+def gas_to_hitran_index(gas: str) -> int:
+    gas2hitran = {
+        'h2o': 1,
+        'co2': 2,
+        'o2': 7,
+        'co': 5,
+        'ch4': 6,
+    }
+    return gas2hitran[gas.lower()]
+
+##################################################
 # radiative transfer model specific functions
 ##################################################
 
