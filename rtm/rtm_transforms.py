@@ -34,6 +34,47 @@ class RTMCompose(RTMTransform):
     def __repr__(self):
         return f'RTMCompose({self.transforms})'
     
+    
+class RTMTransformCollection(torch.nn.Module):
+    def __init__(self, transforms: Dict[str, RTMTransform]):
+        super().__init__()
+
+        self.names = list(transforms.keys())
+
+        for name, t in transforms.items():
+            setattr(self, t, name)
+
+    def add_transforms(self, transforms: Dict[str, RTMTransform]):
+        # add new transforms to existing transforms
+        for name, t_new in transforms:
+            if name in self.names:
+                t_old = getattr(self, name, None)
+                if isinstance(t_old, RTMTransform):
+                    # compose new with existing transform
+                    t_new = RTMCompose([t_old, t_new])
+                # set new transform
+                setattr(self, name, t_new)
+            else:
+                raise ValueError(f'no transform registered under name {name}')
+            
+    def add_transform_to_all(self, transform: RTMTransform):
+        for name in self.names:
+            t_old = getattr(self, name, None)
+            if isinstance(t_old, RTMTransform):
+                transform = RTMCompose([t_old, transform])
+            setattr(self, name, transform)
+            
+    def set_transforms(self, transforms: Dict[str, RTMTransform]):
+        # overwrite existing transforms
+        for name, t_new in transforms:
+            if name in self.names:
+                setattr(self, name, t_new)
+    
+    def get_transforms(self):
+        # return [getattr(self, name) for name in self.names]
+        return {name: getattr(self, name) for name in self.names}
+    
+    
 class DoubleToFloat(RTMTransform):
     def __init__(self):
         super().__init__()
@@ -57,12 +98,16 @@ class Normalize(RTMTransform):
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         # standardize to zero mean and unit variance
-        normalized = (data - self.mean.to(data.device)) / self.std.to(data.device)
+        # normalized = (data - self.mean.to(data.device)) / self.std.to(data.device)
+
+        print(data.device, self.mean.device)
+        normalized = (data - self.mean) / self.std
         return normalized
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         # reverse standardization
-        denormalized = data * self.std.to(data.device) + self.mean.to(data.device)
+        # denormalized = data * self.std.to(data.device) + self.mean.to(data.device)
+        denormalized = data * self.std + self.mean
         return denormalized
     
     def __repr__(self):
@@ -85,7 +130,7 @@ class PowerTransform(RTMTransform):
     def __init__(self, exponent: float):
         super().__init__()
 
-        self.exponent = exponent
+        self.register_buffer('exponent', exponent)
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         return torch.pow(data, self.exponent)

@@ -15,7 +15,7 @@ from torch.utils.data import SubsetRandomSampler, Subset
 from operator import mul
 from functools import reduce
 
-from rtm import wandb_utils, utils
+from rtm import data_utils, utils
 
 def join_paths(*paths):
     return osp.join(*[str(p) for p in paths])
@@ -44,10 +44,10 @@ def run(cfg: DictConfig):
 
     # prepare training and test data
     # wandb_utils.prepare_data_and_log(cfg.dataset, cfg.logger.project, transforms)
-    wandb_utils.prepare_data_and_save(cfg.dataset, cfg.data_path, transforms)
+    data_utils.prepare_data_and_save(cfg.dataset, cfg.data_path, transforms)
 
     # test if loading works
-    dataset, train_indices, val_indices = wandb_utils.load_train_dataset(
+    dataset, train_indices, val_indices = data_utils.load_train_dataset(
         cfg.dataset, data_path=cfg.data_path)
 
 if __name__ == "__main__":

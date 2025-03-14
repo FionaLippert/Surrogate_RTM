@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, random_split
 from torchvision.transforms import Compose
 from scipy.interpolate import interp1d
 
-from rtm import utils, transforms
+from rtm.rtm_transforms import RTMTransformCollection, RTMTransform, numpy_to_tensor, normalization
 
 class RTDataset(Dataset):
     """Synthetic measurements generated with RemoTeC forward model"""
@@ -23,10 +23,10 @@ class RTDataset(Dataset):
                  profile_features: Union[str, List[str]] = 'all',
                  target_quantity: str = 'radiance',
                  predict_difference: bool = False,
-                 pixel_transform: transforms.RTMTransform = None,
-                 profile_transform: transforms.RTMTransform = None,
-                 target_transform: transforms.RTMTransform = None,
-                 proxy_transform: transforms.RTMTransform = None,
+                #  pixel_transform: transforms.RTMTransform = None,
+                #  profile_transform: transforms.RTMTransform = None,
+                #  target_transform: transforms.RTMTransform = None,
+                #  proxy_transform: transforms.RTMTransform = None,
                  seed: int = 0,
                  train: bool = True,
                  test_size: float = 0.2, # TODO: explicitly define train/val/test split
@@ -42,10 +42,10 @@ class RTDataset(Dataset):
         self.predict_difference = predict_difference
 
         # transformations
-        self.pixel_transform = pixel_transform
-        self.profile_transform = profile_transform
-        self.target_transform = target_transform
-        self.proxy_transform = proxy_transform
+        # self.pixel_transform = pixel_transform
+        # self.profile_transform = profile_transform
+        # self.target_transform = target_transform
+        # self.proxy_transform = proxy_transform
 
         # collect all relevant data and identify dimensions
         self.pixel_data = self._collect_pixel_data(data_dir, prefix)
@@ -82,18 +82,18 @@ class RTDataset(Dataset):
         # prepare final data
         if self.pixel_data is not None: 
             self.pixel_data = self.pixel_data[self.indices]
-            self.pixel_data = transforms.numpy_to_tensor(self.pixel_data)
+            self.pixel_data = numpy_to_tensor(self.pixel_data)
 
         if self.profile_data is not None: 
             self.profile_data = self.profile_data[self.indices]
-            self.profile_data = transforms.numpy_to_tensor(self.profile_data)
+            self.profile_data = numpy_to_tensor(self.profile_data)
 
         self.targets = self.targets[self.indices]
-        self.targets = transforms.numpy_to_tensor(self.targets)
+        self.targets = numpy_to_tensor(self.targets)
 
         if self.proxy is not None:
             self.proxy = self.proxy[self.indices]
-            self.proxy = transforms.numpy_to_tensor(self.proxy)
+            self.proxy = numpy_to_tensor(self.proxy)
 
         if self.predict_difference:
             if self.proxy is None:
@@ -102,48 +102,48 @@ class RTDataset(Dataset):
                 self.targets = self.targets - self.proxy
 
 
-    def add_transforms(self, 
-                       pixel_transform=None, 
-                       profile_transform=None, 
-                       target_transform=None,
-                       proxy_transform=None):
-        # add new transforms to existing transforms
-        if pixel_transform:
-            self.pixel_transform = transforms.RTMCompose([self.pixel_transform, pixel_transform]) \
-                if self.pixel_transform else pixel_transform
-        if profile_transform:
-            self.profile_transform = transforms.RTMCompose([self.profile_transform, profile_transform]) \
-                if self.profile_transform else profile_transform
-        if target_transform:
-            self.target_transform = transforms.RTMCompose([self.target_transform, target_transform]) \
-                if self.target_transform else target_transform
-        if proxy_transform:
-            self.proxy_transform = transforms.RTMCompose([self.proxy_transform, proxy_transform]) \
-                if self.proxy_transform else proxy_transform
+    # def add_transforms(self, 
+    #                    pixel_transform=None, 
+    #                    profile_transform=None, 
+    #                    target_transform=None,
+    #                    proxy_transform=None):
+    #     # add new transforms to existing transforms
+    #     if pixel_transform:
+    #         self.pixel_transform = transforms.RTMCompose([self.pixel_transform, pixel_transform]) \
+    #             if self.pixel_transform else pixel_transform
+    #     if profile_transform:
+    #         self.profile_transform = transforms.RTMCompose([self.profile_transform, profile_transform]) \
+    #             if self.profile_transform else profile_transform
+    #     if target_transform:
+    #         self.target_transform = transforms.RTMCompose([self.target_transform, target_transform]) \
+    #             if self.target_transform else target_transform
+    #     if proxy_transform:
+    #         self.proxy_transform = transforms.RTMCompose([self.proxy_transform, proxy_transform]) \
+    #             if self.proxy_transform else proxy_transform
             
-    def get_transforms(self):
-        return self.pixel_transform, self.profile_transform, self.target_transform, self.proxy_transform
+    # def get_transforms(self):
+    #     return self.pixel_transform, self.profile_transform, self.target_transform, self.proxy_transform
     
-    def set_transforms(self, 
-                       pixel_transform=None, 
-                       profile_transform=None, 
-                       target_transform=None,
-                       proxy_transform=None):
-        # overwrite existing transforms
-        if pixel_transform is not None:
-            self.pixel_transform = pixel_transform
-        if profile_transform is not None:
-            self.profile_transform = profile_transform
-        if target_transform is not None:
-            self.target_transform = target_transform
-        if proxy_transform is not None:
-            self.proxy_transform = proxy_transform
+    # def set_transforms(self, 
+    #                    pixel_transform=None, 
+    #                    profile_transform=None, 
+    #                    target_transform=None,
+    #                    proxy_transform=None):
+    #     # overwrite existing transforms
+    #     if pixel_transform is not None:
+    #         self.pixel_transform = pixel_transform
+    #     if profile_transform is not None:
+    #         self.profile_transform = profile_transform
+    #     if target_transform is not None:
+    #         self.target_transform = target_transform
+    #     if proxy_transform is not None:
+    #         self.proxy_transform = proxy_transform
             
-    def add_normalization(self, 
-                          indices: List[int] = None, 
-                          **kwargs):
-        # add normalization to existing transforms
-        self.add_transforms(*self.normalization(indices, **kwargs))
+    # def add_normalization(self, 
+    #                       indices: List[int] = None, 
+    #                       **kwargs):
+    #     # add normalization to existing transforms
+    #     self.add_transforms(*self.normalization(indices, **kwargs))
     
     def __len__(self):
         return len(self.indices)
@@ -153,23 +153,23 @@ class RTDataset(Dataset):
         # get pixel data and apply transform if available
         if self.pixel_data is not None:
             x_pixels = self.pixel_data[idx]
-            if self.pixel_transform:
-                x_pixels = self.pixel_transform(x_pixels)
+            # if self.pixel_transform:
+            #     x_pixels = self.pixel_transform(x_pixels)
         else:
             x_pixels = None
 
         # get profile data and apply transform if available
         if self.profile_data is not None:
             x_profiles = self.profile_data[idx]
-            if self.profile_transform:
-                x_profiles = self.profile_transform(x_profiles)
+            # if self.profile_transform:
+            #     x_profiles = self.profile_transform(x_profiles)
         else:
             x_profiles = None
 
         # get target data and apply transform if available
         y = self.targets[idx]
-        if self.target_transform:
-            y = self.target_transform(y)
+        # if self.target_transform:
+        #     y = self.target_transform(y)
 
         data_dict = {
             'inputs': x_pixels,
@@ -180,8 +180,8 @@ class RTDataset(Dataset):
         # get proxy data and apply transform if available
         if self.proxy is not None:
             proxy = self.proxy[idx]
-            if self.proxy_transform:
-                proxy = self.proxy_transform(proxy)
+            # if self.proxy_transform:
+            #     proxy = self.proxy_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
         return data_dict
@@ -281,31 +281,58 @@ class RTDataset(Dataset):
         
     
     def normalization(self, 
+                      transforms: Dict[str, RTMTransformCollection],
                       indices: List[int] = None, 
                       per_wavelength: bool = True,
                       per_layer: bool = False,
                       coupled_proxy: bool = False, 
                       **kwargs):
+        # define indices to use to compute normalization 
         if indices is None: indices = range(len(self))
-        pixel_stats = self.get_pixel_statistics(indices)
-        profile_stats = self.get_profile_statistics(indices, per_layer)
-        target_stats = self.get_target_statistics(indices, per_wavelength)
-        proxy_stats = self.get_proxy_statistics(indices, per_wavelength)
-        pixel_norm = transforms.normalization(pixel_stats) if pixel_stats else None
-        profile_norm = transforms.normalization(profile_stats) if profile_stats else None
-        target_norm = transforms.normalization(target_stats)
-        proxy_norm = transforms.normalization(proxy_stats)
+
+        pixel_stats = self.get_pixel_statistics(
+            indices=indices, 
+            transform=transforms['pixel_transform']
+        )
+        profile_stats = self.get_profile_statistics(
+            indices=indices, 
+            transform=transforms['profile_transform'], 
+            per_layer=per_layer
+        )
+        target_stats = self.get_target_statistics(
+            indices=indices, 
+            transform=transforms['target_transform'],
+            per_wavelength=per_wavelength
+        )
+        proxy_stats = self.get_proxy_statistics(
+            indices=indices, 
+            transform=transforms['proxy_transform'],
+            per_wavelength=per_wavelength
+        )
+
+        pixel_norm = normalization(pixel_stats) if pixel_stats else None
+        profile_norm = normalization(profile_stats) if profile_stats else None
+        target_norm = normalization(target_stats)
 
         if coupled_proxy:
             proxy_norm = target_norm
+        elif proxy_stats:
+            proxy_norm = normalization(proxy_stats)
+        else:
+            proxy_norm = None
 
-        return pixel_norm, profile_norm, target_norm, proxy_norm
+        return {
+            'pixel_transform': pixel_norm, 
+            'profile_transform': profile_norm, 
+            'target_transform': target_norm,
+            'proxy_transform': proxy_norm
+        }
     
-    def get_pixel_statistics(self, indices: List[int]):
-        if self.pixel_transform and self.pixel_data is not None:
-            data = self.pixel_transform(self.pixel_data[indices])
-        elif self.pixel_data is not None:
+    def get_pixel_statistics(self, indices: List[int], transform: RTMTransform = None):
+        if self.pixel_data is not None:
             data = self.pixel_data[indices]
+            if transform is not None:
+                data = transform(data)
         else:
             return None
 
@@ -322,11 +349,15 @@ class RTDataset(Dataset):
 
         return stats
     
-    def get_profile_statistics(self, indices: List[int], per_layer: bool = False):
-        if self.profile_transform and self.profile_data is not None:
-            data = self.profile_transform(self.profile_data[indices])
-        elif self.profile_data is not None:
+    def get_profile_statistics(self, 
+                               indices: List[int], 
+                               transform: RTMTransform = None,
+                               per_layer: bool = False
+                               ):
+        if self.profile_data is not None:
             data = self.profile_data[indices]
+            if transform is not None:
+                data = transform(data)
         else:
             return None
 
@@ -344,11 +375,14 @@ class RTDataset(Dataset):
 
         return stats
     
-    def get_target_statistics(self, indices: List[int], per_wavelength: bool = True):
-        if self.target_transform:
-            targets = self.target_transform(self.targets[indices])
-        else:
-            targets = self.targets[indices]
+    def get_target_statistics(self, 
+                              indices: List[int], 
+                              transform: RTMTransform = None,
+                              per_wavelength: bool = True
+                              ):
+        targets = self.targets[indices]
+        if transform is not None:
+            targets = self.target_transform(targets)
 
         if isinstance(targets, torch.Tensor):
             targets = targets.numpy()
@@ -364,11 +398,15 @@ class RTDataset(Dataset):
 
         return stats
     
-    def get_proxy_statistics(self, indices: List[int], per_wavelength: bool = True):
-        if self.proxy_transform and self.proxy is not None:
-            proxy = self.proxy_transform(self.proxy[indices])
-        elif self.proxy is not None:
+    def get_proxy_statistics(self, 
+                             indices: List[int], 
+                             transform: RTMTransform = None,
+                             per_wavelength: bool = True
+                             ):
+        if self.proxy is not None:
             proxy = self.proxy[indices]
+            if transform is not None:
+                proxy = self.proxy_transform(proxy)
         else:
             return None
 
@@ -424,14 +462,14 @@ class FlatRTDataset(RTDataset):
 
         if self.pixel_data is not None:
             x = self.pixel_data[idx]
-            if self.pixel_transform:
-                x = self.pixel_transform(x)
+            # if self.pixel_transform:
+                # x = self.pixel_transform(x)
         else:
             x = None
 
         y = self.targets[idx]
-        if self.target_transform:
-            y = self.target_transform(y)
+        # if self.target_transform:
+            # y = self.target_transform(y)
 
 
         data_dict = {
@@ -441,8 +479,8 @@ class FlatRTDataset(RTDataset):
 
         if self.proxy is not None:
             proxy = self.proxy[idx]
-            if self.proxy_transform:
-                proxy = self.proxy_transform(proxy)
+            # if self.proxy_transform:
+                # proxy = self.proxy_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
         return data_dict

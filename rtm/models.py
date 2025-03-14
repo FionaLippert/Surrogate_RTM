@@ -6,47 +6,74 @@ from torch.optim.lr_scheduler import SequentialLR, ConstantLR
 from typing import Callable, Union, List, Dict, Tuple, Optional
 import numpy as np
 
-from rtm import utils, layers, transforms
+from rtm import rtm_transforms, utils, layers
 from rtm.dimensionality_reduction import DimensionalityReduction, Encoder, Decoder, PCA
 from rtm.utils import init_weights
 
 
 class SurrogateRTM(pl.LightningModule):
     def __init__(self, 
+                 input_quantity: str = 'inputs',
                  target_quantity: str = 'targets',
                  proxy_quantity: str = 'proxy_targets',
-                 target_transform: transforms.RTMTransform = None,
-                 proxy_transform: transforms.RTMTransform = None,
+                 transforms: rtm_transforms.RTMTransformCollection = None,
+                #  input_transform: rtm_transforms.RTMTransform = None,
+                #  target_transform: rtm_transforms.RTMTransform = None,
+                #  proxy_transform: rtm_transforms.RTMTransform = None,
                  eval_scale: torch.Tensor = None, 
                  **kwargs):
 
         super().__init__()
 
+        self.input_quantity = input_quantity
         self.target_quantity = target_quantity
         self.proxy_quantity = proxy_quantity
-        self._target_transform = target_transform
-        self._proxy_transform = proxy_transform
+
+        self.transforms = transforms
+
+        # self.input_transform = input_transform
+        # self.target_transform = target_transform
+        # self.proxy_transform = proxy_transform
+        
         self.eval_scale = eval_scale
 
         self.save_hyperparameters(ignore=['forward_model', 
                                           'input_dim_reduction', 
-                                          'output_dim_reduction'])    
+                                          'output_dim_reduction',
+                                          'transforms'])    
 
     @property
-    def target_transform(self) -> transforms.RTMTransform:
-        return self._target_transform
+    def input_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'pixel_transform', None)
+    
+    @input_transform.setter
+    def input_transform(self, input_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'pixel_transform': input_transform})
+        else:
+            raise Warning('Trying to set input_transform for a model without transforms')
+
+    @property
+    def target_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'target_transform', None)
     
     @target_transform.setter
-    def target_transform(self, target_transform: transforms.RTMTransform):
-        self._target_transform = target_transform
+    def target_transform(self, target_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'target_transform': target_transform})
+        else:
+            raise Warning('Trying to set target_transform for a model without transforms')
 
     @property
-    def proxy_transform(self) -> transforms.RTMTransform:
-        return self._proxy_transform
+    def proxy_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'proxy_transform', None)
     
     @proxy_transform.setter
-    def proxy_transform(self, proxy_transform: transforms.RTMTransform):
-        self._proxy_transform = proxy_transform
+    def proxy_transform(self, proxy_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'proxy_transform': proxy_transform})
+        else:
+            raise Warning('Trying to set proxy_transform for a model without transforms')
 
     def forward(self, **input_kwargs) -> torch.Tensor:
         """runs RTM prediction"""
@@ -161,6 +188,14 @@ class NNSurrogateRTM(SurrogateRTM):
     
     def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
 
+        # prepare inputs
+        if self.input_transform is not None:
+            inputs = self.input_transform(inputs)
+
+        # prepare proxy
+        if self.proxy_quantity in kwargs and self.proxy_transform is not None:
+            kwargs[self.proxy_quantity] = self.proxy_transform(kwargs[self.proxy_quantity])
+
         return self.forward_model(inputs, **kwargs)
 
 
@@ -175,9 +210,15 @@ class NNSurrogateRTM(SurrogateRTM):
         return loss
     
     def eval_step(self, batch) -> torch.Tensor:
+        # prepare targets
         targets = batch[self.target_quantity]
+        if self.target_transform is not None:
+            targets = self.target_transform(targets)
+
+        # make prediction
         outputs = self.forward(**batch)
 
+        # compute loss function
         loss = self.compute_loss(outputs, targets)
 
         return loss
@@ -271,10 +312,18 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
 
     def test_step(self, batch, batch_idx):
         """evaluate reconstruction performance"""
+        # prepare targets
         targets = batch[self.target_quantity]
-        proxy = batch[self.proxy_quantity]
-        outputs = self.forward(**batch)
+        if self.target_transform is not None:
+            targets = self.target_transform(targets)
 
+        # prepare proxy
+        proxy = batch[self.proxy_quantity]
+        if self.proxy_transform is not None:
+            proxy = self.proxy_transform(proxy)
+
+        # make prediction
+        outputs = self.forward(**batch)
         outputs, targets = self.prepare_outputs(targets, proxy, outputs)
 
         self.outputs.append(outputs)
@@ -282,10 +331,18 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
 
     def predict_step(self, batch, batch_idx):
         """make prediction"""
+        # prepare targets
         targets = batch[self.target_quantity]
-        proxy = batch[self.proxy_quantity]
-        outputs = self.forward(**batch)
+        if self.target_transform is not None:
+            targets = self.target_transform(targets)
 
+        # prepare proxy
+        proxy = batch[self.proxy_quantity]
+        if self.proxy_transform is not None:
+            proxy = self.proxy_transform(proxy)
+        
+        # make prediction
+        outputs = self.forward(**batch)
         outputs, targets = self.prepare_outputs(targets, proxy, outputs)
 
         return outputs, targets
@@ -443,11 +500,11 @@ class LatentNNSurrogateRTM(NNSurrogateRTM):
         # self.latent_loss = kwargs.get('latent_loss', False)
 
     @property
-    def target_transform(self) -> transforms.RTMTransform:
+    def target_transform(self) -> rtm_transforms.RTMTransform:
         return self._target_transform
     
     @target_transform.setter
-    def target_transform(self, target_transform: transforms.RTMTransform):
+    def target_transform(self, target_transform: rtm_transforms.RTMTransform):
         self._target_transform = target_transform
         if hasattr(self.output_dim_reduction, 'target_transform'):
             self.output_dim_reduction.target_transform = target_transform

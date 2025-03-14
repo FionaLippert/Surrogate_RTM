@@ -15,7 +15,7 @@ from torch.utils.data import SubsetRandomSampler, Subset
 from operator import mul
 from functools import reduce
 
-from rtm import utils, wandb_utils, dimensionality_reduction, layers
+from rtm import data_utils, utils, dimensionality_reduction, layers
 
 def join_paths(*paths):
     return osp.join(*[str(p) for p in paths])
@@ -28,6 +28,9 @@ OmegaConf.register_new_resolver("join_paths", join_paths)
 OmegaConf.register_new_resolver("add_values", add_values)
 OmegaConf.register_new_resolver("multiply_values", multiply_values)
 OmegaConf.register_new_resolver("eval", eval)
+
+# run with CUDA_LAUNCH_BLOCKING=1
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
 ##################################################################
@@ -84,19 +87,21 @@ def run(cfg: DictConfig):
         model.load_model_state(checkpoint)
 
     if 'train' in cfg.task.name:
-        transforms = train(trainer, model, cfg)
+        # transforms = train(trainer, model, cfg)
+        train(trainer, model, cfg)
         trained = True
     else:
         trained = False
-        transforms = None
+        # transforms = None
 
-    # optional: load transforms explicitly
-    if cfg.task.get('normalization_path', None) is not None:
-        print(f'Loading transforms from {cfg.task.normalization_path}...')
-        transforms = utils.load_transforms(cfg.task.normalization_path)
+    # # optional: load transforms explicitly
+    # if cfg.task.get('normalization_path', None) is not None:
+    #     print(f'Loading transforms from {cfg.task.normalization_path}...')
+    #     transforms = utils.load_transforms(cfg.task.normalization_path)
 
     if 'eval' in cfg.task.name:
-        eval(trainer, model, cfg, transforms, trained=trained)
+        # eval(trainer, model, cfg, transforms, trained=trained)
+        eval(trainer, model, cfg, trained=trained)
     
     if isinstance(trainer.logger, WandbLogger):
         # save config to wandb
@@ -111,7 +116,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
         print('####### Start model training ########')
     
     # get training data
-    dataset, train_indices, val_indices = wandb_utils.load_train_dataset(
+    dataset, train_indices, val_indices = data_utils.load_train_dataset(
         cfg.dataset, data_path=cfg.data_path, run=wandb.run)
     
     # possibly select smaller subset of the training data
@@ -119,9 +124,18 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
         n_subset = int(cfg.task.train_frac * len(train_indices))
         train_indices = np.random.choice(train_indices, n_subset, replace=False)
 
+    # get transforms
+    transforms = data_utils.prepare_transforms(cfg.transforms, 
+                                               dataset, 
+                                               train_indices, 
+                                               **cfg.dataset.normalization)
+    model.transforms = transforms
+
     # set function to convert model outputs to physical targets
-    model.target_transform = dataset.target_transform
-    model.proxy_transform = dataset.proxy_transform
+    # TODO: adjust if pixel and profile inputs are handled separately!
+    # model.input_transform = dataset.pixel_transform
+    # model.target_transform = dataset.target_transform
+    # model.proxy_transform = dataset.proxy_transform
 
     # setup data loaders
     train_loader = instantiate(cfg.dataloader, dataset, 
@@ -138,15 +152,29 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
         exp_var = 100 * model.input_dim_reduction.explained_variance_ratio()
         print(f'Explained input variance (%): {exp_var:.4f}')
 
+    if isinstance(getattr(model.forward_model, 'encoder', None), layers.PCAEncoder):
+        inputs = model.pixel_transform(train_data['inputs'])
+        model.forward_model.encoder.fit(inputs)
+        exp_var = 100 * model.forward_model.encoder.explained_variance_ratio()
+        print(f'Explained input variance (%): {exp_var:.4f}')
+
     if isinstance(getattr(model, 'output_dim_reduction', None), 
                   (dimensionality_reduction.PCA, layers.PCADecoder)):
         model.output_dim_reduction.fit(train_data['targets'].to(device))
         exp_var = 100 * model.output_dim_reduction.explained_variance_ratio()
         print(f'Explained output variance (%): {exp_var:.4f}')
 
+    if isinstance(getattr(model.forward_model, 'decoder', None), layers.PCADecoder):
+        targets = model.target_transform(train_data['targets'])
+        model.forward_model.decoder.fit(train_data['targets'])
+        exp_var = 100 * model.forward_model.decoder.explained_variance_ratio()
+        print(f'Explained output variance (%): {exp_var:.4f}')
+
     
     # adjust loss scale based on target variance
     targets = train_data['targets']
+    if model.target_transform is not None:
+        targets = model.target_transform(targets)
     # if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
     #     targets = model.output_dim_reduction.encode(targets.to(device))
     model.loss_scale = targets.std().item()
@@ -155,37 +183,38 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     trainer.validate(model, val_loader)
     trainer.fit(model, train_loader, val_loader)
 
-    return dataset.get_transforms()
+    # return dataset.get_transforms()
 
 
 def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
-         transforms: Optional[List[utils.RTMTransform]] = None, trained: bool = False):
+        #  transforms: Optional[List[utils.RTMTransform]] = None, 
+         trained: bool = False):
     
     if cfg.verbose:
         print('####### Start model evaluation ########')
 
     if cfg.task.final_eval:
         # get test data
-        dataset = wandb_utils.load_test_dataset(cfg.dataset, 
+        dataset = data_utils.load_test_dataset(cfg.dataset, 
                                                 data_path=cfg.data_path, 
-                                                transforms=transforms,
+                                                # transforms=transforms,
                                                 run=wandb.run)
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, shuffle=False)
     else:
         # get validation data
-        dataset, train_indices, val_indices = wandb_utils.load_train_dataset(
+        dataset, train_indices, val_indices = data_utils.load_train_dataset(
             cfg.dataset, data_path=cfg.data_path, run=wandb.run)
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
                                   batch_size=1, shuffle=False)
 
-    # set transform if untrained model
-    if not trained:
-        model.target_transform = dataset.target_transform
-        model.proxy_transform = dataset.proxy_transform
+    # # set transform if untrained model
+    # if not trained:
+    #     model.target_transform = dataset.target_transform
+    #     model.proxy_transform = dataset.proxy_transform
 
     # evaluate model
     kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}

@@ -81,15 +81,15 @@ profile_features:
   # - MMR_co
 
 
-# transforms for input features
-transform: null
+# # transforms for input features
+# transform: null
 
-# transforms for output spectra
-target_transform:
-  _target_: rtm.transforms.LogTransform
+# # transforms for output spectra
+# target_transform:
+#   _target_: rtm.transforms.LogTransform
 
-# transforms for proxy input spectra
-proxy_transform: null
+# # transforms for proxy input spectra
+# proxy_transform: null
 
 # normalization settings
 normalization:
