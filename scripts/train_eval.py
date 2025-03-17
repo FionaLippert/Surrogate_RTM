@@ -153,7 +153,8 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
         print(f'Explained input variance (%): {exp_var:.4f}')
 
     if isinstance(getattr(model.forward_model, 'encoder', None), layers.PCAEncoder):
-        inputs = model.pixel_transform(train_data['inputs'])
+        print('Fitting input PCA...')
+        inputs = model.input_transform(train_data['inputs'])
         model.forward_model.encoder.fit(inputs)
         exp_var = 100 * model.forward_model.encoder.explained_variance_ratio()
         print(f'Explained input variance (%): {exp_var:.4f}')
@@ -165,6 +166,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
         print(f'Explained output variance (%): {exp_var:.4f}')
 
     if isinstance(getattr(model.forward_model, 'decoder', None), layers.PCADecoder):
+        print('Fitting output PCA...')
         targets = model.target_transform(train_data['targets'])
         model.forward_model.decoder.fit(train_data['targets'])
         exp_var = 100 * model.forward_model.decoder.explained_variance_ratio()
