@@ -36,15 +36,15 @@ def run(cfg: DictConfig):
     # for reproducibility
     pl.seed_everything(cfg.seed, workers=True)
 
-    # optional: load transforms from different dataset
-    if cfg.dataset.get('transforms_path', None) is not None:
-        transforms = utils.load_transforms(cfg.dataset.transforms_path)
-    else:
-        transforms = None
+    # # optional: load transforms from different dataset
+    # if cfg.dataset.get('transforms_path', None) is not None:
+    #     transforms = utils.load_transforms(cfg.dataset.transforms_path)
+    # else:
+    #     transforms = None
 
     # prepare training and test data
     # wandb_utils.prepare_data_and_log(cfg.dataset, cfg.logger.project, transforms)
-    data_utils.prepare_data_and_save(cfg.dataset, cfg.data_path, transforms)
+    data_utils.prepare_data_and_save(cfg.dataset, cfg.data_path) #, transforms)
 
     # test if loading works
     dataset, train_indices, val_indices = data_utils.load_train_dataset(

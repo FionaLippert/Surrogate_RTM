@@ -147,8 +147,7 @@ def load_test_dataset(cfg_dataset: OmegaConf,
     return dataset
 
 
-def prepare_data_and_log(dataset_cfg: DictConfig,
-                         transform_cfg: DictConfig, 
+def prepare_data_and_log(cfg_dataset: DictConfig,
                          data_path: str,
                          wandb_project: Optional[str] = None,
                          transforms: Optional[List[rtm_transforms.RTMTransform]] = None):
@@ -156,19 +155,19 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
 
     with wandb.init(project=wandb_project, job_type='prepare-data') as run:
 
-        if dataset_cfg.test_size < 1.0:
+        if cfg_dataset.test_size < 1.0:
             # prepare training data
-            train_dataset, train_indices, val_indices, transforms = prepare_train_dataset(dataset_cfg, transform_cfg)
+            train_dataset, train_indices, val_indices = prepare_train_dataset(cfg_dataset)
             # transforms = train_dataset.get_transforms()
-            train_data_path = os.path.join(data_path, f'{dataset_cfg.name}_train_val')
+            train_data_path = os.path.join(data_path, f'{cfg_dataset.name}_train_val')
             os.makedirs(train_data_path, exist_ok=True)
         
             print('Logging training data to W&B...')
             train_data_artifact = wandb.Artifact(
-                        f'{dataset_cfg.name}_train_val', type="dataset",
+                        f'{cfg_dataset.name}_train_val', type="dataset",
                         description="Training dataset, can be further split into training and validation sets",
-                        metadata={"source": dataset_cfg._target_,
-                                "config": OmegaConf.to_container(dataset_cfg, resolve=True)}
+                        metadata={"source": cfg_dataset._target_,
+                                "config": OmegaConf.to_container(cfg_dataset, resolve=True)}
             )
 
             fn_train_dataset = os.path.join(train_data_path, "train_dataset.pt")
@@ -193,42 +192,42 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
 
             wandb.run.log_artifact(train_data_artifact)
 
-            print('Logging normalization to W&B...')
-            normalization = wandb.Artifact(
-                    f'{dataset_cfg.name}_transforms', type="normalization",
-                    description="Transforms applied to the dataset"
-            )
-            normalization_path = os.path.join(data_path, f'{dataset_cfg.name}_transforms')
-            os.makedirs(normalization_path, exist_ok=True)
+            # print('Logging normalization to W&B...')
+            # normalization = wandb.Artifact(
+            #         f'{cfg_dataset.name}_transforms', type="normalization",
+            #         description="Transforms applied to the dataset"
+            # )
+            # normalization_path = os.path.join(data_path, f'{cfg_dataset.name}_transforms')
+            # os.makedirs(normalization_path, exist_ok=True)
 
-            for name, transf in zip(['pixel', 'profile', 'target', 'proxy'], transforms):
-                fn_transf = os.path.join(normalization_path, f"{name}_transform.pt")
-                torch.save(transf, fn_transf)
-                normalization.add_file(fn_val_indices)
-                # with normalization.new_file(f"{name}_transform.pt", mode="wb") as file:
-                    # torch.save(transf, file)
+            # for name, transf in zip(['pixel', 'profile', 'target', 'proxy'], transforms):
+            #     fn_transf = os.path.join(normalization_path, f"{name}_transform.pt")
+            #     torch.save(transf, fn_transf)
+            #     normalization.add_file(fn_val_indices)
+            #     # with normalization.new_file(f"{name}_transform.pt", mode="wb") as file:
+            #         # torch.save(transf, file)
 
-            wandb.run.log_artifact(normalization)
+            # wandb.run.log_artifact(normalization)
 
-        elif transforms is None:
-            # use all data for testing, but no transforms provided
-            print('No transforms provided for independent test set! Please set transforms manually before testing.')
+        # elif transforms is None:
+        #     # use all data for testing, but no transforms provided
+        #     print('No transforms provided for independent test set! Please set transforms manually before testing.')
 
-        if dataset_cfg.test_size > 0.0:
+        if cfg_dataset.test_size > 0.0:
             # prepare test data
-            test_dataset = prepare_test_dataset(dataset_cfg, transforms=transforms)
+            test_dataset = prepare_test_dataset(cfg_dataset) #, transforms=transforms)
 
             print('Logging test data to W&B...')
             test_data_artifact = wandb.Artifact(
-                        f'{dataset_cfg.name}_test', type="dataset",
+                        f'{cfg_dataset.name}_test', type="dataset",
                         description="Test dataset",
-                        metadata={"source": dataset_cfg._target_,
-                                "config": OmegaConf.to_container(dataset_cfg, resolve=True)}
+                        metadata={"source": cfg_dataset._target_,
+                                "config": OmegaConf.to_container(cfg_dataset, resolve=True)}
                 )
             # with test_data_artifact.new_file("test_dataset.pt", mode="wb") as file:
                 # torch.save(test_dataset, file)
 
-            test_data_path = os.path.join(data_path, f'{dataset_cfg.name}_test')
+            test_data_path = os.path.join(data_path, f'{cfg_dataset.name}_test')
             os.makedirs(test_data_path, exist_ok=True)
 
             fn_test_dataset = os.path.join(test_data_path, "test_dataset.pt")
@@ -238,28 +237,29 @@ def prepare_data_and_log(dataset_cfg: DictConfig,
             wandb.run.log_artifact(test_data_artifact)
 
 
-def prepare_data_and_save(dataset_cfg: DictConfig, 
+def prepare_data_and_save(cfg_dataset: DictConfig, 
                           data_path: str,
-                          transforms: Optional[List[rtm_transforms.RTMTransform]] = None):
+                        #   transforms: Optional[List[rtm_transforms.RTMTransform]] = None
+                          ):
     # load training and test data, as well as transforms, and save everything to disk
 
     # convert OmegaConf to dict
     # cfg = OmegaConf.to_container(dataset_cfg, resolve=True)
 
-    if dataset_cfg.test_size < 1.0:
+    if cfg_dataset.test_size < 1.0:
         # prepare training data
-        train_dataset, train_indices, val_indices = prepare_train_dataset(dataset_cfg)
-        transforms = train_dataset.get_transforms()
+        train_dataset, train_indices, val_indices = prepare_train_dataset(cfg_dataset)
+        # transforms = train_dataset.get_transforms()
     
         print('Saving training data...')
 
-        artifact_name = f'{dataset_cfg.name}_train_val'
+        artifact_name = f'{cfg_dataset.name}_train_val'
         dataset_path = os.path.join(data_path, artifact_name)
         os.makedirs(dataset_path, exist_ok=True)
 
         # log config
         with open(os.path.join(dataset_path, 'config.yaml'), 'w') as file:
-            OmegaConf.save(dataset_cfg, file, resolve=True)
+            OmegaConf.save(cfg_dataset, file, resolve=True)
 
         # save training data
         torch.save(train_dataset, os.path.join(dataset_path, 'train_dataset.pt'),
@@ -273,28 +273,28 @@ def prepare_data_and_save(dataset_cfg: DictConfig,
 
         print('Saving normalization...')
 
-        normalization_path = os.path.join(data_path, f'{dataset_cfg.name}_transforms')
-        os.makedirs(normalization_path, exist_ok=True)
+        # normalization_path = os.path.join(data_path, f'{cfg_dataset.name}_transforms')
+        # os.makedirs(normalization_path, exist_ok=True)
 
-        # save transforms for all dataset components
-        for name, transf in zip(['pixel', 'profile', 'target', 'proxy'], transforms):
-            file = os.path.join(normalization_path, f"{name}_transform.pt")
-            torch.save(transf, file, pickle_protocol=4)
+        # # save transforms for all dataset components
+        # for name, transf in zip(['pixel', 'profile', 'target', 'proxy'], transforms):
+        #     file = os.path.join(normalization_path, f"{name}_transform.pt")
+        #     torch.save(transf, file, pickle_protocol=4)
 
         # log config
         with open(os.path.join(dataset_path, 'config.yaml'), 'w') as file:
-            OmegaConf.save(dataset_cfg, file, resolve=True)
+            OmegaConf.save(cfg_dataset, file, resolve=True)
 
 
-    elif transforms is None:
-        # use all data for testing, but no transforms provided
-        print('No transforms provided for independent test set! Please set transforms manually before testing.')
+    # elif transforms is None:
+    #     # use all data for testing, but no transforms provided
+    #     print('No transforms provided for independent test set! Please set transforms manually before testing.')
 
-    if dataset_cfg.test_size > 0.0:
+    if cfg_dataset.test_size > 0.0:
         # prepare test data
-        test_dataset = prepare_test_dataset(dataset_cfg, transforms=transforms)
+        test_dataset = prepare_test_dataset(cfg_dataset) #, transforms=transforms)
 
-        artifact_name = f'{dataset_cfg.name}_test'
+        artifact_name = f'{cfg_dataset.name}_test'
         dataset_path = os.path.join(data_path, artifact_name)
         os.makedirs(dataset_path, exist_ok=True)
 
@@ -304,5 +304,5 @@ def prepare_data_and_save(dataset_cfg: DictConfig,
 
         # log config
         with open(os.path.join(dataset_path, 'config.yaml'), 'w') as file:
-            OmegaConf.save(dataset_cfg, file, resolve=True)
+            OmegaConf.save(cfg_dataset, file, resolve=True)
 

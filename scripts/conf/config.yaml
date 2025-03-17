@@ -2,6 +2,7 @@
 defaults:
   - dataset: synthetic_remotap
   - model: LatentNNSurrogateRTM
+  - transforms: log_targets
   - task: train+eval
   - device: local
   - logger: wandb
