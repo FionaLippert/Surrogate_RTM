@@ -12,7 +12,9 @@ from torch.utils.data import Dataset, random_split
 from torchvision.transforms import Compose
 from scipy.interpolate import interp1d
 
-from rtm.rtm_transforms import RTMTransformCollection, RTMTransform, numpy_to_tensor, normalization
+from rtm import rtm_transforms
+from rtm.rtm_transforms import RTMTransformCollection, RTMTransform
+
 
 class RTDataset(Dataset):
     """Synthetic measurements generated with RemoTeC forward model"""
@@ -82,18 +84,18 @@ class RTDataset(Dataset):
         # prepare final data
         if self.pixel_data is not None: 
             self.pixel_data = self.pixel_data[self.indices]
-            self.pixel_data = numpy_to_tensor(self.pixel_data)
+            self.pixel_data = rtm_transforms.numpy_to_tensor(self.pixel_data)
 
         if self.profile_data is not None: 
             self.profile_data = self.profile_data[self.indices]
-            self.profile_data = numpy_to_tensor(self.profile_data)
+            self.profile_data = rtm_transforms.numpy_to_tensor(self.profile_data)
 
         self.targets = self.targets[self.indices]
-        self.targets = numpy_to_tensor(self.targets)
+        self.targets = rtm_transforms.numpy_to_tensor(self.targets)
 
         if self.proxy is not None:
             self.proxy = self.proxy[self.indices]
-            self.proxy = numpy_to_tensor(self.proxy)
+            self.proxy = rtm_transforms.numpy_to_tensor(self.proxy)
 
         if self.predict_difference:
             if self.proxy is None:
@@ -290,34 +292,36 @@ class RTDataset(Dataset):
         # define indices to use to compute normalization 
         if indices is None: indices = range(len(self))
 
+        print(f'transforms: {transforms}')
+
         pixel_stats = self.get_pixel_statistics(
             indices=indices, 
-            transform=transforms['pixel_transform']
+            transform=transforms.get('pixel_transform', None)
         )
         profile_stats = self.get_profile_statistics(
             indices=indices, 
-            transform=transforms['profile_transform'], 
+            transform=transforms.get('profile_transform', None),
             per_layer=per_layer
         )
         target_stats = self.get_target_statistics(
             indices=indices, 
-            transform=transforms['target_transform'],
+            transform=transforms.get('target_transform', None),
             per_wavelength=per_wavelength
         )
         proxy_stats = self.get_proxy_statistics(
             indices=indices, 
-            transform=transforms['proxy_transform'],
+            transform=transforms.get('proxy_transform', None),
             per_wavelength=per_wavelength
         )
 
-        pixel_norm = normalization(pixel_stats) if pixel_stats else None
-        profile_norm = normalization(profile_stats) if profile_stats else None
-        target_norm = normalization(target_stats)
+        pixel_norm = rtm_transforms.normalization(pixel_stats) if pixel_stats else None
+        profile_norm = rtm_transforms.normalization(profile_stats) if profile_stats else None
+        target_norm = rtm_transforms.normalization(target_stats)
 
         if coupled_proxy:
             proxy_norm = target_norm
         elif proxy_stats:
-            proxy_norm = normalization(proxy_stats)
+            proxy_norm = rtm_transforms.normalization(proxy_stats)
         else:
             proxy_norm = None
 
@@ -381,8 +385,10 @@ class RTDataset(Dataset):
                               per_wavelength: bool = True
                               ):
         targets = self.targets[indices]
+        print(f'target shape: {targets.shape}')
         if transform is not None:
-            targets = self.target_transform(targets)
+            targets = transform(targets)
+            print(f'target shape after transform: {targets.shape}')
 
         if isinstance(targets, torch.Tensor):
             targets = targets.numpy()
@@ -396,6 +402,8 @@ class RTDataset(Dataset):
             'max': targets.max(**kwargs),
         }
 
+        print('mean shape:', stats['mean'].shape)
+
         return stats
     
     def get_proxy_statistics(self, 
@@ -406,7 +414,7 @@ class RTDataset(Dataset):
         if self.proxy is not None:
             proxy = self.proxy[indices]
             if transform is not None:
-                proxy = self.proxy_transform(proxy)
+                proxy = transform(proxy)
         else:
             return None
 

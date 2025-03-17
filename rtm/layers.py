@@ -267,7 +267,7 @@ class PCAEncoder(Encoder):
             self.mean = torch.nn.Parameter(mean, requires_grad=True)
 
     def explained_variance_ratio(self):
-        return self.pca.explained_variance_ratio_
+        return self.pca.explained_variance_ratio_.sum()
     
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         z = F.linear(x, self.components, - self.mean @ self.components.T)
@@ -371,7 +371,7 @@ class PCADecoder(Decoder):
             self.mean = torch.nn.Parameter(mean, requires_grad=True)
 
     def explained_variance_ratio(self):
-        return self.pca.explained_variance_ratio_
+        return self.pca.explained_variance_ratio_.sum()
     
     def decode(self, z: torch.Tensor) -> torch.Tensor:
         x = F.linear(z, self.components.T, self.mean)

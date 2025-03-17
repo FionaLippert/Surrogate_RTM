@@ -36,17 +36,17 @@ class RTMCompose(RTMTransform):
     
     
 class RTMTransformCollection(torch.nn.Module):
-    def __init__(self, transforms: Dict[str, RTMTransform]):
+    def __init__(self, transforms: Dict[str, RTMTransform], **kwargs):
         super().__init__()
 
         self.names = list(transforms.keys())
 
         for name, t in transforms.items():
-            setattr(self, t, name)
+            setattr(self, name, t)
 
     def add_transforms(self, transforms: Dict[str, RTMTransform]):
         # add new transforms to existing transforms
-        for name, t_new in transforms:
+        for name, t_new in transforms.items():
             if name in self.names:
                 t_old = getattr(self, name, None)
                 if isinstance(t_old, RTMTransform):
@@ -61,18 +61,29 @@ class RTMTransformCollection(torch.nn.Module):
         for name in self.names:
             t_old = getattr(self, name, None)
             if isinstance(t_old, RTMTransform):
-                transform = RTMCompose([t_old, transform])
-            setattr(self, name, transform)
+                t_new = RTMCompose([t_old, transform])
+            else:
+                t_new = transform
+            setattr(self, name, t_new)
             
     def set_transforms(self, transforms: Dict[str, RTMTransform]):
         # overwrite existing transforms
-        for name, t_new in transforms:
+        for name, t_new in transforms.items():
             if name in self.names:
                 setattr(self, name, t_new)
     
     def get_transforms(self):
         # return [getattr(self, name) for name in self.names]
         return {name: getattr(self, name) for name in self.names}
+    
+    def get(self, name, default=None):
+        return getattr(self, name, default)
+    
+    # def __getitem__(self, name: str):
+    #     if name in self.names:
+    #         getattr(self, name)
+    #     else:
+    #         raise ValueError(f'no transform registered under name {name}')
     
     
 class DoubleToFloat(RTMTransform):
@@ -99,8 +110,6 @@ class Normalize(RTMTransform):
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         # standardize to zero mean and unit variance
         # normalized = (data - self.mean.to(data.device)) / self.std.to(data.device)
-
-        print(data.device, self.mean.device)
         normalized = (data - self.mean) / self.std
         return normalized
     
