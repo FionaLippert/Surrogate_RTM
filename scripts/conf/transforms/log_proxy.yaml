@@ -1,10 +1,10 @@
 # @package dataset
 name: log_proxy
-_target_: rtm.transforms.RTMTransformCollection
+_target_: rtm.rtm_transforms.RTMTransformCollection
 
 transforms:
   pixel_transform: null
   profile_transform: null
   target_transform: null
   proxy_transform:
-    _target_: rtm.transforms.LogTransform
+    _target_: rtm.rtm_transforms.LogTransform

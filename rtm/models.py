@@ -362,6 +362,73 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
         outputs, targets = self.prepare_outputs(outputs, targets, proxy)
 
         return outputs, targets
+    
+class NNSurrogateRTMRatio(NNSurrogateRTM):
+    """Surrogate model that predicts the ratio between RTM and proxy (non-scattering RTM)"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def prepare_outputs(self, 
+                        outputs: torch.Tensor,
+                        targets: torch.Tensor, 
+                        proxy: torch.Tensor, 
+                        ) -> Tuple[np.ndarray, np.ndarray]:
+
+        outputs = outputs.detach()
+        targets = targets.detach()
+        proxy = proxy.detach()
+
+        # compute actual spectra
+        outputs = proxy * outputs
+        targets = proxy * targets
+
+        outputs = outputs.cpu().numpy()
+        targets = targets.cpu().numpy()
+
+        return outputs, targets
+
+    def test_step(self, batch, batch_idx):
+        """evaluate reconstruction performance"""
+        # prepare targets
+        targets = batch[self.target_quantity]
+        # if self.target_transform is not None:
+        #     targets = self.target_transform(targets)
+
+        # prepare proxy
+        proxy = batch[self.proxy_quantity]
+        # if self.proxy_transform is not None:
+        #     proxy = self.proxy_transform(proxy)
+
+        # make prediction
+        outputs = self.forward(**batch)
+        if self.target_transform:
+            # undo normalization and transforms
+            outputs = self.target_transform.inverse(outputs)
+        outputs, targets = self.prepare_outputs(outputs, targets, proxy)
+
+        self.outputs.append(outputs)
+        self.targets.append(targets)
+
+    def predict_step(self, batch, batch_idx):
+        """make prediction"""
+        # prepare targets
+        targets = batch[self.target_quantity]
+        # if self.target_transform is not None:
+        #     targets = self.target_transform(targets)
+
+        # prepare proxy
+        proxy = batch[self.proxy_quantity]
+        # if self.proxy_transform is not None:
+        #     proxy = self.proxy_transform(proxy)
+        
+        # make prediction
+        outputs = self.forward(**batch)
+        if self.target_transform:
+            # undo normalization and transforms
+            outputs = self.target_transform.inverse(outputs)
+        outputs, targets = self.prepare_outputs(outputs, targets, proxy)
+
+        return outputs, targets
 
 
 class LatentNNForwardModel(torch.nn.Module):
