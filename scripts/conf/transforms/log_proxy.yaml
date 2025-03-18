@@ -1,4 +1,4 @@
-# @package dataset
+# @package transforms
 name: log_proxy
 _target_: rtm.rtm_transforms.RTMTransformCollection
 

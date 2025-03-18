@@ -72,6 +72,8 @@ def load_train_dataset(cfg_dataset: OmegaConf,
     if data_path is not None:
         data_path = os.path.join(data_path, artifact_name)
 
+    print(f'Attempting to load data from {data_path}')
+
     # if exists, load test data from disk, if not, try to load from W&B,
     # otherwise create from scratch
     if data_path is not None and os.path.exists(data_path):
