@@ -1,5 +1,5 @@
 # @package dataset
-name: synthetic_remotap_swir1_extended_era5_single_norm_log_proxy
+name: synthetic_remotap_swir1_extended_era5_single_norm_coupled_proxy
 _target_: rtm.datasets.uvns_datasets.FlatRTDataset
 
 # don't touch to ensure the same data split is used for all experiments
@@ -81,20 +81,9 @@ profile_features:
   - MMR_h2o
   # - MMR_co
 
-# transforms for input features
-transform: null
-
-# transforms for output spectra
-target_transform:
-  _target_: rtm.transforms.LogTransform
-
-# transforms for proxy input spectra
-proxy_transform:
-  _target_: rtm.transforms.LogTransform
-
 
 # normalization settings
 normalization:
   per_wavelength: false # normalize spectral channels separately
   per_layer: true # normalize vertical layers separately
-  coupled_proxy: false # separate proxy and target normalization
+  coupled_proxy: true # use same normalization for proxy and targets
