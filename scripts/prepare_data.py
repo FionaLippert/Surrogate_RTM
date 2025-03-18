@@ -42,6 +42,8 @@ def run(cfg: DictConfig):
     # else:
     #     transforms = None
 
+    print(cfg.dataset)
+
     # prepare training and test data
     # wandb_utils.prepare_data_and_log(cfg.dataset, cfg.logger.project, transforms)
     data_utils.prepare_data_and_save(cfg.dataset, cfg.data_path) #, transforms)

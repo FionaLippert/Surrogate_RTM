@@ -25,6 +25,7 @@ class RTDataset(Dataset):
                  profile_features: Union[str, List[str]] = 'all',
                  target_quantity: str = 'radiance',
                  predict_difference: bool = False,
+                 predict_ratio: bool = False,
                 #  pixel_transform: transforms.RTMTransform = None,
                 #  profile_transform: transforms.RTMTransform = None,
                 #  target_transform: transforms.RTMTransform = None,
@@ -42,6 +43,7 @@ class RTDataset(Dataset):
         self.profile_features = profile_features 
         self.target_quantity = target_quantity
         self.predict_difference = predict_difference
+        self.predict_ratio = predict_ratio
 
         # transformations
         # self.pixel_transform = pixel_transform
@@ -102,6 +104,11 @@ class RTDataset(Dataset):
                 raise ValueError('Proxy spectra are required to predict differences')
             else:
                 self.targets = self.targets - self.proxy
+        elif self.predict_ratio:
+            if self.proxy is None:
+                raise ValueError('Proxy spectra are required to predict ratios')
+            else:
+                self.targets = self.targets / self.proxy
 
 
     # def add_transforms(self, 
