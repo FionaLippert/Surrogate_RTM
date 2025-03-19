@@ -8,6 +8,7 @@ output_dim: ${dataset.output_dim} # all wavelengths
 
 input_latent_dim: ${dataset.input_dim} # all features
 output_latent_dim: 26 # 99.9999% explained variance
+hidden_dim: 128
 
 dropout_p: 0.0
 
@@ -22,7 +23,7 @@ forward_model:
     _target_: rtm.layers.MLP
     n_in: ${model.input_latent_dim}
     n_out: ${model.output_latent_dim}
-    n_hidden: 128
+    n_hidden: ${model.hidden_dim}
     n_fc_layers: 5
     dropout_p: ${model.dropout_p}
     nonlinearity: relu
