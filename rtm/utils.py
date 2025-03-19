@@ -170,7 +170,7 @@ def column_averaged_amount(column_concentrations: np.ndarray,
 
     # calculate column-averaged amount of trace gas
     vc_gas = column_concentrations * delta_p
-    gas_avg = 1e6 * np.sum(vc_gas, axis=-1) / np.sum(delta_p, axis=-1) # [ppm]
+    gas_avg = np.sum(vc_gas, axis=-1) / np.sum(delta_p, axis=-1)
 
     return gas_avg
 
