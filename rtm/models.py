@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import SequentialLR, ConstantLR
 from typing import Callable, Union, List, Dict, Tuple, Optional
 import numpy as np
+from hydra.utils import instantiate
 
 from rtm import rtm_transforms, utils, layers
 from rtm.dimensionality_reduction import DimensionalityReduction, Encoder, Decoder, PCA
@@ -170,6 +171,9 @@ class SurrogateRTM(pl.LightningModule):
         outputs, targets = self.prepare_outputs(outputs, targets)
 
         return outputs, targets
+    
+    def save_hydra_config(self, config: Dict):
+        self.hydra_config = config
 
 
     
@@ -266,17 +270,24 @@ class NNSurrogateRTM(SurrogateRTM):
         return {"optimizer": optimizer,
                 "lr_scheduler": lr_scheduler_config}
     
-    # transforms are torch.nn.Module objects now and dont' need to be saved separately
-    # def on_save_checkpoint(self, checkpoint):
-    #     # save additional objects to checkpoint 
-    #     checkpoint['target_transform'] = self.target_transform
-    #     checkpoint['proxy_transform'] = self.proxy_transform
+
+    def on_save_checkpoint(self, checkpoint):
+        # save additional objects to checkpoint 
+        if hasattr(self, 'hydra_config'):
+            checkpoint['hydra_config'] = self.hydra_config
+
     
     def on_load_checkpoint(self, checkpoint):
         print(f'Loading model state on device {self.device}...')
         self.load_model_state(checkpoint, map_location=self.device)
         
+        
     def load_model_state(self, checkpoint, map_location=None):
+
+        # if transforms are part of checkpoint, make sure model has correct transforms setup
+        if 'transforms' in checkpoint:
+            self.transforms = instantiate(checkpoint['hydra_config']['transforms'])
+
         # load standard pytorch state_dict
         self.load_state_dict(checkpoint['state_dict'])
 

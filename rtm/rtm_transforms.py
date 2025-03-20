@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from typing import Union, List, Dict, Callable
+from typing import Union, List, Dict, Callable, Optional
 import os
 
 class RTMTransform(torch.nn.Module):
@@ -30,6 +30,12 @@ class RTMCompose(RTMTransform):
         for transform in reversed(self.transforms):
             data = transform.inverse(data)
         return data
+    
+    def __dict_repr__(self):
+        return {
+            '_target_': 'rtm.rtm_transforms.RTMCompose',
+            'transforms': [t.__dict_repr__() for t in self.transforms]
+        }
     
     def __repr__(self):
         return f'RTMCompose({self.transforms})'
@@ -79,6 +85,12 @@ class RTMTransformCollection(torch.nn.Module):
     def get(self, name, default=None):
         return getattr(self, name, default)
     
+    def __dict_repr__(self):
+        return {
+            '_target_': 'rtm.rtm_transforms.RTMTransformCollection',
+            'transforms': {name: getattr(self, name).__dict_repr__() for name in self.names}
+        }
+    
     # def __getitem__(self, name: str):
     #     if name in self.names:
     #         getattr(self, name)
@@ -97,15 +109,36 @@ class DoubleToFloat(RTMTransform):
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         return data.to(torch.double)
     
+    def __dict_repr__(self):
+        return {'_target_': 'rtm.rtm_transforms.DoubleToFloat'}
+    
     def __repr__(self):
         return 'DoubleToFloat()'
     
 class Normalize(RTMTransform):
-    def __init__(self, mean: torch.Tensor, std: torch.Tensor):
+    def __init__(self, mean: Optional[torch.Tensor] = None, 
+                 std: Optional[torch.Tensor] = None, 
+                 shape: Optional[Union[int, List[int]]] = 1):
         super().__init__()
+
+        if mean is None:
+            mean = torch.zeros(shape)
+        if std is None:
+            std = torch.ones(shape)
 
         self.register_buffer('mean', mean)
         self.register_buffer('std', std)
+
+        if shape is None:
+            shape = mean.shape
+        self.shape = shape
+
+    def set_stats(self, mean: torch.Tensor = None, std: torch.Tensor = None):
+        if mean is not None:
+            self.mean = mean
+
+        if std is not None:
+            self.std = std
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         # standardize to zero mean and unit variance
@@ -119,6 +152,12 @@ class Normalize(RTMTransform):
         denormalized = data * self.std + self.mean
         return denormalized
     
+    def __dict_repr__(self):
+        return {
+            '_target_': 'rtm.rtm_transforms.Normalize',
+            'shape': self.shape
+        }
+    
     def __repr__(self):
         return f'Normalize(mean={self.mean}, std={self.std})'
 
@@ -131,6 +170,9 @@ class LogTransform(RTMTransform):
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         return torch.exp(data)
+    
+    def __dict_repr__(self):
+        return {'_target_': 'rtm.rtm_transforms.LogTransform'}
     
     def __repr__(self):
         return 'LogTransform()'
@@ -147,26 +189,15 @@ class PowerTransform(RTMTransform):
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         return torch.pow(data, 1/self.exponent)
     
+    def __dict_repr__(self):
+        return {
+            '_target_': 'rtm.rtm_transforms.PowerTransform',
+            'exponent': self.exponent
+        }
+    
     def __repr__(self):
         return f'PowerTransform(exponent={self.exponent})'
     
-class FTransform(RTMTransform):
-    def __init__(self, f: Callable, f_inv: Callable):
-        super().__init__()
-
-        self.f = f
-        self.f_inf = f_inv
-
-    def forward(self, data: torch.Tensor) -> torch.Tensor:
-        # apply custom function f to data
-        return self.f(data)
-    
-    def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        # reverse custom function f
-        return self.f_inv(data)
-    
-    def __repr__(self):
-        return f'FTransform(f={self.f}, f_inv={self.f_inv})'
     
     
 def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable:
