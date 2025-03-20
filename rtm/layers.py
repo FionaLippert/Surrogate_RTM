@@ -242,6 +242,7 @@ class PCAEncoder(Encoder):
     """
     def __init__(self,
                  n_components: int, 
+                 n_features: int,
                  fixed_components: bool = True,
                  **kwargs
                  ):
@@ -251,11 +252,8 @@ class PCAEncoder(Encoder):
         self.fixed_components = fixed_components
         self.pca = PCA(n_components=n_components)
 
-    def fit(self, data):
-        self.pca.fit(data)
-
-        components = torch.tensor(self.pca.components_, dtype=torch.float32)
-        mean = torch.tensor(self.pca.mean_, dtype=torch.float32)
+        components = torch.empty(n_components, n_features)
+        mean = torch.empty(n_features)
 
         if self.fixed_components:
             # keep PCA transform as is
@@ -265,6 +263,26 @@ class PCAEncoder(Encoder):
             # alternatively, allow to adjust transformation during training
             self.components = torch.nn.Parameter(components, requires_grad=True)
             self.mean = torch.nn.Parameter(mean, requires_grad=True)
+
+
+    def fit(self, data):
+        self.pca.fit(data)
+
+        self.components = torch.tensor(self.pca.components_, dtype=torch.float32)
+        self.mean = torch.tensor(self.pca.mean_, dtype=torch.float32)
+
+        # TODO: check if this maintains the parameter/buffer type from initialization if if gets overwritten
+        print(self.components)
+        print(self.mean)
+
+        # if self.fixed_components:
+        #     # keep PCA transform as is
+        #     self.register_buffer('components', components) # shape (n_components, features)
+        #     self.register_buffer('mean', mean) # shape (features,)
+        # else:
+        #     # alternatively, allow to adjust transformation during training
+        #     self.components = torch.nn.Parameter(components, requires_grad=True)
+        #     self.mean = torch.nn.Parameter(mean, requires_grad=True)
 
     def explained_variance_ratio(self):
         return self.pca.explained_variance_ratio_.sum()
@@ -346,6 +364,7 @@ class PCADecoder(Decoder):
     """
     def __init__(self,
                  n_components: int, 
+                 n_features: int,
                  fixed_components: bool = True,
                  **kwargs
                  ):
@@ -355,11 +374,8 @@ class PCADecoder(Decoder):
         self.fixed_components = fixed_components
         self.pca = PCA(n_components=n_components)
 
-    def fit(self, data):
-        self.pca.fit(data)
-
-        components = torch.tensor(self.pca.components_, dtype=torch.float32)
-        mean = torch.tensor(self.pca.mean_, dtype=torch.float32)
+        components = torch.empty(n_components, n_features)
+        mean = torch.empty(n_features)
 
         if self.fixed_components:
             # keep PCA transform as is
@@ -369,6 +385,22 @@ class PCADecoder(Decoder):
             # alternatively, allow to adjust transformation during training
             self.components = torch.nn.Parameter(components, requires_grad=True)
             self.mean = torch.nn.Parameter(mean, requires_grad=True)
+
+
+    def fit(self, data):
+        self.pca.fit(data)
+
+        self.components = torch.tensor(self.pca.components_, dtype=torch.float32)
+        self.mean = torch.tensor(self.pca.mean_, dtype=torch.float32)
+
+        # if self.fixed_components:
+        #     # keep PCA transform as is
+        #     self.register_buffer('components', components) # shape (n_components, features)
+        #     self.register_buffer('mean', mean) # shape (features,)
+        # else:
+        #     # alternatively, allow to adjust transformation during training
+        #     self.components = torch.nn.Parameter(components, requires_grad=True)
+        #     self.mean = torch.nn.Parameter(mean, requires_grad=True)
 
     def explained_variance_ratio(self):
         return self.pca.explained_variance_ratio_.sum()

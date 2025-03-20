@@ -102,6 +102,7 @@ def run(cfg: DictConfig):
     if 'eval' in cfg.task.name:
         # eval(trainer, model, cfg, transforms, trained=trained)
         eval(trainer, model, cfg, trained=trained)
+
     
     if isinstance(trainer.logger, WandbLogger):
         # save config to wandb
@@ -131,11 +132,11 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
                                                **cfg.dataset.normalization)
     model.transforms = transforms
 
-    # set function to convert model outputs to physical targets
-    # TODO: adjust if pixel and profile inputs are handled separately!
-    # model.input_transform = dataset.pixel_transform
-    # model.target_transform = dataset.target_transform
-    # model.proxy_transform = dataset.proxy_transform
+    # update config with final transforms (including normalization and double-to-float conversion)
+    cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
+    cfg_resolved['transforms'] = transforms.__dict_repr__()
+    # save this for later reference
+    model.save_hydra_config(cfg_resolved)
 
     # setup data loaders
     train_loader = instantiate(cfg.dataloader, dataset, 

@@ -30,10 +30,12 @@ forward_model:
   encoder:
     _target_: rtm.layers.PCAEncoder
     n_components: ${model.input_latent_dim}
+    n_features: ${model.input_dim}
     fixed_components: true
   decoder:
     _target_: rtm.layers.PCADecoder
     n_components: ${model.output_latent_dim}
+    n_features: ${model.output_dim}
     fixed_components: true
 
 
