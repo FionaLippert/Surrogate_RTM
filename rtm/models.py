@@ -493,6 +493,7 @@ class LatentNNForwardModel(torch.nn.Module):
 class SequenceNNForwardModel(torch.nn.Module):
     def __init__(self, 
                  sequence_length: int,
+                 sequence_module: torch.nn.Module,
                  encoder: Optional[Encoder] = None,
                  pos_encoding: Optional[torch.nn.Module] = None,
                  proxy_module: Optional[torch.nn.Module] = None,
@@ -507,6 +508,7 @@ class SequenceNNForwardModel(torch.nn.Module):
 
         self.sequence_length = sequence_length
 
+        self.sequence_module = sequence_module
         self.encoder = encoder
         self.pos_encoding = pos_encoding
         self.input_processing = input_processing
@@ -560,7 +562,7 @@ class SequenceNNForwardModel(torch.nn.Module):
             inputs = self.pos_encoding(inputs)
 
         # make prediction
-        outputs = self.forward_model(inputs)
+        outputs = self.sequence_module(inputs)
         outputs = outputs.reshape(-1, self.sequence_length)
 
         return outputs
