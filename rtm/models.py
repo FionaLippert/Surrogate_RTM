@@ -299,7 +299,7 @@ class SurrogateRTM(pl.LightningModule):
             raise Warning('Trying to set proxy_transform for a model without transforms')
 
     def forward(self, **input_kwargs) -> torch.Tensor:
-        """runs RTM prediction"""
+        """runs RTM forward model prediction"""
         raise NotImplementedError
     
     def training_step(self, batch, batch_idx):
@@ -309,17 +309,6 @@ class SurrogateRTM(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         """validation step for neural network models"""
         raise NotImplementedError
-    
-    def predict(self, **kwargs) -> torch.Tensor:
-
-        # make prediction
-        outputs = self.forward(**kwargs)
-
-        # prepare outputs
-        if self.target_transform is not None:
-            outputs = self.target_transform.inverse(outputs)
-
-        return outputs
     
     def prepare_outputs(self, 
                         outputs: torch.Tensor, 
@@ -340,7 +329,7 @@ class SurrogateRTM(pl.LightningModule):
         # if self.target_transform is not None:
         #     targets = self.target_transform(targets)
 
-        outputs = self.predict(**batch)
+        outputs = self.forward(**batch)
 
         # outputs = self.forward(**batch)
         # if self.target_transform:
@@ -400,7 +389,7 @@ class SurrogateRTM(pl.LightningModule):
         #     # undo normalization and transforms
         #     outputs = self.target_transform.inverse(outputs)
 
-        outputs = self.predict(**batch)
+        outputs = self.forward(**batch)
         outputs, targets = self.prepare_outputs(outputs, targets)
 
         return outputs, targets
@@ -432,9 +421,8 @@ class NNSurrogateRTM(SurrogateRTM):
         self.lr_milestones = kwargs.get('lr_milestones', None)
         self.lr_scheduler_interval = kwargs.get('lr_scheduler_interval', 'epoch')
 
-    
-    def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
 
+    def prepare_inputs(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
         # prepare inputs
         if self.input_transform is not None:
             inputs = self.input_transform(inputs)
@@ -443,7 +431,22 @@ class NNSurrogateRTM(SurrogateRTM):
         if self.proxy_quantity in kwargs and self.proxy_transform is not None:
             kwargs[self.proxy_quantity] = self.proxy_transform(kwargs[self.proxy_quantity])
 
-        return self.forward_model(inputs, **kwargs)
+        return inputs, kwargs
+    
+
+    def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
+        # normalize and transform inputs if applicable
+        inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
+        
+        # make prediction
+        outputs = self.forward_model(inputs, **kwargs_prep)
+
+        # for final prediction, translate back to physical quantities
+        if not train:
+            if self.target_transform is not None:
+                outputs = self.target_transform.inverse(outputs)
+        
+        return outputs
 
 
     def compute_loss(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -460,10 +463,11 @@ class NNSurrogateRTM(SurrogateRTM):
         # prepare targets
         targets = batch[self.target_quantity]
         if self.target_transform is not None:
+            print('Transforming targets...')
             targets = self.target_transform(targets)
 
         # make prediction
-        outputs = self.forward(**batch)
+        outputs = self.forward(**batch, train=True)
 
         # compute loss function
         loss = self.compute_loss(outputs, targets)
@@ -536,20 +540,24 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
     """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+    
 
-    def predict(self, **kwargs) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
+        # normalize and transform inputs if applicable
+        inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
+        
+        # make prediction
+        outputs = self.forward_model(inputs, **kwargs_prep)
 
-        # make difference prediction
-        outputs = self.forward(**kwargs)
+        # for final prediction, translate back to physical quantities
+        if not train:
+            if self.target_transform is not None:
+                outputs = self.target_transform.inverse(outputs)
 
-        # undo normalization
-        if self.target_transform is not None:
-            outputs = self.target_transform.inverse(outputs)
-
-        # go from difference to total radiance
-        proxy = kwargs[self.proxy_quantity]
-        outputs = proxy + outputs
-
+            # go from difference to total radiance
+            proxy = kwargs[self.proxy_quantity]
+            outputs = proxy + outputs
+        
         return outputs
 
 
@@ -590,19 +598,22 @@ class NNSurrogateRTMRatio(NNSurrogateRTM):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def predict(self, **kwargs) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
+        # normalize and transform inputs if applicable
+        inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
+        
+        # make prediction
+        outputs = self.forward_model(inputs, **kwargs_prep)
 
-        # make ratio prediction
-        outputs = self.forward(**kwargs)
+        # for final prediction, translate back to physical quantities
+        if not train:
+            if self.target_transform is not None:
+                outputs = self.target_transform.inverse(outputs)
 
-        # undo normalization
-        if self.target_transform is not None:
-            outputs = self.target_transform.inverse(outputs)
-
-        # go from ratio to total radiance
-        proxy = kwargs[self.proxy_quantity]
-        outputs = proxy * outputs
-
+            # go from difference to total radiance
+            proxy = kwargs[self.proxy_quantity]
+            outputs = proxy * outputs
+        
         return outputs
 
     # def test_step(self, batch, batch_idx):
