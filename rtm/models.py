@@ -219,7 +219,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         # if transforms are part of checkpoint, make sure model has correct transforms setup
         if 'transforms' in checkpoint:
-            self.transforms = instantiate(checkpoint['hydra_config']['transforms'])
+            self.set_transforms(instantiate(checkpoint['hydra_config']['transforms']))
 
         # load standard pytorch state_dict
         self.load_state_dict(checkpoint['state_dict'])
