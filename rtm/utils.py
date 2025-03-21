@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from torchvision.transforms import Compose
 from torch.optim.lr_scheduler import ChainedScheduler
+from hydra.utils import instantiate
+
 from typing import Callable, Union, List, Dict, Tuple
 
 from rtm.constants import constants
@@ -546,3 +548,23 @@ class CustomChainedScheduler(ChainedScheduler):
         schedulers = [s_partial(optimizer) for s_partial in schedulers]
 
         super().__init__(schedulers, optimizer=optimizer, **kwargs)
+
+
+##################################################
+# Model loading
+##################################################
+
+def load_model_from_hydra_config(hydra_config: Dict) -> torch.nn.Module:
+    # load model from hydra config
+    model = instantiate(hydra_config['model'])
+    transforms = instantiate(hydra_config['transforms'])
+    model.transforms = transforms
+
+    return model
+
+def load_model_from_checkpoint(checkpoint: Dict) -> torch.nn.Module:
+    # load model from checkpoint
+    model = load_model_from_hydra_config(checkpoint['hydra_config'])
+    model.load_model_state(checkpoint)
+
+    return model
