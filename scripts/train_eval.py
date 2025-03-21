@@ -130,7 +130,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
                                                dataset, 
                                                train_indices, 
                                                **cfg.dataset.normalization)
-    model.transforms = transforms
+    model.set_transforms(transforms)
 
     # update config with final transforms (including normalization and double-to-float conversion)
     cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
@@ -155,7 +155,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
 
     if isinstance(getattr(model.forward_model, 'encoder', None), layers.PCAEncoder):
         print('Fitting input PCA...')
-        inputs = model.input_transform(train_data['inputs'])
+        inputs = model.forward_model.input_transform(train_data['inputs'])
         model.forward_model.encoder.fit(inputs)
         exp_var = 100 * model.forward_model.encoder.explained_variance_ratio()
         print(f'Explained input variance (%): {exp_var:.4f}')
@@ -168,7 +168,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
 
     if isinstance(getattr(model.forward_model, 'decoder', None), layers.PCADecoder):
         print('Fitting output PCA...')
-        targets = model.target_transform(train_data['targets'])
+        targets = model.forward_model.target_transform(train_data['targets'])
         model.forward_model.decoder.fit(train_data['targets'])
         exp_var = 100 * model.forward_model.decoder.explained_variance_ratio()
         print(f'Explained output variance (%): {exp_var:.4f}')
@@ -176,8 +176,8 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     
     # adjust loss scale based on target variance
     targets = train_data['targets']
-    if model.target_transform is not None:
-        targets = model.target_transform(targets)
+    if model.forward_model.target_transform is not None:
+        targets = model.forward_model.target_transform(targets)
     # if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
     #     targets = model.output_dim_reduction.encode(targets.to(device))
     model.loss_scale = targets.std().item()

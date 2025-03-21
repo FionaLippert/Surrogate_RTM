@@ -12,6 +12,228 @@ from rtm.dimensionality_reduction import DimensionalityReduction, Encoder, Decod
 from rtm.utils import init_weights
 
 
+class SurrogateRTMWrapper(pl.LightningModule):
+    def __init__(self, 
+                 forward_model: torch.nn.Module,
+                 transforms: Optional[rtm_transforms.RTMTransformCollection] = None,
+                 eval_scale: Optional[torch.Tensor] = None, 
+                 **kwargs):
+
+        super().__init__()
+
+        self.forward_model = forward_model
+        self.transforms = transforms
+        self.forward_model.set_transforms(transforms)
+        
+        self.eval_scale = eval_scale
+
+    def set_transforms(self, transforms: rtm_transforms.RTMTransformCollection):
+        self.transforms = transforms
+        self.forward_model.set_transforms(transforms)
+
+    def forward(self, **kwargs) -> torch.Tensor:
+        """runs RTM prediction"""
+        return self.forward_model.forward(**kwargs)
+    
+    def training_step(self, batch, batch_idx):
+        """training step for neural network models"""
+        raise NotImplementedError
+
+    def validation_step(self, batch, batch_idx):
+        """validation step for neural network models"""
+        raise NotImplementedError
+    
+    def prepare_outputs(self, 
+                        outputs: torch.Tensor, 
+                        targets: torch.Tensor
+                        ) -> Tuple[np.ndarray, np.ndarray]:
+        
+        outputs = outputs.detach()
+        targets = targets.detach()
+
+        outputs = outputs.cpu().numpy()
+        targets = targets.cpu().numpy()
+
+        return outputs, targets
+
+    def test_step(self, batch, batch_idx):
+        """evaluate reconstruction performance"""
+        targets = batch['targets']
+
+        outputs = self.forward(**batch)
+
+        outputs, targets = self.prepare_outputs(outputs, targets)
+
+        self.outputs.append(outputs)
+        self.targets.append(targets)
+    
+    def on_test_epoch_start(self) -> None:
+        """initialize lists to store predictions and targets"""
+        self.outputs = []
+        self.targets = []
+    
+    def on_test_epoch_end(self) -> None:
+
+        # process all predictions and targets from the test set
+        outputs = np.concatenate(self.outputs, axis=0)
+        targets = np.concatenate(self.targets, axis=0)
+       
+        # compute evaluation metrics, average across input/output dimension
+        rmse = utils.rmse(outputs, targets, axis=0).mean()
+        nrmse = utils.nrmse(outputs, targets, z=self.eval_scale, axis=0).mean()
+        mape = utils.mape(outputs, targets, axis=0).mean()
+        mape_continuum = utils.mape_continuum(outputs, targets, axis=0).mean()
+        smape = utils.smape(outputs, targets, axis=0).mean()
+        rmse_continuum = utils.rmse_continuum(outputs, targets, axis=0).mean()
+        rel_bias = utils.relative_bias(outputs, targets, axis=0).mean()
+        r2 = utils.r2_score(outputs, targets, axis=0).mean()
+
+        # compute R2 on log-transformed data
+        # ensure that outputs are positive
+        outputs = np.maximum(outputs, np.finfo(outputs.dtype).eps)
+        r2_log = utils.r2_score(np.log(outputs), np.log(targets), axis=0).mean()
+
+        self.log_dict({'test/RMSE': rmse,
+                       'test/NRMSE': nrmse,
+                       'test/MAPE': mape,
+                       'test/MAPE_continuum': mape_continuum,
+                       'test/RMSE_continuum': rmse_continuum,
+                       'test/SMAPE': smape,
+                       'test/rel_bias': rel_bias,
+                       'test/R2': r2,
+                       'test/R2_log': r2_log,
+                       })
+
+    def predict_step(self, batch, batch_idx):
+        """reconstruct input and transform back to physical space"""
+        targets = batch['targets']
+
+        outputs = self.forward(**batch)
+        outputs, targets = self.prepare_outputs(outputs, targets)
+
+        return outputs, targets
+    
+    def save_hydra_config(self, config: Dict):
+        self.hydra_config = config
+
+
+class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
+    def __init__(self, 
+                 lr: float = 0.01,
+                 **kwargs):
+        super().__init__(**kwargs)
+        
+        # training hyperparameters
+        self.lr = lr
+        self.l2_reg = kwargs.get('l2_reg', 0)
+        self.loss_scale = kwargs.get('loss_scale', 1.0)
+
+        # list of loss terms making up the overall loss
+        self.loss_terms = kwargs.get('loss_terms', [torch.nn.MSELoss()])
+
+        # learning rate scheduling
+        self.lr_schedulers = kwargs.get('lr_schedulers', None)
+        self.lr_milestones = kwargs.get('lr_milestones', None)
+        self.lr_scheduler_interval = kwargs.get('lr_scheduler_interval', 'epoch')
+
+    
+    # def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
+
+    #     # prepare inputs
+    #     if self.input_transform is not None:
+    #         inputs = self.input_transform(inputs)
+
+    #     # prepare proxy
+    #     if self.proxy_quantity in kwargs and self.proxy_transform is not None:
+    #         kwargs[self.proxy_quantity] = self.proxy_transform(kwargs[self.proxy_quantity])
+
+    #     return self.forward_model(inputs, **kwargs)
+
+
+    def compute_loss(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        loss = 0
+        for loss_fct in self.loss_terms:
+            loss = loss + loss_fct(outputs, targets)
+
+        # if using SGD without regularization, this is equivalent to scaling the lr
+        loss = loss * self.loss_scale
+
+        return loss
+    
+    def eval_step(self, batch) -> torch.Tensor:
+        # make prediction
+        outputs = self.forward(**batch)
+
+        # compute loss function
+        targets = self.forward_model.transform_targets(**batch)
+        loss = self.compute_loss(outputs, targets)
+
+        return loss
+
+    def training_step(self, batch, batch_idx) -> torch.Tensor:
+        loss = self.eval_step(batch)
+        self.log('train/loss', loss, on_step=True, on_epoch=True, 
+                 prog_bar=True, logger=True)
+        self.log('train/log_loss', torch.log(loss), on_step=True, 
+                 on_epoch=True, prog_bar=True, logger=True)
+
+        return loss
+            
+    def validation_step(self, batch, batch_idx):
+        loss = self.eval_step(batch)
+        self.log('val/loss', loss, on_epoch=True, logger=True)
+        self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
+
+        if self.lr_schedulers is not None and self.lr_milestones is not None:
+            scheduler = SequentialLR(optimizer, 
+                                     [s_partial(optimizer) for s_partial in self.lr_schedulers], 
+                                     milestones=self.lr_milestones)
+        else:
+            # constant learning rate
+            scheduler = ConstantLR(optimizer, factor=1.0, total_iters=1e8)
+
+        lr_scheduler_config = {
+            'scheduler': scheduler,
+            'interval': self.lr_scheduler_interval
+        }
+
+        return {"optimizer": optimizer,
+                "lr_scheduler": lr_scheduler_config}
+    
+
+    def on_save_checkpoint(self, checkpoint):
+        # save additional objects to checkpoint 
+        if hasattr(self, 'hydra_config'):
+            checkpoint['hydra_config'] = self.hydra_config
+
+    
+    def on_load_checkpoint(self, checkpoint):
+        print(f'Loading model state on device {self.device}...')
+        self.load_model_state(checkpoint, map_location=self.device)
+        
+        
+    def load_model_state(self, checkpoint, map_location=None):
+
+        # if transforms are part of checkpoint, make sure model has correct transforms setup
+        if 'transforms' in checkpoint:
+            self.transforms = instantiate(checkpoint['hydra_config']['transforms'])
+
+        # load standard pytorch state_dict
+        self.load_state_dict(checkpoint['state_dict'])
+
+        # # load additional objects from checkpoint
+        # self.target_transform = checkpoint['target_transform']
+        # self.proxy_transform = checkpoint['proxy_transform']
+
+        # make sure everything is on the same device
+        self.to(map_location)
+
+
+
+
 class SurrogateRTM(pl.LightningModule):
     def __init__(self, 
                  input_quantity: str = 'inputs',
@@ -197,9 +419,6 @@ class NNSurrogateRTM(SurrogateRTM):
 
         # define forward model
         self.forward_model = forward_model
-        
-        # TODO: change this later
-        self.forward_model.transforms = self.transforms
         
         self.lr = lr
         self.l2_reg = kwargs.get('l2_reg', 0)
@@ -459,30 +678,166 @@ class ForwardModel(torch.nn.Module):
             self.transforms.set_transforms({'proxy_transform': proxy_transform})
         else:
             raise Warning('Trying to set proxy_transform for a model without transforms')
-
-
-    def predict(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
-
+        
+    def prepare_inputs(self, 
+                       inputs: torch.Tensor, 
+                       proxy_targets: torch.Tensor = None,
+                       ) -> Tuple[torch.Tensor]:
         # prepare inputs
         if self.input_transform is not None:
             inputs = self.input_transform(inputs)
 
-        # TODO: also prepare proxy is applicable
+        # prepare proxy
+        if proxy_targets is not None and self.proxy_transform is not None:
+            proxy_targets = self.proxy_transform(proxy_targets)
 
-        # make prediction
-        outputs = self.forward(inputs, **kwargs)
+        return inputs, proxy_targets
 
-        # prepare outputs
+
+    # def forward(self, 
+    #             inputs: torch.Tensor, 
+    #             proxy_targets: torch.Tensor = None,
+    #             train: bool = False,
+    #             ) -> torch.Tensor:
+
+    #     # prepare inputs
+    #     if self.input_transform is not None:
+    #         inputs = self.input_transform(inputs)
+
+    #     # TODO: also prepare proxy is applicable
+
+    #     # make prediction
+    #     outputs = self.forward(inputs, **kwargs)
+
+    #     # prepare outputs
+    #     if self.target_transform is not None:
+    #         outputs = self.target_transform.inverse(outputs)
+
+    #     return outputs
+    
+    # def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
+    #     return self.forward_module(inputs, **kwargs)
+
+class NNForwardModel(torch.nn.Module):
+    """
+    Base class for neural network forward models
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        # operation used to combine neural network output with proxy targets
+        # one of 'difference', 'ratio', None
+        self.proxy_operation = kwargs.get('proxy_operation', None)
+
+        # transforms can be set later based on training dataset
+        self.transforms = None
+
+        self.null_transform = rtm_transforms.NullTransform()
+
+    def set_transforms(self, transforms):
+        self.transforms = transforms
+
+    @property
+    def input_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'pixel_transform', self.null_transform)
+    
+    @input_transform.setter
+    def input_transform(self, input_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'pixel_transform': input_transform})
+        else:
+            raise Warning('Trying to set input_transform for a model without transforms')
+
+    @property
+    def target_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'target_transform', self.null_transform)
+    
+    @target_transform.setter
+    def target_transform(self, target_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'target_transform': target_transform})
+        else:
+            raise Warning('Trying to set target_transform for a model without transforms')
+
+    @property
+    def proxy_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'proxy_transform', self.null_transform)
+    
+    @proxy_transform.setter
+    def proxy_transform(self, proxy_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'proxy_transform': proxy_transform})
+        else:
+            raise Warning('Trying to set proxy_transform for a model without transforms')
+        
+    @property
+    def profile_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'profile_transform', self.null_transform)
+    
+    @profile_transform.setter
+    def profile_transform(self, profile_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'profile_transform': profile_transform})
+        else:
+            raise Warning('Trying to set input_transform for a model without transforms')
+
+    def prepare_inputs(self, 
+                       inputs: torch.Tensor, 
+                       proxy_targets: Optional[torch.Tensor] = None,
+                       profile_inputs: Optional[torch.Tensor] = None,
+                       **kwargs,
+                       ) -> Tuple[torch.Tensor]:
+        # prepare inputs
+        if self.input_transform is not None:
+            inputs = self.input_transform(inputs)
+
+        # prepare proxy
+        if proxy_targets is not None and self.proxy_transform is not None:
+            proxy_targets = self.proxy_transform(proxy_targets)
+
+        # prepare profiles
+        if profile_inputs is not None and self.profile_transform is not None:
+            profile_inputs = self.profile_transform(profile_inputs)
+
+        return inputs, {'proxy_targets': proxy_targets, 'profile_inputs': profile_inputs}
+    
+    def transform_targets(self, targets, **kwargs):
+        # apply target transform if applicable
         if self.target_transform is not None:
-            outputs = self.target_transform.inverse(outputs)
+            targets = self.target_transform(targets)
+
+        return targets
+
+    def prepare_outputs(self,
+                        outputs: torch.Tensor,
+                        proxy_targets: Optional[torch.Tensor] = None,
+                        train: Optional[bool] = False,
+                        ) -> torch.Tensor:
+        
+        if not train:
+            # undo normalization and transforms if applicable
+            if self.target_transform is not None:
+                outputs = self.target_transform.inverse(outputs)
+
+            # combine NN outputs with proxy targets if applicable
+            if self.proxy_operation == 'difference':
+                outputs = outputs + proxy_targets
+            elif self.proxy_operation == 'ratio':
+                outputs = outputs * proxy_targets
 
         return outputs
     
-    def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
-        return self.forward_module(inputs, **kwargs)
+    def forward(self, 
+                inputs: torch.Tensor,
+                train: Optional[bool] = False,
+                **kwargs
+                ) -> torch.Tensor:
+        """Run neural network forward model"""
+        raise NotImplementedError
+
     
 
-class LatentNNForwardModel(torch.nn.Module):
+class LatentNNForwardModel(NNForwardModel):
     """
     Simple forward model that first encodes to the input features to a 
     lower-dimensional latent space (e.g. using PCA or autoencoder),
@@ -492,7 +847,6 @@ class LatentNNForwardModel(torch.nn.Module):
     def __init__(self,  
                  core_nn: torch.nn.Module, 
                  proxy_nn: Optional[torch.nn.Module] = None,
-                 proxy_quantity: Optional[str] = 'proxy_targets',
                  encoder: Optional[Encoder] = None, 
                  decoder: Optional[Decoder] = None,
                  **kwargs):
@@ -502,29 +856,38 @@ class LatentNNForwardModel(torch.nn.Module):
 
         # optional proxy processing (e.g. non-scattering radiances)
         self.proxy_nn = proxy_nn
-        self.proxy_quantity = proxy_quantity
 
         # optional encoder and decoder
         self.encoder = encoder
         self.decoder = decoder
 
     def forward(self, 
-                inputs: torch.Tensor, 
-                **kwargs
+                inputs: torch.Tensor,
+                train: Optional[bool] = False,
+                **kwargs,
                 ) -> torch.Tensor:
         # predicts radiance spectrum from input features, and optionally proxy spectra
+
+        # apply transforms and normalization if applicable
+        inputs, transformed_kwargs = self.prepare_inputs(inputs, **kwargs)
         
         if self.encoder is not None:
             inputs = self.encoder.encode(inputs)
 
         if self.proxy_nn is not None:
-            proxy = self.proxy_nn(kwargs[self.proxy_quantity])
-            inputs = torch.cat([inputs, proxy], dim=-1)
+            proxy_transformed = transformed_kwargs['proxy_targets']
+            proxy_transformed = self.proxy_nn(proxy_transformed)
+            inputs = torch.cat([inputs, proxy_transformed], dim=-1)
 
         outputs = self.core_nn(inputs)
 
         if self.decoder is not None:
             outputs = self.decoder.decode(outputs)
+
+        # undo any transforms and normalization, 
+        # and combine with proxy targets if applicable
+        proxy_targets = kwargs.get('proxy_targets', None)
+        outputs = self.prepare_outputs(outputs, proxy_targets, train)
 
         return outputs
 
@@ -537,9 +900,7 @@ class SequenceNNForwardModel(torch.nn.Module):
                  encoder: Optional[Encoder] = None,
                  pos_encoding: Optional[torch.nn.Module] = None,
                  proxy_module: Optional[torch.nn.Module] = None,
-                 proxy_quantity: Optional[str] = 'proxy_targets',
                  profile_module: Optional[torch.nn.Module] = None,
-                 profile_quantity: Optional[str] = 'profile_inputs',
                  input_processing: Optional[torch.nn.Module] = None,
                  use_proxy_input: bool = False,
                  use_profile_input: bool = False,
@@ -555,30 +916,34 @@ class SequenceNNForwardModel(torch.nn.Module):
 
         self.proxy_module = proxy_module
         self.use_proxy_input = use_proxy_input
-        self.proxy_quantity = proxy_quantity
 
         self.profile_module = profile_module
         self.use_profile_input = use_profile_input
-        self.profile_quantity = profile_quantity
 
 
-    def forward(self, inputs, **kwargs) -> torch.Tensor:
+    def forward(self, 
+                inputs: torch.Tensor,
+                train: Optional[bool] = False,
+                **kwargs
+                ) -> torch.Tensor:
+
+        inputs, transformed_kwargs = self.prepare_inputs(inputs, **kwargs)
 
         if self.encoder is not None:
             inputs = self.encoder.encode(inputs)
 
         if self.use_profile_input:
             # profile inputs have shape [batch_size, n_layers, n_vars]
-            profile_input = kwargs[self.profile_quantity]
+            profile_inputs = transformed_kwargs['profile_inputs']
 
             if self.profile_module is not None:
-                profile_input = self.profile_module(profile_input)
+                profile_inputs = self.profile_module(profile_inputs)
 
             # make sure profile features are flattened
-            profile_input = profile_input.reshape(inputs.size(0), -1)
+            profile_inputs = profile_inputs.reshape(inputs.size(0), -1)
             
             # add profile information to inputs
-            inputs = torch.cat([inputs, profile_input], dim=1)
+            inputs = torch.cat([inputs, profile_inputs], dim=1)
 
         # inputs have shape [batch_size, n_features] --> expand across wavelengths
         inputs = inputs.unsqueeze(1).expand(-1, self.sequence_length, -1)
@@ -586,7 +951,7 @@ class SequenceNNForwardModel(torch.nn.Module):
         if self.use_proxy_input:
             # proxy targets have shape [batch_size, n_wavelengths]
             # expand inputs and add them as additional channels to proxy spectra
-            proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+            proxy = transformed_kwargs['proxy_targets'].unsqueeze(-1)
 
             if self.proxy_module:
                 proxy = self.proxy_module(proxy)
@@ -605,10 +970,14 @@ class SequenceNNForwardModel(torch.nn.Module):
         outputs = self.sequence_module(inputs)
         outputs = outputs.reshape(-1, self.sequence_length)
 
+        # undo any normalization and transforms,
+        # and combine with proxy targets if applicable
+        proxy_targets = kwargs.get('proxy_targets', None)
+        outputs = self.prepare_outputs(outputs, proxy_targets, train)
+
         return outputs
 
         
-
   
 
 class LatentNNSurrogateRTM(NNSurrogateRTM):

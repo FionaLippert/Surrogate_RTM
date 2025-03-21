@@ -98,6 +98,24 @@ class RTMTransformCollection(torch.nn.Module):
     #         raise ValueError(f'no transform registered under name {name}')
     
     
+class NullTransform(RTMTransform):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, data: torch.Tensor) -> torch.Tensor:
+        # do nothing to the data
+        return data
+    
+    def inverse(self, data: torch.Tensor) -> torch.Tensor:
+        # do nothing to the data
+        return data
+    
+    def __dict_repr__(self):
+        return {'_target_': 'rtm.rtm_transforms.NullTransform'}
+    
+    def __repr__(self):
+        return 'NullTransform()'
+
 class DoubleToFloat(RTMTransform):
     def __init__(self):
         super().__init__()
