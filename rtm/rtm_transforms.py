@@ -129,9 +129,9 @@ class Normalize(RTMTransform):
         self.register_buffer('mean', mean)
         self.register_buffer('std', std)
 
-        if shape is None:
-            shape = mean.shape
-        self.shape = shape
+    @property
+    def shape(self) -> Union[int, List[int]]:
+        return self.mean.shape
 
     def set_stats(self, mean: torch.Tensor = None, std: torch.Tensor = None):
         if mean is not None:

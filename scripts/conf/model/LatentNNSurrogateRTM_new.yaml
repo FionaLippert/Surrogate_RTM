@@ -51,7 +51,7 @@ lr_schedulers:
           total_iters: 5000  # 10 # number of intervals (steps or epochs)
         - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
           _partial_: true
-          T_max: 75000 #${trainer.max_epochs}
+          T_max: 145000 #75000 #${trainer.max_epochs}
           eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
         - _target_: torch.optim.lr_scheduler.ConstantLR
           _partial_: true
@@ -68,4 +68,5 @@ lr_schedulers:
         #     gamma_interval: 1000
 lr_milestones:
        - 5000 # 10
-       - 80000
+       - 150000 #80000
+      
