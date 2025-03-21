@@ -28,6 +28,7 @@ class SurrogateRTMWrapper(pl.LightningModule):
         self.eval_scale = eval_scale
 
     def set_transforms(self, transforms: rtm_transforms.RTMTransformCollection):
+        print('Setting transforms...')
         self.transforms = transforms
         self.forward_model.set_transforms(transforms)
 
@@ -218,8 +219,8 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
     def load_model_state(self, checkpoint, map_location=None):
 
         # if transforms are part of checkpoint, make sure model has correct transforms setup
-        if 'transforms' in checkpoint:
-            self.transforms = instantiate(checkpoint['hydra_config']['transforms'])
+        if 'transforms' in checkpoint['hydra_config']:
+            self.set_transforms(instantiate(checkpoint['hydra_config']['transforms']))
 
         # load standard pytorch state_dict
         self.load_state_dict(checkpoint['state_dict'])
