@@ -198,6 +198,9 @@ class NNSurrogateRTM(SurrogateRTM):
         # define forward model
         self.forward_model = forward_model
         
+        # TODO: change this later
+        self.forward_model.transforms = self.transforms
+        
         self.lr = lr
         self.l2_reg = kwargs.get('l2_reg', 0)
         self.loss_scale = kwargs.get('loss_scale', 1.0)
@@ -331,36 +334,36 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
         return outputs
 
 
-    def test_step(self, batch, batch_idx):
-        """evaluate reconstruction performance"""
-        # get targets
-        targets = batch[self.target_quantity]
+    # def test_step(self, batch, batch_idx):
+    #     """evaluate reconstruction performance"""
+    #     # get targets
+    #     targets = batch[self.target_quantity]
 
-        # make prediction
-        # outputs = self.forward(**batch)
-        # if self.target_transform:
-        #     # undo normalization and transforms
-        #     outputs = self.target_transform.inverse(outputs)
-        outputs = self.predict(**batch)
-        outputs, targets = self.prepare_outputs(outputs, targets)
+    #     # make prediction
+    #     # outputs = self.forward(**batch)
+    #     # if self.target_transform:
+    #     #     # undo normalization and transforms
+    #     #     outputs = self.target_transform.inverse(outputs)
+    #     outputs = self.predict(**batch)
+    #     outputs, targets = self.prepare_outputs(outputs, targets)
 
-        self.outputs.append(outputs)
-        self.targets.append(targets)
+    #     self.outputs.append(outputs)
+    #     self.targets.append(targets)
 
-    def predict_step(self, batch, batch_idx):
-        """make prediction"""
-        # get targets
-        targets = batch[self.target_quantity]
+    # def predict_step(self, batch, batch_idx):
+    #     """make prediction"""
+    #     # get targets
+    #     targets = batch[self.target_quantity]
 
-        # make prediction
-        # outputs = self.forward(**batch)
-        # if self.target_transform:
-        #     # undo normalization and transforms
-        #     outputs = self.target_transform.inverse(outputs)
-        outputs = self.predict(**batch)
-        outputs, targets = self.prepare_outputs(outputs, targets)
+    #     # make prediction
+    #     # outputs = self.forward(**batch)
+    #     # if self.target_transform:
+    #     #     # undo normalization and transforms
+    #     #     outputs = self.target_transform.inverse(outputs)
+    #     outputs = self.predict(**batch)
+    #     outputs, targets = self.prepare_outputs(outputs, targets)
 
-        return outputs, targets
+    #     return outputs, targets
     
     
 class NNSurrogateRTMRatio(NNSurrogateRTM):
@@ -383,37 +386,101 @@ class NNSurrogateRTMRatio(NNSurrogateRTM):
 
         return outputs
 
-    def test_step(self, batch, batch_idx):
-        """evaluate reconstruction performance"""
-        # get targets
-        targets = batch[self.target_quantity]
+    # def test_step(self, batch, batch_idx):
+    #     """evaluate reconstruction performance"""
+    #     # get targets
+    #     targets = batch[self.target_quantity]
 
-        # make prediction
-        # outputs = self.forward(**batch)
-        # if self.target_transform:
-        #     # undo normalization and transforms
-        #     outputs = self.target_transform.inverse(outputs)
-        outputs = self.predict(**batch)
-        outputs, targets = self.prepare_outputs(outputs, targets)
+    #     # make prediction
+    #     # outputs = self.forward(**batch)
+    #     # if self.target_transform:
+    #     #     # undo normalization and transforms
+    #     #     outputs = self.target_transform.inverse(outputs)
+    #     outputs = self.predict(**batch)
+    #     outputs, targets = self.prepare_outputs(outputs, targets)
 
-        self.outputs.append(outputs)
-        self.targets.append(targets)
+    #     self.outputs.append(outputs)
+    #     self.targets.append(targets)
 
-    def predict_step(self, batch, batch_idx):
-        """make prediction"""
-        # get targets
-        targets = batch[self.target_quantity]
+    # def predict_step(self, batch, batch_idx):
+    #     """make prediction"""
+    #     # get targets
+    #     targets = batch[self.target_quantity]
         
+    #     # make prediction
+    #     # outputs = self.forward(**batch)
+    #     # if self.target_transform:
+    #     #     # undo normalization and transforms
+    #     #     outputs = self.target_transform.inverse(outputs)
+    #     outputs = self.predict(**batch)
+    #     outputs, targets = self.prepare_outputs(outputs, targets)
+
+    #     return outputs, targets
+
+class ForwardModel(torch.nn.Module):
+    def __init__(self, 
+                 forward_module: torch.nn.Module, 
+                 transforms: Optional[rtm_transforms.RTMTransformCollection] = None
+                 ):
+        super().__init__()
+
+        self.forward_module = forward_module
+        self.transforms = transforms
+
+    @property
+    def input_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'pixel_transform', None)
+    
+    @input_transform.setter
+    def input_transform(self, input_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'pixel_transform': input_transform})
+        else:
+            raise Warning('Trying to set input_transform for a model without transforms')
+
+    @property
+    def target_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'target_transform', None)
+    
+    @target_transform.setter
+    def target_transform(self, target_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'target_transform': target_transform})
+        else:
+            raise Warning('Trying to set target_transform for a model without transforms')
+
+    @property
+    def proxy_transform(self) -> rtm_transforms.RTMTransform:
+        return getattr(self.transforms, 'proxy_transform', None)
+    
+    @proxy_transform.setter
+    def proxy_transform(self, proxy_transform: rtm_transforms.RTMTransform):
+        if self.transforms is not None:
+            self.transforms.set_transforms({'proxy_transform': proxy_transform})
+        else:
+            raise Warning('Trying to set proxy_transform for a model without transforms')
+
+
+    def predict(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
+
+        # prepare inputs
+        if self.input_transform is not None:
+            inputs = self.input_transform(inputs)
+
+        # TODO: also prepare proxy is applicable
+
         # make prediction
-        # outputs = self.forward(**batch)
-        # if self.target_transform:
-        #     # undo normalization and transforms
-        #     outputs = self.target_transform.inverse(outputs)
-        outputs = self.predict(**batch)
-        outputs, targets = self.prepare_outputs(outputs, targets)
+        outputs = self.forward(inputs, **kwargs)
 
-        return outputs, targets
+        # prepare outputs
+        if self.target_transform is not None:
+            outputs = self.target_transform.inverse(outputs)
 
+        return outputs
+    
+    def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
+        return self.forward_module(inputs, **kwargs)
+    
 
 class LatentNNForwardModel(torch.nn.Module):
     """

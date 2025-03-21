@@ -18,25 +18,27 @@ loss_terms:
     # log_transformed: false
 
 forward_model:
-  _target_: rtm.models.LatentNNForwardModel
-  core_nn:
-    _target_: rtm.layers.MLP
-    n_in: ${model.input_latent_dim}
-    n_out: ${model.output_latent_dim}
-    n_hidden: ${model.hidden_dim}
-    n_fc_layers: 5
-    dropout_p: ${model.dropout_p}
-    nonlinearity: relu
-  encoder:
-    _target_: rtm.layers.PCAEncoder
-    n_components: ${model.input_latent_dim}
-    n_features: ${model.input_dim}
-    fixed_components: true
-  decoder:
-    _target_: rtm.layers.PCADecoder
-    n_components: ${model.output_latent_dim}
-    n_features: ${model.output_dim}
-    fixed_components: true
+  _target_: rtm.models.ForwardModel
+  forward_module: 
+    _target_: rtm.models.LatentNNForwardModel
+    core_nn:
+      _target_: rtm.layers.MLP
+      n_in: ${model.input_latent_dim}
+      n_out: ${model.output_latent_dim}
+      n_hidden: ${model.hidden_dim}
+      n_fc_layers: 5
+      dropout_p: ${model.dropout_p}
+      nonlinearity: relu
+    encoder:
+      _target_: rtm.layers.PCAEncoder
+      n_components: ${model.input_latent_dim}
+      n_features: ${model.input_dim}
+      fixed_components: true
+    decoder:
+      _target_: rtm.layers.PCADecoder
+      n_components: ${model.output_latent_dim}
+      n_features: ${model.output_dim}
+      fixed_components: true
 
 
 lr: 1e-3
