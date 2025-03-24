@@ -1,6 +1,6 @@
 # @package model
 name: SequenceNNSurrogateRTMRatio_proxy_input
-_target_: rtm.models.NNSurrogateRTMRatio
+_target_: rtm.models.NNSurrogateRTMWrapper
 
 input_dim: ${dataset.input_dim} # all features
 output_dim: ${dataset.output_dim} # all wavelengths
@@ -55,6 +55,7 @@ forward_model:
   input_processing: null
   use_proxy_input: true
   use_profile_input: false
+  proxy_operation: ratio
 
 
 

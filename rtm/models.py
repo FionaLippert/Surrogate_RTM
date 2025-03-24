@@ -109,7 +109,10 @@ class SurrogateRTMWrapper(pl.LightningModule):
         """reconstruct input and transform back to physical space"""
         targets = batch['targets']
 
-        outputs = self.forward(**batch)
+        # make prediction (and transform back to physical quantities)
+        outputs = self.forward(**batch, train=False)
+
+        # change to numpy arrays
         outputs, targets = self.prepare_outputs(outputs, targets)
 
         return outputs, targets
@@ -162,8 +165,8 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         return loss
     
     def eval_step(self, batch) -> torch.Tensor:
-        # make prediction
-        outputs = self.forward(**batch)
+        # make prediction (without transforming back to physical quantities)
+        outputs = self.forward(**batch, train=True)
 
         # compute loss function
         targets = self.forward_model.transform_targets(**batch)
@@ -604,7 +607,7 @@ class NNSurrogateRTMRatio(NNSurrogateRTM):
         inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
         
         # make prediction
-        outputs = self.forward_model(inputs, **kwargs_prep)
+        outputs = self.forward_model(inputs **kwargs_prep)
 
         # for final prediction, translate back to physical quantities
         if not train:
@@ -905,7 +908,7 @@ class LatentNNForwardModel(NNForwardModel):
 
 
 
-class SequenceNNForwardModel(torch.nn.Module):
+class SequenceNNForwardModel(NNForwardModel):
     def __init__(self, 
                  sequence_length: int,
                  sequence_module: torch.nn.Module,

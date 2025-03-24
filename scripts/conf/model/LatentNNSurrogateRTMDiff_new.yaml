@@ -1,6 +1,6 @@
 # @package model
 name: LatentNNSurrogateRTMDiff
-_target_: rtm.models.NNSurrogateRTMDiff
+_target_: rtm.models.NNSurrogateRTMWrapper
 
 
 input_dim: ${dataset.input_dim} # all features
@@ -37,6 +37,7 @@ forward_model:
     n_components: ${model.output_latent_dim}
     n_features: ${model.output_dim}
     fixed_components: true
+  proxy_operation: difference
 
 
 lr: 1e-3
