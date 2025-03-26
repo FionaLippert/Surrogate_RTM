@@ -169,7 +169,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         outputs = self.forward(**batch, train=True)
 
         # compute loss function
-        targets = self.forward_model.transform_targets(**batch)
+        targets = self.forward_model.transform_targets(batch['targets'])
         loss = self.compute_loss(outputs, targets)
 
         return loss
@@ -737,12 +737,12 @@ class NNForwardModel(torch.nn.Module):
     """
     Base class for neural network forward models
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, proxy_operation: Optional[str] = None):
         super().__init__()
 
         # operation used to combine neural network output with proxy targets
         # one of 'difference', 'ratio', None
-        self.proxy_operation = kwargs.get('proxy_operation', None)
+        self.proxy_operation = proxy_operation
 
         # transforms can be set later based on training dataset
         self.transforms = None
@@ -798,25 +798,38 @@ class NNForwardModel(torch.nn.Module):
 
     def prepare_inputs(self, 
                        inputs: torch.Tensor, 
-                       proxy_targets: Optional[torch.Tensor] = None,
-                       profile_inputs: Optional[torch.Tensor] = None,
-                       **kwargs,
-                       ) -> Tuple[torch.Tensor]:
+                    #    proxy_targets: Optional[torch.Tensor] = None,
+                    #    profile_inputs: Optional[torch.Tensor] = None,
+                       ) -> torch.Tensor:
         # prepare inputs
         if self.input_transform is not None:
             inputs = self.input_transform(inputs)
 
-        # prepare proxy
-        if proxy_targets is not None and self.proxy_transform is not None:
+        # # prepare proxy
+        # if proxy_targets is not None and self.proxy_transform is not None:
+        #     proxy_targets = self.proxy_transform(proxy_targets)
+
+        # # prepare profiles
+        # if profile_inputs is not None and self.profile_transform is not None:
+        #     profile_inputs = self.profile_transform(profile_inputs)
+
+        return inputs
+    
+    def prepare_proxy(self, proxy_targets: torch.Tensor) -> torch.Tensor:
+        # apply proxy transform if applicable
+        if self.proxy_transform is not None and proxy_targets is not None:
             proxy_targets = self.proxy_transform(proxy_targets)
 
-        # prepare profiles
-        if profile_inputs is not None and self.profile_transform is not None:
+        return proxy_targets
+    
+    def prepare_profiles(self, profile_inputs: torch.Tensor) -> torch.Tensor:
+        # apply profile transform if applicable
+        if self.profile_transform is not None and profile_inputs is not None:
             profile_inputs = self.profile_transform(profile_inputs)
 
-        return inputs, {'proxy_targets': proxy_targets, 'profile_inputs': profile_inputs}
+        return profile_inputs
     
-    def transform_targets(self, targets, **kwargs):
+    def transform_targets(self, targets):
         # apply target transform if applicable
         if self.target_transform is not None:
             targets = self.target_transform(targets)
@@ -844,11 +857,94 @@ class NNForwardModel(torch.nn.Module):
     
     def forward(self, 
                 inputs: torch.Tensor,
+                proxy_targets: Optional[torch.Tensor] = None,
+                profile_inputs: Optional[torch.Tensor] = None,
                 train: Optional[bool] = False,
-                **kwargs
+                normalized_inputs: Optional[bool] = False,
                 ) -> torch.Tensor:
         """Run neural network forward model"""
         raise NotImplementedError
+    
+    def _predict(self, 
+                inputs: torch.Tensor,
+                proxy_targets: torch.Tensor, 
+                profile_inputs: torch.Tensor,
+                normalized_inputs: Optional[bool] = False,
+                ) -> torch.Tensor:
+        
+        # make prediction (in eval mode)
+        return self.forward(inputs, 
+                            proxy_targets=proxy_targets,
+                            profile_inputs=profile_inputs,
+                            train=False,
+                            normalized_inputs=normalized_inputs)
+    
+    def jacobian_exact(self, 
+                 inputs: torch.Tensor,
+                 proxy_targets: Optional[torch.Tensor] = None,
+                 profile_inputs: Optional[torch.Tensor] = None,
+                 ) -> torch.Tensor:
+        
+        # compute jacobian using autograd
+        jac = torch.func.jacrev(self._predict, argnums=0)(inputs, proxy_targets, profile_inputs)
+
+        return jac
+
+    def jacobian_approx(self,
+                        inputs: torch.Tensor,
+                        proxy_targets: Optional[torch.Tensor] = None,
+                        profile_inputs: Optional[torch.Tensor] = None,
+                        feature_indices: Optional[List[int]] = None,
+                        eps: Optional[Union[float, List[float]]] = 1e-6,
+                        rel_eps: Optional[bool] = False,
+                        central_difference: Optional[bool] = False,
+                        ) -> torch.Tensor:
+        """
+        Compute jacobian using finite differences.
+
+        TODO: compute this only for relevant features (i.e. retrieved state vector)
+        
+        """
+
+        # forward pass
+        base_output = self._predict(inputs, proxy_targets, profile_inputs)
+        n_outputs = base_output.size(1)
+        batch_size = inputs.size(0)
+        n_features = inputs.size(1)
+
+        # initialize jacobian
+        jac = torch.zeros(batch_size, n_outputs, n_features, dtype=inputs.dtype, device=inputs.device)
+
+        if feature_indices is None:
+            feature_indices = range(n_features)
+        if not isinstance(eps, list):
+            eps = [eps] * len(feature_indices)
+
+        if rel_eps:
+            eps = [eps_i * torch.abs(inputs[:, i]).mean() for i, eps_i in zip(feature_indices, eps)]
+
+        # compute jacobian using finite differences
+        for i, eps_i in zip(feature_indices, eps):
+            # perturb input
+            h = torch.zeros_like(inputs)
+            h[:, i] = eps_i
+
+            # forward pass with perturbed input
+            perturbed_output_fwd = self._predict(inputs + h, 
+                                             proxy_targets, 
+                                             profile_inputs,
+                                             normalized_inputs=False)
+
+            if central_difference:
+                perturbed_output_bwd = self._predict(inputs - h,
+                                                 proxy_targets,
+                                                 profile_inputs,
+                                                 normalized_inputs=False)
+                jac[:, :, i] = 0.5 * (perturbed_output_fwd - perturbed_output_bwd) / eps_i
+            else:
+                jac[:, :, i] = (perturbed_output_fwd - base_output) / eps_i
+
+        return jac
 
     
 
@@ -878,21 +974,26 @@ class LatentNNForwardModel(NNForwardModel):
 
     def forward(self, 
                 inputs: torch.Tensor,
+                proxy_targets: Optional[torch.Tensor] = None,
+                profile_inputs: Optional[torch.Tensor] = None,
                 train: Optional[bool] = False,
-                **kwargs,
+                normalized_inputs: Optional[bool] = False,
                 ) -> torch.Tensor:
         # predicts radiance spectrum from input features, and optionally proxy spectra
 
         # apply transforms and normalization if applicable
-        inputs, transformed_kwargs = self.prepare_inputs(inputs, **kwargs)
+        if not normalized_inputs:
+            inputs = self.prepare_inputs(inputs)
+
+        proxy_transf = self.prepare_proxy(proxy_targets)
+        profile_transf = self.prepare_profiles(profile_inputs)
         
         if self.encoder is not None:
             inputs = self.encoder.encode(inputs)
 
         if self.proxy_nn is not None:
-            proxy_transformed = transformed_kwargs['proxy_targets']
-            proxy_transformed = self.proxy_nn(proxy_transformed)
-            inputs = torch.cat([inputs, proxy_transformed], dim=-1)
+            proxy_transf = self.proxy_nn(proxy_transf)
+            inputs = torch.cat([inputs, proxy_transf], dim=-1)
 
         outputs = self.core_nn(inputs)
 
@@ -901,11 +1002,11 @@ class LatentNNForwardModel(NNForwardModel):
 
         # undo any transforms and normalization, 
         # and combine with proxy targets if applicable
-        proxy_targets = kwargs.get('proxy_targets', None)
+        # proxy_targets = kwargs.get('proxy_targets', None)
         outputs = self.prepare_outputs(outputs, proxy_targets, train)
 
         return outputs
-
+    
 
 
 class SequenceNNForwardModel(NNForwardModel):
@@ -938,18 +1039,40 @@ class SequenceNNForwardModel(NNForwardModel):
 
     def forward(self, 
                 inputs: torch.Tensor,
+                proxy_targets: Optional[torch.Tensor] = None,
+                profile_inputs: Optional[torch.Tensor] = None,
                 train: Optional[bool] = False,
-                **kwargs
+                normalized_inputs: Optional[bool] = False,
                 ) -> torch.Tensor:
+        
+        if inputs.dim() == 1:
+            # single input, expand to include batch dimension
+            inputs = inputs.unsqueeze(0)
+            if proxy_targets is not None:
+                proxy_targets = proxy_targets.unsqueeze(0)
+            if profile_inputs is not None:
+                profile_inputs = profile_inputs.unsqueeze(0)
+            sinlge_input = True
+        else:
+            sinlge_input = False
+        
+        # apply transforms and normalization if applicable
+        if not normalized_inputs:
+            inputs = self.prepare_inputs(inputs)
 
-        inputs, transformed_kwargs = self.prepare_inputs(inputs, **kwargs)
+        proxy_transf = self.prepare_proxy(proxy_targets)
+        profile_transf = self.prepare_profiles(profile_inputs)
+
+        # inputs, transformed_kwargs = self.prepare_inputs(inputs, 
+        #                                                  proxy_targets=proxy_targets, 
+        #                                                  profile_inputs=profile_inputs)
 
         if self.encoder is not None:
             inputs = self.encoder.encode(inputs)
 
         if self.use_profile_input:
             # profile inputs have shape [batch_size, n_layers, n_vars]
-            profile_inputs = transformed_kwargs['profile_inputs']
+            profile_inputs = profile_transf
 
             if self.profile_module is not None:
                 profile_inputs = self.profile_module(profile_inputs)
@@ -966,7 +1089,8 @@ class SequenceNNForwardModel(NNForwardModel):
         if self.use_proxy_input:
             # proxy targets have shape [batch_size, n_wavelengths]
             # expand inputs and add them as additional channels to proxy spectra
-            proxy = transformed_kwargs['proxy_targets'].unsqueeze(-1)
+            proxy = proxy_transf.unsqueeze(-1)
+            # proxy = proxy_targets.unsqueeze(-1)
 
             if self.proxy_module:
                 proxy = self.proxy_module(proxy)
@@ -987,10 +1111,26 @@ class SequenceNNForwardModel(NNForwardModel):
 
         # undo any normalization and transforms,
         # and combine with proxy targets if applicable
-        proxy_targets = kwargs.get('proxy_targets', None)
+        # proxy_targets = kwargs.get('proxy_targets', None)
         outputs = self.prepare_outputs(outputs, proxy_targets, train)
 
+        # if compute_jac:
+        #     # compute jacobian of the forward model
+        #     jac_f = torch.func.jacrev(forward_nn, argnums=0)(test_inputs, test_proxy)
+
+        if sinlge_input:
+            outputs = outputs.squeeze(0)
+
         return outputs
+    
+    # def compute_jac(self, 
+    #                 inputs: torch.Tensor,
+    #                 proxy_targets: Optional[torch.Tensor] = None,
+    #                 profile_inputs: Optional[torch.Tensor] = None,
+    #                 ) -> torch.Tensor:
+    #     # compute jacobian of the forward model
+
+
 
         
   

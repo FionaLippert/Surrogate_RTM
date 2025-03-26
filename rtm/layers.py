@@ -467,6 +467,6 @@ class ResidualBlock1D(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
 
-        out += shortcut
+        out = out + shortcut
         out = self.relu(out)
         return out

@@ -15,6 +15,10 @@ class RTMTransform(torch.nn.Module):
         # reverse the transformation
         raise NotImplementedError
     
+    def derivative(self, data: torch.Tensor, **kwargs) -> torch.Tensor:
+        # compute the derivative of the transformation
+        raise NotImplementedError
+    
 class RTMCompose(RTMTransform):
     def __init__(self, transforms: List[RTMTransform]):
         super().__init__()
@@ -30,6 +34,16 @@ class RTMCompose(RTMTransform):
         for transform in reversed(self.transforms):
             data = transform.inverse(data)
         return data
+    
+    def derivative(self, data, **kwargs):
+        # iteratively compose the derivatives of the
+        # transformations using the chain rule
+        dtdx = 1
+        dx = data
+        for transform in self.transforms:
+            dx = transform.derivative(dx, **kwargs)
+            dtdx = dtdx * dx
+        return dtdx
     
     def __dict_repr__(self):
         return {
@@ -110,6 +124,9 @@ class NullTransform(RTMTransform):
         # do nothing to the data
         return data
     
+    def derivative(self, data, **kwargs):
+        return torch.ones_like(data)
+    
     def __dict_repr__(self):
         return {'_target_': 'rtm.rtm_transforms.NullTransform'}
     
@@ -126,6 +143,9 @@ class DoubleToFloat(RTMTransform):
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         return data.to(torch.double)
+    
+    def derivative(self, data, **kwargs):
+        return torch.ones_like(data).to(torch.float)
     
     def __dict_repr__(self):
         return {'_target_': 'rtm.rtm_transforms.DoubleToFloat'}
@@ -170,6 +190,9 @@ class Normalize(RTMTransform):
         denormalized = data * self.std + self.mean
         return denormalized
     
+    def derivative(self, data, **kwargs):
+        return torch.ones_like(data) / self.std
+    
     def __dict_repr__(self):
         return {
             '_target_': 'rtm.rtm_transforms.Normalize',
@@ -189,6 +212,9 @@ class LogTransform(RTMTransform):
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         return torch.exp(data)
     
+    def derivative(self, data, **kwargs):
+        return 1 / data
+    
     def __dict_repr__(self):
         return {'_target_': 'rtm.rtm_transforms.LogTransform'}
     
@@ -206,6 +232,9 @@ class PowerTransform(RTMTransform):
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         return torch.pow(data, 1/self.exponent)
+    
+    def derivative(self, data, **kwargs):
+        return self.exponent * torch.pow(data, self.exponent - 1)
     
     def __dict_repr__(self):
         return {
