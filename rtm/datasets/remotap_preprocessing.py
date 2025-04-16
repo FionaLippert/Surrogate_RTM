@@ -6,6 +6,7 @@ import pandas as pd
 from typing import List, Dict, Tuple
 
 from rtm import utils
+from rtm.constants import constants
 
 def save_netcdf_file(data: xr.Dataset, save_path: str):
     if os.path.isfile(save_path):
@@ -54,6 +55,9 @@ def combine_chunks(data_dir: str, prefix: str, n_chunks: int, combined_dir: str 
 
 def combine_netcdf_files(data_dir: str, file_list: List[str]):
     # combine chunked netCDF files into a single file
+    if len(file_list) == 0:
+        raise ValueError('No files to combine')
+    
     for i, f in enumerate(file_list):
         ds = xr.open_dataset(osp.join(data_dir, f))
         if i == 0:
@@ -73,6 +77,7 @@ def prepare_data(target_dir: str,
                  gas_names: List[str] = ['co2', 'ch4'],
                  instrument: str = 'instr2_noise0',
                  prefix_proxy: str = None,
+                 instrument_proxy: str = 'instr1_noise0',
                 ):
     
     os.makedirs(target_dir, exist_ok=True)
@@ -80,7 +85,8 @@ def prepare_data(target_dir: str,
     # load spectral data
     spectral_data = load_spectra(data_dir, prefix, wl_range, 
                                  instrument=instrument, 
-                                 prefix_proxy=prefix_proxy)
+                                 prefix_proxy=prefix_proxy,
+                                 instrument_proxy=instrument_proxy)
 
     # load coordinates
     coords = load_coords(data_dir, prefix, 
@@ -254,6 +260,7 @@ def load_geometry(data_dir: str, prefix: str, instrument: str = 'instr2_noise0')
     for var in vars:
         if 'Angle' in var:
             data = geom_dict[var]
+            geom_dict[f'{var}_rad'] = np.deg2rad(data)
             geom_dict[f'cos_{var}'] = np.cos(np.deg2rad(data))
             geom_dict[f'sin_{var}'] = np.sin(np.deg2rad(data))
 
@@ -356,6 +363,14 @@ def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
     for gas in gas_names:
         atm_dict[f'MMR_{gas}'] = ds[f'MMR_{gas}'].data
 
+    # convert MMR to total number of particles
+    # TODO: compute dvair as done in RemoTAP
+    # for gas in gas_names + ['h2o']:
+    #     mol_mass_dry = constants.mass['dry_air']
+    #     mol_mass_gas = constants.mass[gas]
+    #     atm_dict[f'dvmol_{gas}'] = atm_dict[f'MMR_{gas}'] * dvair * mol_mass_dry / mol_mass_gas # in #/m^3
+
+
     ds.close()
 
     return atm_dict
@@ -372,9 +387,10 @@ def load_state_vars(data_dir: str,
 
     props = {}
 
-    # extract total column denisty for trace gases
-    for gas in gases:
+    # extract total column density for trace gases
+    for gas in (gases + ['h2o']):
         hitran_idx = utils.gas_to_hitran_index(gas)
+        print(f'vmol_{gas} index: {hitran_idx}')
         props[f'vmol_{gas}'] = ds[f'Truth_Vmol'].data[:, hitran_idx]
 
     # find wavelengths in Wave_Opt that are within the specified range of the considered band
@@ -459,7 +475,8 @@ def load_state_vars(data_dir: str,
 def load_spectra(data_dir: str, prefix: str, wl_range: str, 
                  prefix_proxy: str = None,
                  wavelength: bool = True,
-                 instrument: str = 'instr2_noise0',):
+                 instrument: str = 'instr2_noise0',
+                 instrument_proxy: str = 'instr1_noise0'):
 
     # load data from full-physics simulation
     fname = f'{prefix}_{instrument}.nc'
@@ -480,7 +497,7 @@ def load_spectra(data_dir: str, prefix: str, wl_range: str,
     
     if prefix_proxy is not None:
         # add data from non-scattering, transmission, or single-scattering simulation
-        tr_fname = f'{prefix_proxy}_{instrument}.nc'
+        tr_fname = f'{prefix_proxy}_{instrument_proxy}.nc'
         if osp.exists(osp.join(data_dir, tr_fname)):
             tr_spectra = xr.open_dataset(osp.join(data_dir, tr_fname))
             # get prior spectra for specified wavelength range
