@@ -16,6 +16,7 @@ prefix: syn_meas_s5_random_ensemble_1e6_combined
 # define output quantity
 target_quantity: radiance
 predict_difference: true
+predict_ratio: false
 
 # should be adjusted to the actual number of features and wavelengths in 
 # the dataset (is used to define the model input/output dimensions)
