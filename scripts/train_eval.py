@@ -147,11 +147,11 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     # fit PCA to training data, if applicable
     train_data = dataset[train_indices]
     device = utils.get_device(**cfg.device)
-    if isinstance(getattr(model, 'input_dim_reduction', None), 
-                  (dimensionality_reduction.PCA, layers.PCAEncoder)):
-        model.input_dim_reduction.fit(train_data['inputs'].to(device))
-        exp_var = 100 * model.input_dim_reduction.explained_variance_ratio()
-        print(f'Explained input variance (%): {exp_var:.4f}')
+    # if isinstance(getattr(model, 'input_dim_reduction', None), 
+    #               (dimensionality_reduction.PCA, layers.PCAEncoder)):
+    #     model.input_dim_reduction.fit(train_data['inputs'].to(device))
+    #     exp_var = 100 * model.input_dim_reduction.explained_variance_ratio()
+    #     print(f'Explained input variance (%): {exp_var:.4f}')
 
     if isinstance(getattr(model.forward_model, 'encoder', None), layers.PCAEncoder):
         print('Fitting input PCA...')
@@ -160,11 +160,18 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
         exp_var = 100 * model.forward_model.encoder.explained_variance_ratio()
         print(f'Explained input variance (%): {exp_var:.4f}')
 
-    if isinstance(getattr(model, 'output_dim_reduction', None), 
-                  (dimensionality_reduction.PCA, layers.PCADecoder)):
-        model.output_dim_reduction.fit(train_data['targets'].to(device))
-        exp_var = 100 * model.output_dim_reduction.explained_variance_ratio()
-        print(f'Explained output variance (%): {exp_var:.4f}')
+    if isinstance(getattr(model.forward_model, 'proxy_nn', None), layers.PCAEncoder):
+        print('Fitting proxy PCA...')
+        proxy = model.forward_model.proxy_transform(train_data['proxy_targets'])
+        model.forward_model.proxy_nn.fit(proxy)
+        exp_var = 100 * model.forward_model.proxy_nn.explained_variance_ratio()
+        print(f'Explained proxy variance (%): {exp_var:.4f}')
+
+    # if isinstance(getattr(model, 'output_dim_reduction', None), 
+    #               (dimensionality_reduction.PCA, layers.PCADecoder)):
+    #     model.output_dim_reduction.fit(train_data['targets'].to(device))
+    #     exp_var = 100 * model.output_dim_reduction.explained_variance_ratio()
+    #     print(f'Explained output variance (%): {exp_var:.4f}')
 
     if isinstance(getattr(model.forward_model, 'decoder', None), layers.PCADecoder):
         print('Fitting output PCA...')

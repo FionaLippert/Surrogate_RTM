@@ -7,7 +7,7 @@ input_dim: ${dataset.input_dim} # all features
 output_dim: ${dataset.output_dim} # all wavelengths
 
 input_latent_dim: ${dataset.input_dim} # all features
-output_latent_dim: 26 # 99.9999% explained variance
+output_latent_dim: 26 # 99.999999% explained variance
 hidden_dim: 128
 
 dropout_p: 0.0
