@@ -94,7 +94,7 @@ def load_train_dataset(cfg_dataset: OmegaConf,
             val_indices = torch.load(os.path.join(dataset_path, 'val_indices.pt'), weights_only=False)
 
             print(f'Training data successfully loaded from project {wandb.run.project}')
-        except:
+        except Exception as e:
             # if not, load and normalize dataset from scratch
             print(f'Training data could not be loaded from project {wandb.run.project}')
             print(f'Preparing dataset from scratch...')
