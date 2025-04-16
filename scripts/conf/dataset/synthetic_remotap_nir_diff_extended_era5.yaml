@@ -20,7 +20,7 @@ predict_ratio: false
 
 # should be adjusted to the actual number of features and wavelengths in 
 # the dataset (is used to define the model input/output dimensions)
-input_dim: 180 # all features
+input_dim: 190 # all features
 output_dim: 211 # all wavelengths
 
 # define input features
