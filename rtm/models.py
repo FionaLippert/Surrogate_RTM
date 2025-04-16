@@ -32,9 +32,9 @@ class SurrogateRTMWrapper(pl.LightningModule):
         self.transforms = transforms
         self.forward_model.set_transforms(transforms)
 
-    def forward(self, **kwargs) -> torch.Tensor:
+    def forward(self, *args, **kwargs) -> torch.Tensor:
         """runs RTM prediction"""
-        return self.forward_model.forward(**kwargs)
+        return self.forward_model.forward(*args, **kwargs)
     
     def training_step(self, batch, batch_idx):
         """training step for neural network models"""
@@ -60,8 +60,15 @@ class SurrogateRTMWrapper(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         """evaluate reconstruction performance"""
         targets = batch['targets']
+        inputs = batch['inputs']
+        proxy_targets = batch.get('proxy_targets', None)
+        profile_inputs = batch.get('profile_inputs', None)
 
-        outputs = self.forward(**batch)
+        # make prediction (and transform back to physical quantities)
+        outputs = self.forward(inputs,
+                               proxy_targets=proxy_targets,
+                               profile_inputs=profile_inputs,
+                               train=False)
 
         outputs, targets = self.prepare_outputs(outputs, targets)
 
@@ -108,9 +115,15 @@ class SurrogateRTMWrapper(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
         """reconstruct input and transform back to physical space"""
         targets = batch['targets']
+        inputs = batch['inputs']
+        proxy_targets = batch.get('proxy_targets', None)
+        profile_inputs = batch.get('profile_inputs', None)
 
         # make prediction (and transform back to physical quantities)
-        outputs = self.forward(**batch, train=False)
+        outputs = self.forward(inputs,
+                               proxy_targets=proxy_targets,
+                               profile_inputs=profile_inputs,
+                               train=False)
 
         # change to numpy arrays
         outputs, targets = self.prepare_outputs(outputs, targets)
@@ -165,8 +178,16 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         return loss
     
     def eval_step(self, batch) -> torch.Tensor:
+
+        inputs = batch['inputs']
+        proxy_targets = batch.get('proxy_targets', None)
+        profile_inputs = batch.get('profile_inputs', None)
+
         # make prediction (without transforming back to physical quantities)
-        outputs = self.forward(**batch, train=True)
+        outputs = self.forward(inputs,
+                               proxy_targets=proxy_targets,
+                               profile_inputs=profile_inputs,
+                               train=True)
 
         # compute loss function
         targets = self.forward_model.transform_targets(batch['targets'])
