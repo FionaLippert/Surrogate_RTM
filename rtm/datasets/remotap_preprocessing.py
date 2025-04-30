@@ -58,15 +58,21 @@ def combine_netcdf_files(data_dir: str, file_list: List[str]):
     if len(file_list) == 0:
         raise ValueError('No files to combine')
     
+    n_combined = 0
     for i, f in enumerate(file_list):
-        ds = xr.open_dataset(osp.join(data_dir, f))
-        if i == 0:
+        ds = xr.load_dataset(osp.join(data_dir, f))
+        if ds['pixelID'].shape[0] == 0:
+            # skip empty files
+            continue
+
+        if n_combined == 0:
             combined = ds
         else:
             # adjust pixelID to avoid duplicates
-            ds['pixelID'] = ds['pixelID'] + combined['pixelID'].max() + 1
+            offset = combined['pixelID'].max() - ds['pixelID'].min() + 1
+            ds['pixelID'] = ds['pixelID'] + offset
             combined = xr.concat([combined, ds], dim='pixelID')
-        ds.close()
+        n_combined += 1
 
     return combined
 
@@ -78,6 +84,9 @@ def prepare_data(target_dir: str,
                  instrument: str = 'instr2_noise0',
                  prefix_proxy: str = None,
                  instrument_proxy: str = 'instr1_noise0',
+                 land_threshold: float = 0.0,
+                 sza_threshold: float = 90.0,
+                 vza_threshold: float = 90.0,
                 ):
     
     os.makedirs(target_dir, exist_ok=True)
@@ -100,18 +109,28 @@ def prepare_data(target_dir: str,
         # add proxy radiances as additional features
         pixel_data['proxy'] = spectral_data['proxy']
 
+    # filter pixels based on land fraction, SZA, VZA
+    mask = pixel_data['SolarZenithAngle'] <= sza_threshold
+    mask = np.logical_and(mask, pixel_data['ViewingZenithAngle'] <= vza_threshold)
+    mask = np.logical_and(mask, pixel_data['land_fraction'] >= land_threshold)
+    valid_pixels = np.where(mask)[0]
+    print(f'Filtered out {1-(len(valid_pixels)/len(mask)):.2%} of pixels based on land fraction, SZA, and VZA')
+            
     # load profile data
     profile_data = load_profile_data(data_dir, prefix, gas_names)
 
-    # save data to disk
-    spectra_to_netcdf(spectral_data, target_dir, prefix)
-    coords_to_netcdf(coords, target_dir, prefix)
-    pixel_data_to_netcdf(pixel_data, target_dir, prefix)
-    profile_data_to_netcdf(profile_data, target_dir, prefix)
+    # save data to disk (and apply land threshold filter)
+    spectra_to_netcdf(spectral_data, target_dir, prefix, valid_pixels)
+    coords_to_netcdf(coords, target_dir, prefix, valid_pixels)
+    pixel_data_to_netcdf(pixel_data, target_dir, prefix, valid_pixels)
+    profile_data_to_netcdf(profile_data, target_dir, prefix, valid_pixels)
 
 
 
-def pixel_data_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+def pixel_data_to_netcdf(data: Dict[str, np.ndarray], 
+                         target_dir: str, 
+                         prefix: str,
+                         valid_pixels: np.ndarray = None):
     # convert dict to netcdf format and write to disk
     for k, v in data.items():
         if len(v.shape) > 1:
@@ -122,12 +141,24 @@ def pixel_data_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: s
     data['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(v.shape[0])}
     data = xr.Dataset.from_dict(data)
 
+    # apply land threshold filter if applicable
+    if valid_pixels is not None:
+        data = data.isel(pixelID=valid_pixels)
+
+    # save to disk
     save_netcdf_file(data, osp.join(target_dir, f'{prefix}_pixel_data.nc'))
 
-def pixel_data_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+def pixel_data_to_csv(data: Dict[str, np.ndarray], 
+                      target_dir: str, 
+                      prefix: str,
+                      valid_pixels: np.ndarray = None):
     # save pixel data to csv file
     df_pixels = pd.DataFrame(data)
     df_pixels['pixelID'] = df_pixels.index
+
+    # apply land threshold filter if applicable
+    if valid_pixels is not None:
+        df_pixels = df_pixels.iloc[valid_pixels]
 
     save_path = osp.join(target_dir, f'{prefix}_pixel_data.csv')
     if os.path.isfile(save_path):
@@ -135,19 +166,34 @@ def pixel_data_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str)
         os.remove(save_path)
     df_pixels.to_csv(save_path, index=False)
 
-def coords_to_netcdf(coords: Dict[str, np.ndarray], target_dir: str, prefix: str):
+def coords_to_netcdf(coords: Dict[str, np.ndarray], 
+                     target_dir: str, 
+                     prefix: str,
+                     valid_pixels: np.ndarray = None):
     # convert dict to netcdf format and write to disk
     for k, v in coords.items():
         coords[k] = {'dims': ('pixelID'), 'data': v}
     coords['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(v.shape[0])}
     coords = xr.Dataset.from_dict(coords)
 
+    # apply land threshold filter if applicable
+    if valid_pixels is not None:
+        coords = coords.isel(pixelID=valid_pixels)
+
+    # save to disk
     save_netcdf_file(coords, osp.join(target_dir, f'{prefix}_coords.nc'))
 
-def coords_to_csv(coords: Dict[str, np.ndarray], target_dir: str, prefix: str):
+def coords_to_csv(coords: Dict[str, np.ndarray], 
+                  target_dir: str, 
+                  prefix: str,
+                  valid_pixels: np.ndarray = None):
     # save coordinates to csv file
     df_coords = pd.DataFrame(coords)
     df_coords['pixelID'] = df_coords.index
+
+    # apply land threshold filter if applicable
+    if valid_pixels is not None:
+        df_coords = df_coords.iloc[valid_pixels]
 
     save_path = osp.join(target_dir, f'{prefix}_coords.csv')
     if os.path.isfile(save_path):
@@ -156,7 +202,10 @@ def coords_to_csv(coords: Dict[str, np.ndarray], target_dir: str, prefix: str):
     df_coords.to_csv(save_path, index=False)
 
 
-def profile_data_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+def profile_data_to_netcdf(data: Dict[str, np.ndarray], 
+                           target_dir: str,
+                           prefix: str,
+                           valid_pixels: np.ndarray = None):
     # convert dict to netcdf format
     for k, v in data.items():
         data[k] = {'dims': ('pixelID', 'layerID'), 'data': v}
@@ -164,9 +213,17 @@ def profile_data_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix:
     data['layerID'] = {'dims': ('layerID'), 'data': np.arange(v.shape[1])}
     data = xr.Dataset.from_dict(data)
 
+    # apply land threshold filter if applicable
+    if valid_pixels is not None:
+        data = data.isel(pixelID=valid_pixels)
+
+    # save to disk
     save_netcdf_file(data, osp.join(target_dir, f'{prefix}_profile_data.nc'))
 
-def profile_data_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+def profile_data_to_csv(data: Dict[str, np.ndarray], 
+                        target_dir: str, 
+                        prefix: str,
+                        valid_pixels: np.ndarray = None):
     # save profile data to csv file
     # saved in long format, i.e. data is flattened and layer/pixel info is included in layerID and pixelID columns
     df_profiles = pd.DataFrame()
@@ -185,6 +242,11 @@ def profile_data_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: st
     df_profiles['pixelID'] = np.arange(nobs).repeat(nlayers)
     df_profiles['layerID'] = np.tile(np.arange(nlayers), nobs)
 
+    # apply land threshold filter if applicable
+    if valid_pixels is not None:
+        df_profiles = df_profiles[df_profiles['pixelID'].isin(valid_pixels)]
+        df_profiles = df_profiles.reset_index(drop=True)
+
     # write to disk
     save_path = osp.join(target_dir, f'{prefix}_profile_data.csv')
     if os.path.isfile(save_path):
@@ -192,7 +254,10 @@ def profile_data_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: st
         os.remove(save_path)
     df_profiles.to_csv(save_path, index=False)
 
-def spectra_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str):
+def spectra_to_netcdf(data: Dict[str, np.ndarray], 
+                      target_dir: str, 
+                      prefix: str,
+                      valid_pixels: np.ndarray = None):
     # convert dict to netcdf format
 
     for k, v in data.items():
@@ -204,12 +269,26 @@ def spectra_to_netcdf(data: Dict[str, np.ndarray], target_dir: str, prefix: str)
     data['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(npix)}
     data = xr.Dataset.from_dict(data)
 
+    # apply land threshold filter if applicable
+    if valid_pixels is not None:
+        data = data.isel(pixelID=valid_pixels)
+
+    # save to disk
     save_netcdf_file(data, osp.join(target_dir, f'{prefix}_spectra.nc'))
 
-def spectra_to_csv(data: Dict[str, np.ndarray], target_dir: str, prefix: str, quantity: str):
+def spectra_to_csv(data: Dict[str, np.ndarray], 
+                   target_dir: str, 
+                   prefix: str, 
+                   quantity: str,
+                   valid_pixels: np.ndarray = None):
     # save spectra (only for the given quantity) to csv file
     df_spectra = pd.DataFrame(data[quantity], columns=data['wavelength'])
     df_spectra['pixelID'] = df_spectra.index
+
+    # apply land threshold filter if applicable
+    if valid_pixels is not None:
+        df_spectra = df_spectra[df_spectra['pixelID'].isin(valid_pixels)]
+        df_spectra = df_spectra.reset_index(drop=True)
 
     save_path = osp.join(target_dir, f'{prefix}_spectra.csv')
     if os.path.isfile(save_path):
@@ -385,21 +464,22 @@ def load_state_vars(data_dir: str,
     fname = f'{prefix}-truth.nc'
     ds = xr.open_dataset(osp.join(data_dir, fname))
 
+    print(f'Loading state variables from {osp.abspath(osp.join(data_dir, fname))}')
+
     props = {}
 
     # extract total column density for trace gases
     for gas in (gases + ['h2o']):
         hitran_idx = utils.gas_to_hitran_index(gas)
-        print(f'vmol_{gas} index: {hitran_idx}')
-        props[f'vmol_{gas}'] = ds[f'Truth_Vmol'].data[:, hitran_idx]
+        print(gas, hitran_idx, ds[f'Truth_Vmol'].data[:, hitran_idx - 1].mean())
+        props[f'vmol_{gas}'] = ds[f'Truth_Vmol'].data[:, hitran_idx - 1]
 
     # find wavelengths in Wave_Opt that are within the specified range of the considered band
     wl_opt = ds['Wave_Opt'].data
-    wl_opt_idx = np.where((wl_opt >= wl_range[0]) & (wl_opt <= wl_range[1]))[0]
-    wl = ds['Wavelength'].data
-    wl_idx = np.where((wl >= wl_range[0]) & (wl <= wl_range[1]))[0]
+    wl_opt_idx = np.where((wl_opt >= wl_range[0]) & (wl_opt <= wl_range[-1]))[0]
     wl_band = ds['Band_Win'].data
-    wl_band_idx = np.where((wl_band >= wl_range[0]) & (wl_band <= wl_range[1]))[0]
+    wl_band_idx = np.where((wl_band >= wl_range[0]) & (wl_band <= wl_range[-1]))[0][0]
+    central_band_idx = ds.sizes['nband_nrw'] + wl_band_idx # num MAP bands + band idx
 
     # extract total aerosol optical thickness at wavelengths within band
     props['AOT'] = ds['Truth_AOT'].data[:, wl_opt_idx].squeeze() # total
@@ -426,9 +506,9 @@ def load_state_vars(data_dir: str,
 
         # real and imaginary refractive index
         props[f'RRI_550_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 2] # at 550nm
-        props[f'RRI_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Mr'].data[:, wl_idx].squeeze() # at central wavelength
+        props[f'RRI_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Mr'].data[:, central_band_idx].squeeze() # at central wavelength
         props[f'IRI_550_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 3] # at 550nm
-        props[f'IRI_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Mi'].data[:, wl_idx].squeeze() # at central wavelength
+        props[f'IRI_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Mi'].data[:, central_band_idx].squeeze() # at central wavelength
 
         # aerosol column density
         props[f'N_mode{m+1}'] = ds[f'Truth_Mode{m+1}_Aerosol_Pars'].data[:, 4]
@@ -450,7 +530,7 @@ def load_state_vars(data_dir: str,
     props['k_vol'] = ds['Truth_Xbdrf_Geo'].data[:, 5]
 
     # extract surface albedo
-    props['albedo'] = ds['Truth_Xbdrf_Wave_Av'].data[:, wl_idx].squeeze() # at central wavelength
+    props['albedo'] = ds['Truth_Xbdrf_Wave_Av'].data[:, central_band_idx].squeeze() # at central wavelength
     for i in range(ds['Truth_Xbdrf_Wave_Par'].shape[1]):
         # get albedo coefficient of polynomial fit
         props[f'albedo_coef{i}'] = ds['Truth_Xbdrf_Wave_Par'].data[:, i, wl_band_idx].squeeze()

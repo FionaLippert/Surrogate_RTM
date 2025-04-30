@@ -23,6 +23,12 @@ if __name__ == '__main__':
                         help='postfix of the files containing proxy spectra')
     parser.add_argument('--instrument_proxy', type=str, default='instr1_noise0',
                         help='non-scattering simulations are always CO2I-only, so instr id=1')
+    parser.add_argument('--land_threshold', type=float, default=0.5,
+                        help='minimum amount of land cover considered')
+    parser.add_argument('--sza_threshold', type=float, default=70.0,
+                        help='maximum solar zenith angle considered')
+    parser.add_argument('--vza_threshold', type=float, default=30.0,
+                        help='maximum viewing zenith angle considered')
     args = parser.parse_args()
 
     gas_names = ['co', 'co2', 'ch4'] # TODO: add o2 
@@ -59,7 +65,11 @@ if __name__ == '__main__':
                                         gas_names=gas_names,
                                         instrument=args.instrument,
                                         prefix_proxy=prefix_proxy,
-                                        instrument_proxy=args.instrument_proxy)
+                                        instrument_proxy=args.instrument_proxy,
+                                        land_threshold=args.land_threshold,
+                                        sza_threshold=args.sza_threshold,
+                                        vza_threshold=args.vza_threshold,
+                                        )
 
     if args.n_chunks > 1:
         remotap_preprocessing.combine_chunks(args.target_dir, 

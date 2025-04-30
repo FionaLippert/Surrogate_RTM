@@ -81,25 +81,31 @@ def load_train_dataset(cfg_dataset: OmegaConf,
         dataset = torch.load(os.path.join(data_path, 'train_dataset.pt'), weights_only=False)
         train_indices = torch.load(os.path.join(data_path, 'train_indices.pt'), weights_only=False)
         val_indices = torch.load(os.path.join(data_path, 'val_indices.pt'), weights_only=False)
+    # elif run is not None:
+        # try:
+        #     # if possible, load dataset from wandb project
+        #     dataset_artifact = run.use_artifact(f'{artifact_name}:latest')
+        #     dataset_path = dataset_artifact.download(root=data_path)
+
+        #     print(f'Downloaded data to {dataset_path}')
+
+        #     dataset = torch.load(os.path.join(dataset_path, 'train_dataset.pt'), weights_only=False)
+        #     train_indices = torch.load(os.path.join(dataset_path, 'train_indices.pt'), weights_only=False)
+        #     val_indices = torch.load(os.path.join(dataset_path, 'val_indices.pt'), weights_only=False)
+
+        #     print(f'Training data successfully loaded from project {wandb.run.project}')
+        # except Exception as e:
+        #     # if not, load and normalize dataset from scratch
+        #     print(f'Training data could not be loaded from project {wandb.run.project}')
+        #     print(f'Preparing dataset from scratch...')
+
+        #     dataset, train_indices, val_indices = prepare_train_dataset(cfg_dataset)
     else:
-        try:
-            # if possible, load dataset from wandb project
-            dataset_artifact = run.use_artifact(f'{artifact_name}:latest')
-            dataset_path = dataset_artifact.download(root=data_path)
+        # if not, load and normalize dataset from scratch
+        print(f'Training data could not be loaded.')
+        print(f'Preparing dataset from scratch...')
 
-            print(f'Downloaded data to {dataset_path}')
-
-            dataset = torch.load(os.path.join(dataset_path, 'train_dataset.pt'), weights_only=False)
-            train_indices = torch.load(os.path.join(dataset_path, 'train_indices.pt'), weights_only=False)
-            val_indices = torch.load(os.path.join(dataset_path, 'val_indices.pt'), weights_only=False)
-
-            print(f'Training data successfully loaded from project {wandb.run.project}')
-        except Exception as e:
-            # if not, load and normalize dataset from scratch
-            print(f'Training data could not be loaded from project {wandb.run.project}')
-            print(f'Preparing dataset from scratch...')
-
-            dataset, train_indices, val_indices = prepare_train_dataset(cfg_dataset)
+        dataset, train_indices, val_indices = prepare_train_dataset(cfg_dataset)
 
     return dataset, train_indices, val_indices
 

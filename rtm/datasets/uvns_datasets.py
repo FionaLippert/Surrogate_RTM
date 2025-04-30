@@ -17,7 +17,7 @@ from rtm.rtm_transforms import RTMTransformCollection, RTMTransform
 
 
 class RTDataset(Dataset):
-    """Synthetic measurements generated with RemoTeC forward model"""
+    """Synthetic measurements generated with RemoTAP forward model"""
     def __init__(self, 
                  data_dir: str,
                  prefix: str,

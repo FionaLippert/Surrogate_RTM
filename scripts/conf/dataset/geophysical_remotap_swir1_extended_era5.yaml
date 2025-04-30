@@ -8,8 +8,9 @@ test_size: 1.0 # fraction of the dataset to be used for testing
 val_size: 0.0 # fraction of the training dataset to be used for validation
 
 # point to data files
-data_dir: ${device.data_root}/S5_orbits/Sentinel5_20170215/SWIR1_preprocessed/combined_nchunks=3
-prefix: syn_meas_S5_OPERA_synthetic_geophysical_combined
+data_dir: ${device.data_root}/S5_orbits/Sentinel5_20170215/SWIR1_preprocessed #/combined_nchunks=3
+# prefix: syn_meas_S5_OPERA_synthetic_geophysical_combined
+prefix: syn_meas_S5_OPERA_synthetic_geophysical_with_map_20170215_GRANULE03
 
 # define output quantity
 target_quantity: radiance
