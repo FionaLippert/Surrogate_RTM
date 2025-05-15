@@ -765,6 +765,8 @@ class NNForwardModel(torch.nn.Module):
         # one of 'difference', 'ratio', None
         self.proxy_operation = proxy_operation
 
+        print(f'Using proxy operation {self.proxy_operation}...')
+
         # transforms can be set later based on training dataset
         self.transforms = None
 
@@ -981,8 +983,9 @@ class LatentNNForwardModel(NNForwardModel):
                  proxy_nn: Optional[torch.nn.Module] = None,
                  encoder: Optional[Encoder] = None, 
                  decoder: Optional[Decoder] = None,
-                 **kwargs):
-        super().__init__()
+                 **kwargs
+                 ):
+        super().__init__(**kwargs)
 
         self.core_nn = core_nn
 

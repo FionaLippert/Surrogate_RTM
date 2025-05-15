@@ -4,6 +4,7 @@ import torch
 from torchvision.transforms import Compose
 from torch.optim.lr_scheduler import ChainedScheduler
 from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf
 
 from typing import Callable, Union, List, Dict, Tuple
 
