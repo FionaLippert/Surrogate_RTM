@@ -20,59 +20,39 @@ predict_ratio: false
 
 # should be adjusted to the actual number of features and wavelengths in 
 # the dataset (is used to define the model input/output dimensions)
-input_dim: 29 # all features
+input_dim: 28 # all features
 output_dim: 851 # all wavelengths
 
 # define input features
 pixel_features:
   - cos_SolarZenithAngle
   - cos_ViewingZenithAngle
-  - RelativeAzimuthAngle # note that Lintran uses this in radians as defined by De Haan et al. (1987)
-  # - CosRelativeAzimuthAngle 
-  # - air_mass_factor
-  # - ScatteringAngle
+  - RelativeAzimuthAngle_rad # note that Lintran uses this in radians as defined by De Haan et al. (1987)
+  - ScatteringAngle_rad
   - surface_pressure_meteo
-  # - cbrt_surface_elevation_meteo
-  # - tropopause_height
-  # - xco
-  - xch4
-  - xh2o
-  - xco2
-  # - vmol_co
-  # - vmol_ch4
-  # - vmol_co2
-  # - h2o_column_total
-  # - log_AOT
-  # - log_AOT_mode1
-  # - log_AOT_mode2
-  # - log_AAOT
-  # - log_AAOT_mode1
-  # - log_AAOT_mode2
-  # - SSA
-  - log_N_mode1
-  - log_N_mode2
-  - reff_mode1
-  - reff_mode2
-  - veff_mode1
-  - veff_mode2
-  - RRI_mode1
-  - RRI_mode2
-  - IRI_mode1
-  - IRI_mode2
-  - f_sphere_mode1
-  - f_sphere_mode2
-  - vfrac_mode1_species1
-  - vfrac_mode1_species4
-  - vfrac_mode1_species5
-  - vfrac_mode2_species2
-  - vfrac_mode2_species5
-  - z_aer_mode1
-  - z_aer_mode2 # same as for mode 1 in RemoTAP retrieval
+  - tropopause_height
+  - surface_elevation_meteo
+  - B_pol # XBPDF scale / Maignan M
   - k_geo
   - k_vol
   - albedo
-  - B_pol
-  # - v_pol # fixed to 0.1
+  - reff_mode1
+  - veff_mode1
+  - RRI_mode1
+  - IRI_mode1
+  - log_N_mode1
+  - f_sphere_mode1
+  - z_aer_mode1
+  - reff_mode2
+  - veff_mode2
+  - RRI_mode2
+  - IRI_mode2
+  - log_N_mode2
+  - f_sphere_mode2
+  - z_aer_mode2
+  - vmol_h2o
+  - vmol_co2
+  - vmol_ch4
 profile_features: []
   # - temperature
   # - pressure
@@ -83,6 +63,7 @@ profile_features: []
   # - MMR_h2o
   # - MMR_co
 
+  
 # # transforms for input features
 # transform: null
 
