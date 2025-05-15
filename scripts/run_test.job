@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu_a100
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -15,17 +15,7 @@ export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
 cd $HOME/SRON/surrogate_rtm/scripts
 source activate rtm_env
 
-# model_path="/home/flippert/SRON/surrogate_rtm/results/test_sequence_models/default/logs/wandb/run-20250131_100238-oflctsdh/files/checkpoints/last.ckpt"
-# model_path="/projects/0/prjs1294/output/results/era5_inputs/default/logs/wandb/run-20250214_182823-a4m1188m/files/checkpoints/last.ckpt" # PCA-NN-PCA
-# model_path="/projects/0/prjs1294/output/results/era5_inputs/default/logs/wandb/run-20250214_184255-yzf4dahu/files/checkpoints/last.ckpt" # diff PCA-NN-PCA
-# model_path="/projects/0/prjs1294/output/results/era5_inputs/default/logs/wandb/run-20250214_184651-8sgazgg0/files/checkpoints/last.ckpt" # CNN
-model_path="/projects/0/prjs1294/output/results/extended_random_ensemble/default/logs/wandb/run-20250305_153210-mvqazj8s/files/checkpoints/last.ckpt" # PCA-NN-PCA n_hidden=256
+model_path="/projects/0/prjs1294/output/results/extended_random_ensemble_swir1_final/default/logs/wandb/run-20250416_121300-qodycgcg/files/checkpoints/last.ckpt" # PCA-NN-PCA
 
-# normalization_path="/projects/0/prjs1294/output/datasets/synthetic_remotap_era5_transforms"
-# normalization_path="/projects/0/prjs1294/output/datasets/synthetic_remotap_diff_era5_transforms"
-normalization_path="/projects/0/prjs1294/output/datasets/synthetic_remotap_swir1_extended_era5_transforms"
-# normalization_path="/projects/0/prjs1294/output/datasets/synthetic_remotap_era5_single_norm_transforms"
-
-# srun python train_eval.py device=snellius dataset=synthetic_remotap model=SequenceNNSurrogateRTM_proxy_input logger.project=test_sequence_models task.final_eval=true task.save_predictions=true seed=0 model.input_latent_dim=128 model.forward_model.d_model=160 model.forward_model.nhead=1 model.input_processing=null model.lr_decay=0.001 model.lr=1e-3
-# srun python train_eval.py device=snellius dataset=synthetic_remotap_era5_single_norm_testing model=SequenceNNSurrogateRTM_proxy_input logger.project=era5_inputs task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path task.normalization_path=$normalization_path
-srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_era5 model=LatentNNSurrogateRTM logger.project=extended_random_ensemble task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path task.normalization_path=$normalization_path model.forward_model.n_hidden=256
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_extended_era5 model=LatentNNSurrogateRTM_new model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir1_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+srun python train_eval.py device=snellius dataset=geophysical_remotap_swir1_extended_era5 model=LatentNNSurrogateRTM_new model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir1_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
