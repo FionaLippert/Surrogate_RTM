@@ -69,6 +69,9 @@ class SurrogateRTMWrapper(pl.LightningModule):
                                proxy_targets=proxy_targets,
                                profile_inputs=profile_inputs,
                                train=False)
+        
+        # make sure that targets are final radiances
+        targets = self.forward_model.combine_with_proxy(targets, proxy_targets)
 
         outputs, targets = self.prepare_outputs(outputs, targets)
 
@@ -124,6 +127,9 @@ class SurrogateRTMWrapper(pl.LightningModule):
                                proxy_targets=proxy_targets,
                                profile_inputs=profile_inputs,
                                train=False)
+        
+        # make sure that targets are final radiances
+        targets = self.forward_model.combine_with_proxy(targets, proxy_targets)
 
         # change to numpy arrays
         outputs, targets = self.prepare_outputs(outputs, targets)
@@ -858,6 +864,16 @@ class NNForwardModel(torch.nn.Module):
             targets = self.target_transform(targets)
 
         return targets
+    
+    def combine_with_proxy(self, outputs: torch.Tensor, proxy_targets: torch.Tensor = None):
+
+        # combine NN outputs with proxy targets if applicable
+        if self.proxy_operation == 'difference':
+            outputs = outputs + proxy_targets
+        elif self.proxy_operation == 'ratio':
+            outputs = outputs * proxy_targets
+
+        return outputs
 
     def prepare_outputs(self,
                         outputs: torch.Tensor,
@@ -869,12 +885,7 @@ class NNForwardModel(torch.nn.Module):
             # undo normalization and transforms if applicable
             if self.target_transform is not None:
                 outputs = self.target_transform.inverse(outputs)
-
-            # combine NN outputs with proxy targets if applicable
-            if self.proxy_operation == 'difference':
-                outputs = outputs + proxy_targets
-            elif self.proxy_operation == 'ratio':
-                outputs = outputs * proxy_targets
+            outputs = self.combine_with_proxy(outputs, proxy_targets)
 
         return outputs
     
@@ -1076,9 +1087,9 @@ class SequenceNNForwardModel(NNForwardModel):
                 proxy_targets = proxy_targets.unsqueeze(0)
             if profile_inputs is not None:
                 profile_inputs = profile_inputs.unsqueeze(0)
-            sinlge_input = True
+            single_input = True
         else:
-            sinlge_input = False
+            single_input = False
         
         # apply transforms and normalization if applicable
         if not normalized_inputs:
@@ -1142,7 +1153,7 @@ class SequenceNNForwardModel(NNForwardModel):
         #     # compute jacobian of the forward model
         #     jac_f = torch.func.jacrev(forward_nn, argnums=0)(test_inputs, test_proxy)
 
-        if sinlge_input:
+        if single_input:
             outputs = outputs.squeeze(0)
 
         return outputs
