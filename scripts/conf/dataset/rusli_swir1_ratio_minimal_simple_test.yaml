@@ -8,7 +8,7 @@ test_size: 1.0 # fraction of the dataset to be used for testing
 val_size: 0.0 # fraction of the training dataset to be used for validation
 
 # point to data files
-data_dir: ${device.data_root}/rusli_test_fixed_rri_3instr/SWIR1_preprocessed
+data_dir: ${device.data_root}/small_test_random_ensemble_500/SWIR1_preprocessed
 # prefix: syn_meas_S5_OPERA_spectrometer_and_polarimeter_selected_wl_3instr
 prefix: syn_meas_s5_random_ensemble_1e6_1
 

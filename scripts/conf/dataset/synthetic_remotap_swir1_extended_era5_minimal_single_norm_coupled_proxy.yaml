@@ -8,7 +8,7 @@ test_size: 0.1 # fraction of the dataset to be used for testing
 val_size: 0.05 # fraction of the training dataset to be used for validation
 
 # point to data files
-data_dir: ${device.data_root}/random_ensemble_1e6_fixed_rri_3instr/SWIR1_preprocessed/combined_nchunks=16
+data_dir: ${device.data_root}/random_ensemble_1e6_fixed_rri_3instr_uniformAOT/SWIR1_preprocessed/combined_nchunks=16
 prefix: syn_meas_s5_random_ensemble_1e6_combined
 # data_dir: ${device.data_root}/random_ensemble_1e6/SWIR1_preprocessed
 # prefix: syn_meas_s5_random_ensemble_1e6_01
@@ -20,7 +20,7 @@ predict_ratio: false
 
 # should be adjusted to the actual number of features and wavelengths in 
 # the dataset (is used to define the model input/output dimensions)
-input_dim: 27 # all features
+input_dim: 123 # all features (27 + 2 * 48)
 output_dim: 851 # all wavelengths
 
 # define input features
@@ -55,9 +55,9 @@ pixel_features:
   - vmol_h2o
   - vmol_co2
   - vmol_ch4
-profile_features: []
-  # - temperature
-  # - pressure
+profile_features:
+  - pressure
+  - temperature
   # - log_specific_humidity
   # - cbrt_specific_humidity
   # - MMR_co2
