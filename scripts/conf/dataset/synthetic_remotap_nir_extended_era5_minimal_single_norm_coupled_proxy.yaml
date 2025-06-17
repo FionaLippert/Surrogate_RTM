@@ -52,7 +52,7 @@ pixel_features:
   - f_sphere_mode2
   - z_aer_mode2
   - vmol_h2o
-profile_features: []
+profile_features:
   # - MMR_h2o
   # - MMR_co2
   # - MMR_ch4
