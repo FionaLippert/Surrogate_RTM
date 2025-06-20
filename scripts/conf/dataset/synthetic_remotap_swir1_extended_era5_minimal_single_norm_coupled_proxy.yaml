@@ -1,5 +1,6 @@
 # @package dataset
 name: synthetic_remotap_swir1_extended_era5_minimal_single_norm_coupled_proxy
+
 _target_: rtm.datasets.uvns_datasets.FlatRTDataset
 
 # don't touch to ensure the same data split is used for all experiments
