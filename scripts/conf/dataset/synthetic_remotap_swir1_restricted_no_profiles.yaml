@@ -19,7 +19,7 @@ predict_difference: false
 
 # should be adjusted to the actual number of features and wavelengths in 
 # the dataset (is used to define the model input/output dimensions)
-input_dim: 20 # all features (27 + 2 * 48 for profile features)
+input_dim: 22 # all features (27 + 2 * 48 for profile features)
 output_dim: 851 # all wavelengths
 
 # define input features
@@ -41,8 +41,8 @@ pixel_features:
   - IRI_mode1
   # - log_N_mode1
   - AOT_550_mode1
-  # - f_sphere_mode1
-  # - z_aer_mode1
+  - f_sphere_mode1
+  - z_aer_mode1
   - reff_mode2
   - veff_mode2
   - RRI_mode2
