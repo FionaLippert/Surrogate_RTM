@@ -114,6 +114,28 @@ class MLP(torch.nn.Module):
         return x
     
 
+class Linear(torch.nn.Module):
+    def __init__(self, n_in, n_out, **kwargs):
+        super().__init__()
+
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_layers = kwargs.get('n_fc_layers', 1)
+
+        self.fc_layer = torch.nn.Linear(n_in, n_out)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+
+        init_weights(self.fc_layer)
+
+    def forward(self, features):
+
+        x = self.fc_layer(features)
+
+        return x
+    
+
 # class MLP(torch.nn.Module):
 #     """
 #     Simple MLP layer with varying layer widths
