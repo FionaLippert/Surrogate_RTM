@@ -524,7 +524,12 @@ class MLPDecoder(Decoder):
 
         if output_activation is not None:
             # add output activation function
-            self.output_activation = getattr(F, output_activation)
+            if hasattr(F, output_activation):
+                self.output_activation = getattr(F, output_activation)
+            elif hasattr(torch, output_activation):
+                self.output_activation = getattr(torch, output_activation)
+            else:
+                raise Warning(f'{output_activation} not found.')
 
         # initialize weights
         self.reset_parameters()

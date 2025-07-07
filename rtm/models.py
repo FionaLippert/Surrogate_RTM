@@ -194,6 +194,8 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                                proxy_targets=proxy_targets,
                                profile_inputs=profile_inputs,
                                train=True)
+        
+        print(f'>>> validation output stats: {outputs.mean(), outputs.std(), outputs.max(), outputs.min()}')
 
         # compute loss function
         targets = self.forward_model.transform_targets(batch['targets'])
@@ -1024,7 +1026,7 @@ class LatentNNForwardModel(NNForwardModel):
         profile_transf = self.prepare_profiles(profile_inputs)
         
         if self.encoder is not None:
-            print(f'Input stats: {inputs.mean(dim=0)}, {inputs.std(dim=0)}')
+            # print(f'Input stats: {inputs.mean(dim=0)}, {inputs.std(dim=0)}')
             inputs = self.encoder.encode(inputs)
 
         if self.proxy_nn is not None:

@@ -29,11 +29,13 @@ class WeightedMSE(torch.nn.Module):
         return self.weight * loss
     
 class RelativeMSE(torch.nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, eps: float = 0.0) -> None:
         super().__init__()
 
+        self.eps = eps
+
     def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        loss = torch.mean(torch.square((outputs - targets) / targets))
+        loss = torch.mean(torch.square((outputs - targets) / (targets + self.eps)))
 
         return loss
 
