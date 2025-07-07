@@ -1024,6 +1024,7 @@ class LatentNNForwardModel(NNForwardModel):
         profile_transf = self.prepare_profiles(profile_inputs)
         
         if self.encoder is not None:
+            print(f'Input stats: {inputs.mean(dim=0)}, {inputs.std(dim=0)}')
             inputs = self.encoder.encode(inputs)
 
         if self.proxy_nn is not None:

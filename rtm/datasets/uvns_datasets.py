@@ -295,6 +295,7 @@ class RTDataset(Dataset):
                       per_wavelength: bool = True,
                       per_layer: bool = False,
                       coupled_proxy: bool = False, 
+                      max_spectral_scaling: bool = False,
                       **kwargs):
         # define indices to use to compute normalization 
         if indices is None: indices = range(len(self))
@@ -321,7 +322,14 @@ class RTDataset(Dataset):
             per_wavelength=per_wavelength
         )
 
-        pixel_norm = rtm_transforms.normalization(pixel_stats) if pixel_stats else None
+        if max_spectral_scaling:
+            # scale spectral data by overall maximum value
+            target_stats['mean'] = 0.0
+            target_stats['std'] = target_stats['max']
+            proxy_stats['mean'] = 0.0
+            proxy_stats['std'] = proxy_stats['max']
+
+        pixel_norm = rtm_transforms.normalization(pixel_stats, ) if pixel_stats else None
         profile_norm = rtm_transforms.normalization(profile_stats) if profile_stats else None
         target_norm = rtm_transforms.normalization(target_stats)
 
@@ -445,10 +453,15 @@ class RTDataset(Dataset):
         n_test = int(test_size * n_total)
         n_train = n_total - n_test
 
-        perm = np.random.RandomState(seed=self.seed).permutation(n_total)
+        if n_train == 0:
+            print('Warning: No training data available. Using unshuffled data for testing.')
+            idx = np.arange(n_total)
+        else:
+            idx = np.random.RandomState(seed=self.seed).permutation(n_total)
 
-        train_indices = perm[:n_train]
-        test_indices = perm[n_train:]
+        # split indices into train and test sets
+        train_indices = idx[:n_train]
+        test_indices = idx[n_train:]
 
         # train_set, test_set = random_split(self, [n_train, n_test], 
                             #   generator=torch.Generator().manual_seed(self.seed))

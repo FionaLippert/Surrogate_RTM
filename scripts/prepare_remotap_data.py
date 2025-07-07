@@ -29,6 +29,8 @@ if __name__ == '__main__':
                         help='maximum solar zenith angle considered')
     parser.add_argument('--vza_threshold', type=float, default=30.0,
                         help='maximum viewing zenith angle considered')
+    parser.add_argument('--nmodes', type=int, default=2,
+                        help='number of aerosol modes to consider (1, 2, or 3)')
     args = parser.parse_args()
 
     gas_names = ['co', 'co2', 'ch4'] # TODO: add o2 
@@ -69,6 +71,7 @@ if __name__ == '__main__':
                                         land_threshold=args.land_threshold,
                                         sza_threshold=args.sza_threshold,
                                         vza_threshold=args.vza_threshold,
+                                        nmodes=args.nmodes
                                         )
 
     if args.n_chunks > 1:

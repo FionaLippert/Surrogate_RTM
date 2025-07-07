@@ -87,6 +87,7 @@ def prepare_data(target_dir: str,
                  land_threshold: float = 0.0,
                  sza_threshold: float = 90.0,
                  vza_threshold: float = 90.0,
+                 nmodes: int = 2
                 ):
     
     os.makedirs(target_dir, exist_ok=True)
@@ -104,7 +105,8 @@ def prepare_data(target_dir: str,
     # load pixel data
     pixel_data = load_pixel_data(data_dir, prefix, wl_range,
                                  gas_names=gas_names, 
-                                 instrument=instrument)
+                                 instrument=instrument,
+                                 nmodes=nmodes)
     if 'proxy' in spectral_data:
         # add proxy radiances as additional features
         pixel_data['proxy'] = spectral_data['proxy']
@@ -301,12 +303,13 @@ def load_pixel_data(data_dir: str,
                       wl_range: Tuple[float, float],
                       gas_names: List[str] = ['co2', 'ch4'],
                       instrument: str = 'instr2_noise0',
+                      nmodes: int = 2,
                      ):
     # load pixel/surface properties that do not come as vertical profiles
     data = {}
     data.update(load_geometry(data_dir, prefix, instrument))
     data.update(load_surface(data_dir, prefix, gas_names))
-    data.update(load_state_vars(data_dir, prefix, wl_range, gases=gas_names))
+    data.update(load_state_vars(data_dir, prefix, wl_range, gases=gas_names, nmodes=nmodes))
 
     return data
 
@@ -415,7 +418,7 @@ def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
     return surface_dict
 
 def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
-    # extract verical meteo profiles from netCDF file
+    # extract vertical meteo profiles from netCDF file
     fname = f'{prefix}-aux.nc'
     var_list = ['specific_humidity', 'temperature']
     ds = xr.open_dataset(osp.join(data_dir, fname))
@@ -479,7 +482,7 @@ def load_state_vars(data_dir: str,
     wl_opt_idx = np.where((wl_opt >= wl_range[0]) & (wl_opt <= wl_range[-1]))[0]
     wl_band = ds['Band_Win'].data
     wl_band_idx = np.where((wl_band >= wl_range[0]) & (wl_band <= wl_range[-1]))[0][0]
-    central_band_idx = ds.sizes['nband_nrw'] + wl_band_idx # num MAP bands + band idx
+    central_band_idx = ds.sizes.get('nband_nrw', 0) + wl_band_idx # num MAP bands + band idx
 
     # extract total aerosol optical thickness at wavelengths within band
     props['AOT'] = ds['Truth_AOT'].data[:, wl_opt_idx].squeeze() # total
@@ -493,6 +496,7 @@ def load_state_vars(data_dir: str,
     # extract mode-specific aerosol parameters
     for m in range(nmodes):
         # aerosol optical thickness
+        print(m, wl_opt_idx, ds['Truth_Mode_AOT'].data.shape)
         props[f'AOT_mode{m+1}'] = ds['Truth_Mode_AOT'].data[:, wl_opt_idx, m].squeeze() # at wavelengths within band
         props[f'AOT_550_mode{m+1}'] = ds[f'Truth_Mode{m+1}_TAU550'].data # at 550nm
 

@@ -507,6 +507,7 @@ class MLPDecoder(Decoder):
                  dec_dims: List[int],
                  dropout_p: float = 0.0,
                  nonlinearity: str = 'relu',
+                 output_activation: str = None,
                  **kwargs
                  ):
         super().__init__()
@@ -521,6 +522,10 @@ class MLPDecoder(Decoder):
 
         self.nonlinearity = getattr(F, nonlinearity)
 
+        if output_activation is not None:
+            # add output activation function
+            self.output_activation = getattr(F, output_activation)
+
         # initialize weights
         self.reset_parameters()
 
@@ -534,6 +539,9 @@ class MLPDecoder(Decoder):
             z = F.dropout(z, p=self.dropout_p, training=self.training)
         # no activation on last layer
         x = self.decoder_layers[-1](z)
+
+        if self.output_activation:
+            x = self.output_activation(x)
         return x
     
 class RTCNNDecoder(Decoder):

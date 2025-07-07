@@ -1,5 +1,5 @@
 # @package dataset
-name: synthetic_remotap_swir1_restricted_no_profiles
+name: synthetic_remotap_swir1_spectrometer_only_max_spectral_scaling
 _target_: rtm.datasets.uvns_datasets.FlatRTDataset
 
 # don't touch to ensure the same data split is used for all experiments
@@ -8,18 +8,17 @@ test_size: 0.1 # fraction of the dataset to be used for testing
 val_size: 0.05 # fraction of the training dataset to be used for validation
 
 # point to data files
-data_dir: ${device.data_root}/random_ensemble_1e6_fixed_rri_3instr_uniformAOT_restricted/SWIR1_preprocessed/combined_nchunks=14
-prefix: syn_meas_s5_random_ensemble_1e6_combined
-# data_dir: ${device.data_root}/random_ensemble_1e6/SWIR1_preprocessed
-# prefix: syn_meas_s5_random_ensemble_1e6_01
+data_dir: ${device.data_root}/simple_s5_spectrometer_only_1e6/SWIR1_preprocessed/combined_nchunks=16
+prefix: syn_meas_s5_random_ensemble_combined
 
 # define output quantity
 target_quantity: radiance
 predict_difference: false
+predict_ratio: false
 
 # should be adjusted to the actual number of features and wavelengths in 
 # the dataset (is used to define the model input/output dimensions)
-input_dim: 22 # all features (27 + 2 * 48 for profile features)
+input_dim: 11 # all features
 output_dim: 851 # all wavelengths
 
 # define input features
@@ -36,21 +35,21 @@ pixel_features:
   # - k_vol
   - albedo
   - reff_mode1
-  - veff_mode1
-  - RRI_mode1
-  - IRI_mode1
+  # - veff_mode1
+  # - RRI_mode1
+  # - IRI_mode1
   # - log_N_mode1
   - AOT_550_mode1
-  - f_sphere_mode1
+  # - f_sphere_mode1
   - z_aer_mode1
-  - reff_mode2
-  - veff_mode2
-  - RRI_mode2
-  - IRI_mode2
+  # - reff_mode2
+  # - veff_mode2
+  # - RRI_mode2
+  # - IRI_mode2
   # - log_N_mode2
-  - AOT_550_mode2
-  - f_sphere_mode2
-  - z_aer_mode2
+  # - AOT_550_mode2
+  # - f_sphere_mode2
+  # - z_aer_mode2
   - vmol_h2o
   - vmol_co2
   - vmol_ch4
@@ -62,19 +61,9 @@ profile_features: []
   # - temperature
 
 
-# # transforms for input features
-# transform: null
-
-# # transforms for output spectra
-# target_transform:
-#   _target_: rtm.transforms.LogTransform
-
-# # transforms for proxy input spectra
-# proxy_transform: null
-
-
 # normalization settings
 normalization:
-  per_wavelength: true # normalize spectral channels separately
+  per_wavelength: false # normalize spectral channels separately
   per_layer: true # normalize vertical layers separately
   coupled_proxy: false # separate proxy and target normalization
+  max_spectral_scaling: true # scale spectral data by overall maximum value
