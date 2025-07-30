@@ -92,6 +92,9 @@ class MLP(torch.nn.Module):
                                         for _ in range(self.n_layers - 1)])
         self.fc_out = torch.nn.Linear(n_hidden, n_out)
 
+        if kwargs.get('use_batch_norm', False):
+            self.batch_norms = nn.ModuleList([nn.BatchNorm1d(n_hidden) for _ in range(self.n_layers)])
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -102,11 +105,15 @@ class MLP(torch.nn.Module):
 
     def forward(self, features):
 
-        x = self.nonlinearity(self.fc_in(features))
+        x = self.fc_in(features)
+        x = self.nonlinearity(x)
         x = F.dropout(x, p=self.dropout_p, training=self.training)
 
-        for l in self.fc_hidden:
-            x = self.nonlinearity(l(x))
+        for i, l in enumerate(self.fc_hidden):
+            x = l(x)
+            if hasattr(self, 'batch_norms'):
+                x = self.batch_norms[i](x)
+            x = self.nonlinearity(x)
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         x = self.fc_out(x)
@@ -454,6 +461,40 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
 
         return self.dropout(x + self.pos_encoding)
+    
+
+##################################################
+# More general Fourier Positional Encoding
+##################################################
+
+class FourierPositionalEncoding(nn.Module):
+    def __init__(self, d_model, lambda_min=1.0, lambda_max=1000.0, dropout=0.0):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        num_freqs = d_model // 2
+        assert d_model % 2 == 0, "d_model must be even"
+
+        # Define frequency progression
+        log_lambdas = torch.linspace(
+            torch.log(torch.tensor(lambda_min)),
+            torch.log(torch.tensor(lambda_max)),
+            steps=num_freqs
+        )
+        lambdas = torch.exp(log_lambdas)  # Shape: [num_freqs]
+        self.register_buffer('frequencies', 2 * torch.pi / lambdas)  # [num_freqs]
+
+    def forward(self, x):
+        """
+        x: Tensor of shape [batch_size, feature_dim]
+           where each entry is a wavelength (e.g., in nm or µm), or pressure level, or similar.
+        Returns: Positional encoding of shape [batch_size, feature_dim, d_model]
+        """
+        freqs = self.frequencies  # Shape: [num_freqs]
+        angles = x.unsqueeze(-1) * freqs.view(1, 1, -1)  # [B, N, num_freqs]
+        encoding = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)  # [B, N, d_model]
+        return self.dropout(x + encoding)
+
     
 
 ##################################################
