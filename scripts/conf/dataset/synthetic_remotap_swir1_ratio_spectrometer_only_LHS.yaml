@@ -33,7 +33,7 @@ pixel_features:
   # - B_pol # XBPDF scale / Maignan M
   # - k_geo
   # - k_vol
-  - albedo
+  - log_albedo
   - reff_mode1
   # - veff_mode1
   # - RRI_mode1
