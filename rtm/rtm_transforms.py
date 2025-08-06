@@ -221,6 +221,89 @@ class LogTransform(RTMTransform):
     def __repr__(self):
         return 'LogTransform()'
     
+class LogTransformSelectedFeatures(RTMTransform):
+    def __init__(self, 
+                 feature_indices: List[int], 
+                 n_features: int,
+                 feature_dim: int = 1,
+):
+        super().__init__()
+        self.feature_indices = feature_indices
+        self.n_features = n_features
+        self.feature_dim = feature_dim
+
+        # assert that all feature indices are within bounds
+        assert all(0 <= idx < n_features for idx in feature_indices), "Feature indices are out of bounds"
+
+        # create a mask for the selected features
+        mask = torch.zeros(n_features, dtype=torch.bool)
+        mask[feature_indices] = True
+
+        
+        if feature_dim > 1:
+            mask = mask.view(-1, 1).expand(-1, feature_dim)
+        self.register_buffer('mask', mask)
+
+    def forward(self, data: torch.Tensor) -> torch.Tensor:
+        # apply log transform to selected features
+
+        # adjust dimensionality to allow for broadcasting
+        new_shape = (-1, ) + (1,) * (data.dim() - self.feature_dim - 1)
+
+        # get minimum value of data type to avoid log(0)
+        min_value = torch.finfo(data.dtype).tiny
+
+        # combine log-transformed data with original data
+        mask = self.mask.view(new_shape).to(data.device)
+        log_data = torch.log(data.clip(min=min_value)) * mask
+        original_data = data * (torch.logical_not(mask))
+        data = log_data + original_data
+
+        return data
+
+    def inverse(self, data: torch.Tensor) -> torch.Tensor:
+        # apply inverse log transform to selected features
+
+        # adjust dimensionality to allow for broadcasting
+        new_shape = (-1, ) + (1,) * (data.dim() - self.feature_dim - 1)
+
+        # combine exp-transformed data with original data
+        mask = self.mask.view(new_shape).to(data.device)
+        exp_data = torch.exp(data) * mask
+        original_data = data * (torch.logical_not(mask))
+        data = exp_data + original_data
+
+        return data
+    
+    
+    def derivative(self, data, **kwargs):
+        # derivative of log transform is 1/data
+        # but only for the selected features
+        # everywhere else it is 1.0
+        new_shape = (-1, ) + (1,) * (data.dim() - self.feature_dim - 1)
+        mask = self.mask.view(new_shape).to(data.device)
+
+        # minimum value of data type to avoid division by zero
+        min_value = torch.finfo(data.dtype).tiny
+
+        # combine derivatives
+        derivative = 1 / data.clip(min=min_value)
+        derivative = derivative * mask + (1 - mask)
+
+        return derivative
+    
+    def __dict_repr__(self):
+        return {'_target_': 'rtm.rtm_transforms.LogTransformSelectedFeatures',
+                'feature_indices': self.feature_indices,
+                'n_features': self.n_features,
+                'feature_dim': self.feature_dim}
+    
+    def __repr__(self):
+        return f'LogTransformSelectedFeatures(' + \
+               f'feature_indices={self.feature_indices}, ' + \
+               f'n_features={self.n_features}, ' + \
+               f'feature_dim={self.feature_dim})'
+
 class PowerTransform(RTMTransform):
     def __init__(self, exponent: float):
         super().__init__()

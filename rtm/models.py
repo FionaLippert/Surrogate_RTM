@@ -921,10 +921,20 @@ class NNForwardModel(torch.nn.Module):
                  profile_inputs: Optional[torch.Tensor] = None,
                  ) -> torch.Tensor:
         
-        # compute jacobian using autograd
-        jac = torch.func.jacrev(self._predict, argnums=0)(inputs, proxy_targets, profile_inputs)
+        # define batch dimensions
+        batch_dims = (0, 0, 0)
+        if proxy_targets is None:
+            batch_dims[1] = None
+        if profile_inputs is None:
+            batch_dims[2] = None
+        
+        # compute jacobian w.r.t. inputs using autograd,
+        # parallelizing over batch dimension
+        f_jac = torch.func.jacrev(self._predict, argnums=0)
+        f_jac_vmap = torch.func.vmap(f_jac, in_dims=batch_dims, out_dims=0)
+        jac = f_jac_vmap(inputs, proxy_targets, profile_inputs)
 
-        return jac
+        return jac # shape (batch_size, n_outputs, n_features)
 
     def jacobian_approx(self,
                         inputs: torch.Tensor,
