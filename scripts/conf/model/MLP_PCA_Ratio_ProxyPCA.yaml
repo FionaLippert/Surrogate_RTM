@@ -1,0 +1,88 @@
+# @package model
+name: MLP_PCA_Ratio_ProxyPCA
+# _target_: rtm.models.NNSurrogateRTM
+_target_: rtm.models.NNSurrogateRTMWrapper
+
+input_dim: ${dataset.input_dim} # all features
+output_dim: ${dataset.output_dim} # all wavelengths
+
+input_latent_dim: 128 #${dataset.input_dim} # all features
+output_latent_dim: 26 # 99.999999% explained variance
+proxy_latent_dim: 26
+hidden_dim: 128
+
+dropout_p: 0.0
+
+loss_terms:
+  - _target_: rtm.loss.WeightedMSE
+    weight: 1.0
+    # log_transformed: false
+
+forward_model:
+  _target_: rtm.models.LatentNNForwardModel
+  core_nn:
+    _target_: rtm.layers.MLP
+    n_in: ${eval:'${model.input_latent_dim} + ${model.proxy_latent_dim}'}
+    n_out: ${model.output_latent_dim}
+    n_hidden: ${model.hidden_dim}
+    n_fc_layers: 5
+    dropout_p: ${model.dropout_p}
+    nonlinearity: relu
+  # encoder:
+  #   _target_: rtm.layers.PCAEncoder
+  #   n_components: ${model.input_latent_dim}
+  #   n_features: ${model.input_dim}
+  #   fixed_components: false
+  encoder:
+    _target_: rtm.dimensionality_reduction.MLPEncoder
+    enc_dims: 
+      - ${model.input_dim}
+      - ${model.input_latent_dim}
+    noise_level: 0.0
+    dropout_p: ${model.dropout_p}
+    bias: true
+    nonlinearity: relu
+  decoder:
+    _target_: rtm.layers.PCADecoder
+    n_components: ${model.output_latent_dim}
+    n_features: ${model.output_dim}
+    fixed_components: true
+  proxy_nn:
+    _target_: rtm.layers.PCAEncoder
+    n_components: ${model.proxy_latent_dim}
+    n_features: ${model.output_dim}
+    fixed_components: true
+  proxy_operation: ratio
+
+
+lr: 1e-3
+l2_reg: 0.0 # 4e-5
+lr_decay: 0.001
+lr_scheduler_interval: step
+lr_schedulers:
+        - _target_: torch.optim.lr_scheduler.LinearLR
+          _partial_: true
+          start_factor: 1e-5
+          end_factor: 1.0
+          total_iters: 5000  # 10 # number of intervals (steps or epochs)
+        - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+          _partial_: true
+          T_max: 145000 #75000 #${trainer.max_epochs}
+          eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
+        - _target_: torch.optim.lr_scheduler.ConstantLR
+          _partial_: true
+          factor: ${model.lr_decay}
+          total_iters: 1e6
+        # - _target_: torch.optim.lr_scheduler.LambdaLR
+        #   _partial_: true
+        #   lr_lambda: 
+        #     _target_: rtm.utils.LRDampenedCosine
+        #     lr_min: ${model.lr_decay}
+        #     lr_max: 1.0
+        #     T_max: 50000
+        #     gamma: 0.99
+        #     gamma_interval: 1000
+lr_milestones:
+       - 5000 # 10
+       - 150000 #80000
+      
