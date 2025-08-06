@@ -191,6 +191,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     # if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
     #     targets = model.output_dim_reduction.encode(targets.to(device))
     model.loss_scale = targets.std().item()
+    print(f'loss scale = {model.loss_scale}')
 
     # train model
     trainer.validate(model, val_loader)
