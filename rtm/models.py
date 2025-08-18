@@ -113,7 +113,8 @@ class SurrogateRTMWrapper(pl.LightningModule):
                        'test/rel_bias': rel_bias,
                        'test/R2': r2,
                        'test/R2_log': r2_log,
-                       })
+                       },
+                       sync_dist=True)
 
     def predict_step(self, batch, batch_idx):
         """reconstruct input and transform back to physical space"""
@@ -204,16 +205,16 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         loss = self.eval_step(batch)
         self.log('train/loss', loss, on_step=True, on_epoch=True, 
-                 prog_bar=True, logger=True)
+                 prog_bar=True, logger=True, sync_dist=True)
         self.log('train/log_loss', torch.log(loss), on_step=True, 
-                 on_epoch=True, prog_bar=True, logger=True)
+                 on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
         return loss
             
     def validation_step(self, batch, batch_idx):
         loss = self.eval_step(batch)
-        self.log('val/loss', loss, on_epoch=True, logger=True)
-        self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True)
+        self.log('val/loss', loss, on_epoch=True, logger=True, sync_dist=True)
+        self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
@@ -407,7 +408,8 @@ class SurrogateRTM(pl.LightningModule):
                        'test/rel_bias': rel_bias,
                        'test/R2': r2,
                        'test/R2_log': r2_log,
-                       })
+                       },
+                       sync_dist=True)
 
     def predict_step(self, batch, batch_idx):
         """reconstruct input and transform back to physical space"""
@@ -508,16 +510,16 @@ class NNSurrogateRTM(SurrogateRTM):
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         loss = self.eval_step(batch)
         self.log('train/loss', loss, on_step=True, on_epoch=True, 
-                 prog_bar=True, logger=True)
+                 prog_bar=True, logger=True, sync_dist=True)
         self.log('train/log_loss', torch.log(loss), on_step=True, 
-                 on_epoch=True, prog_bar=True, logger=True)
+                 on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
         return loss
             
     def validation_step(self, batch, batch_idx):
         loss = self.eval_step(batch)
-        self.log('val/loss', loss, on_epoch=True, logger=True)
-        self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True)
+        self.log('val/loss', loss, on_epoch=True, logger=True, sync_dist=True)
+        self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)

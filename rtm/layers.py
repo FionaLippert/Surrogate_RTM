@@ -502,7 +502,7 @@ class FourierPositionalEncoding(nn.Module):
 ##################################################
 
 class ResidualBlock1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, dropout_p=0.0):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, nonlinearity='relu', dropout_p=0.0):
         super().__init__()
 
         padding = (kernel_size - 1) // 2  # To maintain the same sequence length after the convolution
@@ -510,7 +510,8 @@ class ResidualBlock1D(nn.Module):
         self.bn1 = nn.BatchNorm1d(out_channels)
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=padding)
         self.bn2 = nn.BatchNorm1d(out_channels)
-        self.relu = nn.ReLU()
+        # self.relu = nn.ReLU()
+        self.nonlinearity = getattr(F, nonlinearity)
 
         # TODO: identify correct position to place dropout within the residual block
         # self.droupout = nn.Dropout(p=dropout_p)
@@ -526,10 +527,10 @@ class ResidualBlock1D(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu(out)
+        out = self.nonlinearity(out)
         out = self.conv2(out)
         out = self.bn2(out)
 
         out = out + shortcut
-        out = self.relu(out)
+        out = self.nonlinearity(out)
         return out

@@ -530,6 +530,8 @@ class MLPDecoder(Decoder):
                 self.output_activation = getattr(torch, output_activation)
             else:
                 raise Warning(f'{output_activation} not found.')
+        else:
+            self.output_activation = None
 
         # initialize weights
         self.reset_parameters()
