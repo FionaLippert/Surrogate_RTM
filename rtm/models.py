@@ -194,8 +194,6 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                                proxy_targets=proxy_targets,
                                profile_inputs=profile_inputs,
                                train=True)
-        
-        print(f'>>> validation output stats: {outputs.mean(), outputs.std(), outputs.max(), outputs.min()}')
 
         # compute loss function
         targets = self.forward_model.transform_targets(batch['targets'])
@@ -1781,16 +1779,20 @@ class Transformer(torch.nn.Module):
     
 
 class ResNet1D(torch.nn.Module):
-    def __init__(self, n_channels: List[int], n_out: int = 1, kernel_size: int = 3, stride: int = 1, **kwargs):
+    def __init__(self, n_channels: List[int], n_out: int = 1, 
+                 kernel_size: int = 3, stride: int = 1, **kwargs):
         super().__init__()
 
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_channels = kwargs.get('n_fc_layers', 1)
         self.is_sequence_model = True
 
+        nonlinearity = kwargs.get('nonlinearity', 'relu')
+
         self.layers = nn.ModuleList([
             layers.ResidualBlock1D(n_channels[i], n_channels[i+1], 
-                                   kernel_size=kernel_size, stride=stride, 
+                                   kernel_size=kernel_size, stride=stride,
+                                   nonlinearity=nonlinearity, 
                                    dropout_p=self.dropout_p)
                                    for i in range(len(n_channels) - 1)
         ])
