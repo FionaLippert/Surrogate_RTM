@@ -24,8 +24,8 @@ callbacks:
     # dirpath: ${trainer.default_root_dir}
   - _target_: rtm.callbacks.GradNormCallback
 
-# gradient_clip_algorithm: value
-# gradient_clip_val: 0
+gradient_clip_algorithm: value
+gradient_clip_val: 1.0
 # for debugging
 # overfit_batches: 10
 # track_grad_norm: 2
