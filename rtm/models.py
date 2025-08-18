@@ -879,13 +879,16 @@ class NNForwardModel(torch.nn.Module):
                         outputs: torch.Tensor,
                         proxy_targets: Optional[torch.Tensor] = None,
                         train: Optional[bool] = False,
+                        combine_with_proxy: Optional[bool] = True,
                         ) -> torch.Tensor:
         
         if not train:
             # undo normalization and transforms if applicable
             if self.target_transform is not None:
                 outputs = self.target_transform.inverse(outputs)
-            outputs = self.combine_with_proxy(outputs, proxy_targets)
+
+            if combine_with_proxy and proxy_targets is not None:
+                outputs = self.combine_with_proxy(outputs, proxy_targets)
 
         return outputs
     
@@ -895,6 +898,7 @@ class NNForwardModel(torch.nn.Module):
                 profile_inputs: Optional[torch.Tensor] = None,
                 train: Optional[bool] = False,
                 normalized_inputs: Optional[bool] = False,
+                combine_with_proxy: Optional[bool] = True,
                 ) -> torch.Tensor:
         """Run neural network forward model"""
         raise NotImplementedError
@@ -904,6 +908,7 @@ class NNForwardModel(torch.nn.Module):
                 proxy_targets: torch.Tensor, 
                 profile_inputs: torch.Tensor,
                 normalized_inputs: Optional[bool] = False,
+                combine_with_proxy: Optional[bool] = True,
                 ) -> torch.Tensor:
         
         # make prediction (in eval mode)
@@ -911,33 +916,110 @@ class NNForwardModel(torch.nn.Module):
                             proxy_targets=proxy_targets,
                             profile_inputs=profile_inputs,
                             train=False,
-                            normalized_inputs=normalized_inputs)
+                            normalized_inputs=normalized_inputs,
+                            combine_with_proxy=combine_with_proxy)
     
     def jacobian_exact(self, 
                  inputs: torch.Tensor,
                  proxy_targets: Optional[torch.Tensor] = None,
                  profile_inputs: Optional[torch.Tensor] = None,
+                 proxy_jacobian: Optional[torch.Tensor] = None,
                  ) -> torch.Tensor:
+        """
+        Compute exact jacobian using autograd.
+        """
+        
+        if inputs.dim() == 1:
+            # add batch dimension if inputs are 1D
+            inputs = inputs.unsqueeze(0)
+            if proxy_targets is not None:
+                proxy_targets = proxy_targets.unsqueeze(0)
+            if profile_inputs is not None:
+                profile_inputs = profile_inputs.unsqueeze(0)
+            if proxy_jacobian is not None:
+                proxy_jacobian = proxy_jacobian.unsqueeze(0)
+            dim = 1
+        else:
+            dim = inputs.dim()
         
         # define batch dimensions
-        batch_dims = (0, 0, 0)
+        batch_dims = [0, 0, 0, None, None]
         if proxy_targets is None:
             batch_dims[1] = None
         if profile_inputs is None:
             batch_dims[2] = None
+        batch_dims = tuple(batch_dims)
         
         # compute jacobian w.r.t. inputs using autograd,
         # parallelizing over batch dimension
         f_jac = torch.func.jacrev(self._predict, argnums=0)
         f_jac_vmap = torch.func.vmap(f_jac, in_dims=batch_dims, out_dims=0)
-        jac = f_jac_vmap(inputs, proxy_targets, profile_inputs)
+
+        # for ratio or diff models, compute jacobian for correction term only 
+        # i.e. without combining it with proxy
+        combine_with_proxy = False
+        normalized_inputs = False
+        jac = f_jac_vmap(inputs, 
+                         proxy_targets, 
+                         profile_inputs, 
+                         normalized_inputs, 
+                         combine_with_proxy)
+
+        # if applicable, combine with proxy jacobian
+        jac = self.combine_jacobians(jac, proxy_jacobian, inputs, proxy_targets, profile_inputs)
+
+        if dim == 1:
+            # remove batch dimension if inputs were 1D
+            jac = jac.squeeze(0)
 
         return jac # shape (batch_size, n_outputs, n_features)
+    
+    def combine_jacobians(self,
+                          jac: torch.Tensor,
+                          proxy_jacobian: torch.Tensor,
+                          inputs: torch.Tensor,
+                          proxy_targets: torch.Tensor,
+                          profile_inputs: Optional[torch.Tensor] = None,
+                          ) -> torch.Tensor:
+        """
+        Combine jacobian of the neural network with the jacobian of the proxy targets.
+        """
+        
+        if self.proxy_operation == 'ratio':
+            # if proxy_operation is "ratio", apply chain rule to combine jacobians
+            assert proxy_jacobian is not None, \
+                'Proxy jacobian must be provided for Jacobian computation.'
+            assert proxy_targets is not None, \
+                'Proxy targets must be provided for Jacobian computation.'
+
+            # first, get correction factor (without combining with proxy)
+            correction_factor = self._predict(inputs, 
+                                              proxy_targets, 
+                                              profile_inputs, 
+                                              normalized_inputs=False,
+                                              combine_with_proxy=False)
+            # apply chain rule to combine jacobians
+            # jac = correction_factor * proxy_jacobian + proxy_targets * jac_correction
+            # correction_factor has shape (batch_size, n_outputs)
+            # proxy_jacobian has shape (batch_size, n_outputs, n_features)
+            # jac has shape (batch_size, n_outputs, n_features)
+            jac = correction_factor.unsqueeze(-1) * proxy_jacobian + proxy_targets.unsqueeze(-1) * jac
+
+        elif self.proxy_operation == 'difference':
+            # if proxy operation is "difference", we can just add the two jacobians
+
+            assert proxy_jacobian is not None, \
+                'Proxy jacobian must be provided for Jacobian computation.'
+            
+            jac = jac + proxy_jacobian
+
+        return jac
 
     def jacobian_approx(self,
                         inputs: torch.Tensor,
                         proxy_targets: Optional[torch.Tensor] = None,
                         profile_inputs: Optional[torch.Tensor] = None,
+                        proxy_jacobian: Optional[torch.Tensor] = None,
                         feature_indices: Optional[List[int]] = None,
                         eps: Optional[Union[float, List[float]]] = 1e-6,
                         rel_eps: Optional[bool] = False,
@@ -945,13 +1027,27 @@ class NNForwardModel(torch.nn.Module):
                         ) -> torch.Tensor:
         """
         Compute jacobian using finite differences.
-
-        TODO: compute this only for relevant features (i.e. retrieved state vector)
-        
         """
 
-        # forward pass
-        base_output = self._predict(inputs, proxy_targets, profile_inputs)
+        if inputs.dim() == 1:
+            # add batch dimension if inputs are 1D
+            inputs = inputs.unsqueeze(0)
+            if proxy_targets is not None:
+                proxy_targets = proxy_targets.unsqueeze(0)
+            if profile_inputs is not None:
+                profile_inputs = profile_inputs.unsqueeze(0)
+            if proxy_jacobian is not None:
+                proxy_jacobian = proxy_jacobian.unsqueeze(0)
+            dim = 1
+        else:
+            dim = inputs.dim()
+
+        # forward pass (for correction term only, without combining with proxy)
+        base_output = self._predict(inputs, 
+                                    proxy_targets, 
+                                    profile_inputs, 
+                                    normalized_inputs=False, 
+                                    combine_with_proxy=False)
         n_outputs = base_output.size(1)
         batch_size = inputs.size(0)
         n_features = inputs.size(1)
@@ -977,17 +1073,27 @@ class NNForwardModel(torch.nn.Module):
             perturbed_output_fwd = self._predict(inputs + h, 
                                              proxy_targets, 
                                              profile_inputs,
-                                             normalized_inputs=False)
+                                             normalized_inputs=False,
+                                             combine_with_proxy=False)
 
             if central_difference:
                 perturbed_output_bwd = self._predict(inputs - h,
                                                  proxy_targets,
                                                  profile_inputs,
-                                                 normalized_inputs=False)
+                                                 normalized_inputs=False,
+                                                 combine_with_proxy=False)
                 jac[:, :, i] = 0.5 * (perturbed_output_fwd - perturbed_output_bwd) / eps_i
             else:
                 jac[:, :, i] = (perturbed_output_fwd - base_output) / eps_i
 
+        # if applicable, combine with proxy jacobian
+        jac = self.combine_jacobians(jac, proxy_jacobian, inputs, proxy_targets, profile_inputs)
+
+        if dim == 1:
+            # remove batch dimension if inputs were 1D
+            jac = jac.squeeze(0)
+
+        # jac has shape (batch_size, n_outputs, n_features)
         return jac
 
     
@@ -1023,6 +1129,7 @@ class LatentNNForwardModel(NNForwardModel):
                 profile_inputs: Optional[torch.Tensor] = None,
                 train: Optional[bool] = False,
                 normalized_inputs: Optional[bool] = False,
+                combine_with_proxy: Optional[bool] = True,
                 ) -> torch.Tensor:
         # predicts radiance spectrum from input features, and optionally proxy spectra
 
@@ -1049,7 +1156,7 @@ class LatentNNForwardModel(NNForwardModel):
         # undo any transforms and normalization, 
         # and combine with proxy targets if applicable
         # proxy_targets = kwargs.get('proxy_targets', None)
-        outputs = self.prepare_outputs(outputs, proxy_targets, train)
+        outputs = self.prepare_outputs(outputs, proxy_targets, train, combine_with_proxy)
 
         return outputs
     
@@ -1089,6 +1196,7 @@ class SequenceNNForwardModel(NNForwardModel):
                 profile_inputs: Optional[torch.Tensor] = None,
                 train: Optional[bool] = False,
                 normalized_inputs: Optional[bool] = False,
+                combine_with_proxy: Optional[bool] = True,
                 ) -> torch.Tensor:
         
         if inputs.dim() == 1:
@@ -1158,7 +1266,7 @@ class SequenceNNForwardModel(NNForwardModel):
         # undo any normalization and transforms,
         # and combine with proxy targets if applicable
         # proxy_targets = kwargs.get('proxy_targets', None)
-        outputs = self.prepare_outputs(outputs, proxy_targets, train)
+        outputs = self.prepare_outputs(outputs, proxy_targets, train, combine_with_proxy)
 
         # if compute_jac:
         #     # compute jacobian of the forward model
