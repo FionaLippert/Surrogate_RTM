@@ -23,14 +23,14 @@ def multiply_values(*values):
     return reduce(mul, values)
 def add_values(*values):
     return sum(values)
-def count(*values):
-    return len(values)
+# def count(values):
+#     return len(values)
 
 OmegaConf.register_new_resolver("join_paths", join_paths)
 OmegaConf.register_new_resolver("add_values", add_values)
 OmegaConf.register_new_resolver("multiply_values", multiply_values)
 OmegaConf.register_new_resolver("eval", eval)
-OmegaConf.register_new_resolver("count", count)
+OmegaConf.register_new_resolver("len", len)
 
 # run with CUDA_LAUNCH_BLOCKING=1
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
