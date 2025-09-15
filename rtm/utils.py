@@ -6,9 +6,15 @@ from torch.optim.lr_scheduler import ChainedScheduler
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 
-from typing import Callable, Union, List, Dict, Tuple
+from typing import Callable, Union, List, Dict, Tuple, Optional
+from typing_extensions import TypeAlias
 
 from rtm.constants import constants
+
+from torch.types import Storage
+MAP_LOCATION: TypeAlias = Optional[
+    Union[Callable[[Storage, str], Storage], torch.device, str, dict[str, str]]
+]
 
 ##################################################
 # S5 specific functions
@@ -563,9 +569,9 @@ def load_model_from_hydra_config(hydra_config: Dict) -> torch.nn.Module:
 
     return model
 
-def load_model_from_checkpoint(checkpoint: Dict) -> torch.nn.Module:
+def load_model_from_checkpoint(checkpoint: Dict, map_location: MAP_LOCATION = None) -> torch.nn.Module:
     # load model from checkpoint
     model = load_model_from_hydra_config(checkpoint['hydra_config'])
-    model.load_model_state(checkpoint)
+    model.load_model_state(checkpoint, map_location=map_location)
 
     return model

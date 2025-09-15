@@ -450,8 +450,11 @@ class RTDataset(Dataset):
     def get_data_split(self, test_size: float = 0.2):
 
         n_total = len(self)
+        print(f'Total number of data points: {n_total}')
         n_test = int(test_size * n_total)
         n_train = n_total - n_test
+
+        print(f'Train size: {n_train}, Test size: {n_test}')
 
         if n_train == 0:
             print('Warning: No training data available. Using unshuffled data for testing.')
