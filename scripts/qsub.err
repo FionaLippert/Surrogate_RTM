@@ -1,0 +1,595 @@
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_094039-gdgf9w0q
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run leafy-valley-30
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/gdgf9w0q
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 272, in <module>
+    forward_model, checkpoint = load_model_from_wandb(run, config['run_path'])
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 149, in load_model_from_wandb
+    checkpoint = torch.load(os.path.join(artifact_dir, 'model.ckpt'))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 1025, in load
+    return _load(opened_zipfile,
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 1446, in _load
+    result = unpickler.load()
+             ^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 1416, in persistent_load
+    typed_storage = load_tensor(dtype, nbytes, key, _maybe_decode_ascii(location))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 1390, in load_tensor
+    wrap_storage=restore_location(storage, location),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 390, in default_restore_location
+    result = fn(storage, location)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 265, in _cuda_deserialize
+    device = validate_cuda_device(location)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 249, in validate_cuda_device
+    raise RuntimeError('Attempting to deserialize object on a CUDA '
+RuntimeError: Attempting to deserialize object on a CUDA device but torch.cuda.is_available() is False. If you are running on a CPU-only machine, please use torch.load with map_location=torch.device('cpu') to map your storages to the CPU.
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.014 MB of 0.014 MB uploadedwandb: / 0.014 MB of 0.016 MB uploadedwandb: - 0.014 MB of 0.019 MB uploadedwandb: 🚀 View run leafy-valley-30 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/gdgf9w0q
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_094039-gdgf9w0q/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_094811-obp9ydpc
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run smart-spaceship-31
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/obp9ydpc
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 272, in <module>
+    forward_model, checkpoint = load_model_from_wandb(run, config['run_path'])
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 149, in load_model_from_wandb
+    checkpoint = torch.load(os.path.join(artifact_dir, 'model.ckpt'))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 1025, in load
+    return _load(opened_zipfile,
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 1446, in _load
+    result = unpickler.load()
+             ^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 1416, in persistent_load
+    typed_storage = load_tensor(dtype, nbytes, key, _maybe_decode_ascii(location))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 1390, in load_tensor
+    wrap_storage=restore_location(storage, location),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 390, in default_restore_location
+    result = fn(storage, location)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 265, in _cuda_deserialize
+    device = validate_cuda_device(location)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/serialization.py", line 249, in validate_cuda_device
+    raise RuntimeError('Attempting to deserialize object on a CUDA '
+RuntimeError: Attempting to deserialize object on a CUDA device but torch.cuda.is_available() is False. If you are running on a CPU-only machine, please use torch.load with map_location=torch.device('cpu') to map your storages to the CPU.
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.014 MB of 0.016 MB uploadedwandb: / 0.019 MB of 0.019 MB uploadedwandb: 🚀 View run smart-spaceship-31 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/obp9ydpc
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_094811-obp9ydpc/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_094920-8mwdze7x
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run swept-wood-32
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/8mwdze7x
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.014 MB of 0.014 MB uploadedwandb: / 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run swept-wood-32 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/8mwdze7x
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_094920-8mwdze7x/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: - Waiting for wandb.init()...wandb: \ Waiting for wandb.init()...wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_100312-h4hqtj3v
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run sandy-cloud-33
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/h4hqtj3v
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py:307: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+  sn.boxplot(x='dataset', y='residuals', data=df, ax=ax_box[i],
+/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py:307: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+  sn.boxplot(x='dataset', y='residuals', data=df, ax=ax_box[i],
+/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py:352: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+  sn.boxplot(x='dataset', y='residuals', data=df, ax=ax_box[-1],
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.018 MB of 0.018 MB uploadedwandb: 🚀 View run sandy-cloud-33 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/h4hqtj3v
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_100312-h4hqtj3v/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_102150-sjgk450n
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run dark-surf-34
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/sjgk450n
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run dark-surf-34 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/sjgk450n
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_102150-sjgk450n/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_104041-afj4qovb
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run eager-forest-35
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/afj4qovb
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.016 MB of 0.017 MB uploadedwandb: 🚀 View run eager-forest-35 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/afj4qovb
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_104041-afj4qovb/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_110222-27flo0fs
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run autumn-wildflower-36
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/27flo0fs
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run autumn-wildflower-36 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/27flo0fs
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_110222-27flo0fs/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: - Waiting for wandb.init()...wandb: \ Waiting for wandb.init()...wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_111531-148dr60e
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run rosy-shape-37
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/148dr60e
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 316, in <module>
+    min_data, max_data = get_data_ranges(datasets[name])
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 225, in get_data_ranges
+    for i in range(dataset.dims['npix']):
+                   ^^^^^^^^^^^^
+AttributeError: 'FlatRTDataset' object has no attribute 'dims'
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.014 MB of 0.014 MB uploadedwandb: / 0.017 MB of 0.017 MB uploadedwandb: - 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run rosy-shape-37 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/148dr60e
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_111531-148dr60e/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_112151-5naxk5ng
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run astral-shadow-38
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/5naxk5ng
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run astral-shadow-38 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/5naxk5ng
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_112151-5naxk5ng/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_122332-guxpzktn
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run trim-waterfall-39
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/guxpzktn
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 391, in <module>
+    ax=ax_box[0], showfliers=False, width=0.5, gap=0.1, linewidth=1.5)
+       ~~~~~~^^^
+TypeError: 'AxesSubplot' object is not subscriptable
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.014 MB of 0.014 MB uploadedwandb: / 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run trim-waterfall-39 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/guxpzktn
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_122332-guxpzktn/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_122741-cbh05wwa
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run splendid-blaze-40
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/cbh05wwa
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run splendid-blaze-40 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/cbh05wwa
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_122741-cbh05wwa/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_125441-c0ymozwm
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run sunny-sunset-41
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/c0ymozwm
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.014 MB of 0.014 MB uploadedwandb: / 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run sunny-sunset-41 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/c0ymozwm
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_125441-c0ymozwm/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_131610-kec5nhpd
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run fluent-pine-42
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/kec5nhpd
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run fluent-pine-42 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/kec5nhpd
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_131610-kec5nhpd/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: - Waiting for wandb.init()...wandb: \ Waiting for wandb.init()...wandb: | Waiting for wandb.init()...wandb: / Waiting for wandb.init()...wandb: - Waiting for wandb.init()...wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_143939-vd4nqiik
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run swift-fog-43
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/vd4nqiik
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run swift-fog-43 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/vd4nqiik
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_143939-vd4nqiik/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_174852-fhiemght
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run eager-hill-44
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/fhiemght
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 407, in <module>
+    sn.boxplot(x='model', y='residuals', data=df, hue='dataset',
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/seaborn/categorical.py", line 1634, in boxplot
+    p.plot_boxes(
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/seaborn/categorical.py", line 639, in plot_boxes
+    value_data = [x.to_numpy() for _, x in grouped]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/seaborn/categorical.py", line 639, in <listcomp>
+    value_data = [x.to_numpy() for _, x in grouped]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/groupby/ops.py", line 605, in get_iterator
+    yield from zip(keys, splitter)
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/groupby/ops.py", line 1145, in __iter__
+    sdata = self._sorted_data
+            ^^^^^^^^^^^^^^^^^
+  File "properties.pyx", line 36, in pandas._libs.properties.CachedProperty.__get__
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/groupby/ops.py", line 1159, in _sorted_data
+    return self.data.take(self._sort_idx, axis=self.axis)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/generic.py", line 4068, in take
+    new_data = self._mgr.take(
+               ^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/internals/managers.py", line 877, in take
+    return self.reindex_indexer(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/internals/managers.py", line 663, in reindex_indexer
+    new_blocks = self._slice_take_blocks_ax0(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/internals/managers.py", line 756, in _slice_take_blocks_ax0
+    blk.take_nd(
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/internals/blocks.py", line 1061, in take_nd
+    new_values = algos.take_nd(
+                 ^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/array_algos/take.py", line 118, in take_nd
+    return _take_nd_ndarray(arr, indexer, axis, fill_value, allow_fill)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/pandas/core/array_algos/take.py", line 156, in _take_nd_ndarray
+    out = np.empty(out_shape, dtype=dtype, order="F")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+numpy.core._exceptions._ArrayMemoryError: Unable to allocate 3.80 GiB for an array with shape (510600000,) and data type float64
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.020 MB of 0.020 MB uploadedwandb: 🚀 View run eager-hill-44 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/fhiemght
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_174852-fhiemght/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_225420-50yv3b35
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run cool-lake-45
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/50yv3b35
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 315, in <module>
+    rel_res = relative_residuals(model, datasets[name]).numpy()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 210, in relative_residuals
+    pred, gt = make_predictions(forward_model, dataset, non_scattering=non_scattering)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 198, in make_predictions
+    pred = forward_model(dataset.pixel_data, dataset.proxy).detach()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/rtm/models.py", line 1256, in forward
+    inputs = torch.cat([inputs, proxy], dim=-1)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: [enforce fail at alloc_cpu.cpp:117] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 108928000000 bytes. Error code 12 (Cannot allocate memory)
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.016 MB uploadedwandb: | 0.014 MB of 0.019 MB uploadedwandb: / 0.019 MB of 0.019 MB uploadedwandb: 🚀 View run cool-lake-45 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/50yv3b35
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_225420-50yv3b35/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_230312-c6nkpchb
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run swept-cloud-46
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/c6nkpchb
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 315, in <module>
+    rel_res = relative_residuals(model, datasets[name]).numpy()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 210, in relative_residuals
+    pred, gt = make_predictions(forward_model, dataset, non_scattering=non_scattering)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 198, in make_predictions
+    pred = forward_model(dataset.pixel_data, dataset.proxy).detach()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/rtm/models.py", line 1266, in forward
+    outputs = self.sequence_module(inputs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/rtm/models.py", line 1818, in forward
+    x = layer(x)
+        ^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/rtm/layers.py", line 526, in forward
+    shortcut = self.shortcut(x)
+               ^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/conv.py", line 310, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/torch/nn/modules/conv.py", line 306, in _conv_forward
+    return F.conv1d(input, weight, bias, self.stride,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: [enforce fail at alloc_cpu.cpp:117] err == 0. DefaultCPUAllocator: can't allocate memory: you tried to allocate 87142400000 bytes. Error code 12 (Cannot allocate memory)
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.021 MB of 0.021 MB uploadedwandb: 🚀 View run swept-cloud-46 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/c6nkpchb
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_230312-c6nkpchb/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250820_234622-rx0mud30
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run devout-spaceship-47
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/rx0mud30
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run devout-spaceship-47 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/rx0mud30
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250820_234622-rx0mud30/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250821_003132-cus5i6e6
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run devoted-monkey-48
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/cus5i6e6
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run devoted-monkey-48 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/cus5i6e6
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250821_003132-cus5i6e6/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250821_075751-8bzv5lqe
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run honest-sun-49
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/8bzv5lqe
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.017 MB of 0.017 MB uploadedwandb: 🚀 View run honest-sun-49 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/8bzv5lqe
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250821_075751-8bzv5lqe/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250821_102151-g0rabo2v
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run northern-bush-50
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/g0rabo2v
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250821_144641-ye5i2j10
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run super-firebrand-51
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/ye5i2j10
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 358, in <module>
+    rel_res = get_retrieval_residuals_all_iterations(ret_results,
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 155, in get_retrieval_residuals_all_iterations
+    mask = np.logical_and(mask, np.all(inputs >= min_data, axis=1))
+                                       ^^^^^^^^^^^^^^^^^^
+ValueError: operands could not be broadcast together with shapes (49950,11) (8,) 
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.014 MB of 0.015 MB uploadedwandb: / 0.018 MB of 0.018 MB uploadedwandb: 🚀 View run super-firebrand-51 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/ye5i2j10
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250821_144641-ye5i2j10/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: flippert. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.21.1 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.17.3
+wandb: Run data is saved locally in /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/wandb/run-20250821_154442-kkphjpv1
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run zany-grass-52
+wandb: ⭐️ View project at https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: 🚀 View run at https://wandb.ai/flippert/surrogate_rtm-scripts/runs/kkphjpv1
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+wandb:   1 of 1 files downloaded.  
+Traceback (most recent call last):
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/xarray/core/concat.py", line 230, in concat
+    first_obj, objs = utils.peek_at(objs)
+                      ^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/xarray/core/utils.py", line 188, in peek_at
+    peek = next(gen)
+           ^^^^^^^^^
+StopIteration
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 358, in <module>
+    ret_results = load_retrieval_results(retrieval_path, model_dict[name]['retrieval_dirname'], iwin=iwin)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/compare_model_performance.py", line 100, in load_retrieval_results
+    ds_ret_data = xr.concat(ds_list, dim='npix')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/deos/fional/anaconda3/envs/sron_pytorch/lib/python3.11/site-packages/xarray/core/concat.py", line 232, in concat
+    raise ValueError("must supply at least one object to concatenate")
+ValueError: must supply at least one object to concatenate
+wandb: - 0.014 MB of 0.014 MB uploadedwandb: \ 0.014 MB of 0.014 MB uploadedwandb: | 0.014 MB of 0.016 MB uploadedwandb: / 0.018 MB of 0.018 MB uploadedwandb: 🚀 View run zany-grass-52 at: https://wandb.ai/flippert/surrogate_rtm-scripts/runs/kkphjpv1
+wandb: ⭐️ View project at: https://wandb.ai/flippert/surrogate_rtm-scripts
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250821_154442-kkphjpv1/logs
+wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
