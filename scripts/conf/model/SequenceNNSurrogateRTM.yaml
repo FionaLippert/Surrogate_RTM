@@ -10,6 +10,8 @@ input_latent_dim: 64
 
 dropout_p: 0.0
 
+nonlinearity: relu
+
 loss_terms:
   - _target_: rtm.loss.WeightedMSE
     weight: 1.0
@@ -27,7 +29,7 @@ input_dim_reduction:
   noise_level: 0.0
   dropout_p: ${model.dropout_p}
   bias: true
-  nonlinearity: relu
+  nonlinearity: ${model.nonlinearity}
 
 
 pos_encoding:

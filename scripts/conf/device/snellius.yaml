@@ -4,4 +4,5 @@ root: ${oc.env:HOME}/SRON/surrogate_rtm
 data_root: /projects/0/prjs1294/data/remotap
 output_dir: /projects/0/prjs1294/output
 accelerator: gpu
-devices: 1
+devices: -1 # use all available GPUs
+distributed_backend: ddp
