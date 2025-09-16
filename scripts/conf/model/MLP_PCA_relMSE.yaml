@@ -12,6 +12,7 @@ hidden_dim: 128
 
 dropout_p: 0.0
 
+
 loss_terms:
   - _target_: rtm.loss.RelativeMSE
     eps: 0.01
@@ -25,7 +26,7 @@ forward_model:
     n_hidden: ${model.hidden_dim}
     n_fc_layers: 4
     dropout_p: ${model.dropout_p}
-    nonlinearity: gelu
+    nonlinearity: ${model.nonlinearity}
   # encoder:
   #   _target_: rtm.layers.PCAEncoder
   #   n_components: ${model.input_latent_dim}
@@ -39,14 +40,14 @@ forward_model:
     noise_level: 0.0
     dropout_p: ${model.dropout_p}
     bias: true
-    nonlinearity: gelu
+    nonlinearity: ${model.nonlinearity}
   decoder:
     _target_: rtm.dimensionality_reduction.MLPDecoder
     dec_dims: 
       - ${model.output_latent_dim}
       - ${model.output_dim}
     output_activation: softplus
-    nonlinearity: gelu
+    nonlinearity: ${model.nonlinearity}
     noise_level: 0.0
     dropout_p: ${model.dropout_p}
     bias: true

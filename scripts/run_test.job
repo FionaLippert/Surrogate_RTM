@@ -15,7 +15,59 @@ export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
 cd $HOME/SRON/surrogate_rtm/scripts
 source activate rtm_env
 
-model_path="/projects/0/prjs1294/output/results/extended_random_ensemble_swir1_final/default/logs/wandb/run-20250416_121300-qodycgcg/files/checkpoints/last.ckpt" # PCA-NN-PCA
+# model_path="/projects/0/prjs1294/output/results/extended_random_ensemble_swir1_final/default/logs/wandb/run-20250617_141713-czmhhbnk/files/checkpoints/last.ckpt" # base NN-PCA SWIR1
+# model_path="/projects/0/prjs1294/output/results/extended_random_ensemble_swir1_final/default/logs/wandb/run-20250620_130341-0jd0ppi9/files/checkpoints/last.ckpt" # base NN-PCA SWIR1 no profile input
+# model_path="/projects/0/prjs1294/output/results/extended_random_ensemble_swir1_final/default/logs/wandb/run-20250620_133119-8mlbvup6/files/checkpoints/last.ckpt" # ratio NN-PCA SWIR1 no profile input
 
-# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_extended_era5 model=LatentNNSurrogateRTM_new model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir1_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
-srun python train_eval.py device=snellius dataset=geophysical_remotap_swir1_extended_era5 model=LatentNNSurrogateRTM_new model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir1_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+# srun python train_eval.py device=snellius dataset=rusli_swir1_ratio_minimal_simple_test3_no_profiles model=MLP_PCA_Ratio model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir1_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+# srun python train_eval.py device=snellius dataset=rusli_swir1_minimal_simple_test3_no_profiles model=MLP_PCA model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir1_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_extended_era5_minimal_no_profiles model=MLP_PCA model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir1_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+
+# model_path="/projects/0/prjs1294/output/results/extended_random_ensemble_swir3_final/default/logs/wandb/run-20250617_161410-11dwcigm/files/checkpoints/last.ckpt" # base NN-PCA SWIR3
+
+# srun python train_eval.py device=snellius dataset=rusli_swir3_minimal_simple_test model=MLP_PCA model.output_latent_dim=66 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir3_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir3_extended_era5_minimal model=MLP_PCA model.output_latent_dim=66 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_swir3_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+
+# model_path="/projects/0/prjs1294/output/results/extended_random_ensemble_nir_final/default/logs/wandb/run-20250617_164924-7snay74q/files/checkpoints/last.ckpt" # base NN-PCA NIR
+
+# srun python train_eval.py device=snellius dataset=rusli_nir_minimal_simple_test model=MLP_PCA model.output_latent_dim=11 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_nir_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_nir_extended_era5_minimal model=MLP_PCA model.output_latent_dim=11 transforms=log_targets_log_proxy logger.project=extended_random_ensemble_nir_final task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+
+
+
+
+# model_path="/projects/0/prjs1294/output/results/restricted_random_ensemble_swir1/default/logs/wandb/run-20250701_161603-gzavim89/files/checkpoints/last.ckpt" # base NN-PCA SWIR1 no profile input (restricted training set)
+# model_path="/projects/0/prjs1294/output/results/restricted_random_ensemble_swir1/default/logs/wandb/run-20250702_091434-qkh5bbrc/files/checkpoints/last.ckpt" # ratio NN-PCA SWIR1 no profile input (restricted training set)
+# model_path="/projects/0/prjs1294/output/results/restricted_random_ensemble_swir1/default/logs/wandb/run-20250701_165004-7balwg7e/files/checkpoints/last.ckpt" # Linear SWIR1 no profile input (restricted training set)
+# model_path="/projects/0/prjs1294/output/results/restricted_random_ensemble_swir1/default/logs/wandb/run-20250702_121642-x2xeix6k/files/checkpoints/last.ckpt" # medium CNN SWIR1 no profile input (restricted training set)
+# model_path="/projects/0/prjs1294/output/results/restricted_random_ensemble_swir1/default/logs/wandb/run-20250702_111400-ozzj9gq9/files/checkpoints/last.ckpt" # CNN SWIR1 no profile input (restricted training set)
+# model_path="/projects/0/prjs1294/output/results/restricted_random_ensemble_swir1/default/logs/wandb/run-20250702_145829-a1dg7gse/files/checkpoints/last.ckpt" # ratio medium CNN SWIR1 no profile input (restricted training set)
+
+# model_path="/projects/0/prjs1294/output/results/spectrometer_only_swir1/default/logs/wandb/run-20250707_101504-mqiemvgj/files/checkpoints/last.ckpt" # base NN-PCA SWIR1 spectrometer-only
+# model_path="/projects/0/prjs1294/output/results/spectrometer_only_swir1/default/logs/wandb/run-20250707_101354-ue347s0j/files/checkpoints/last.ckpt" # ratio NN-PCA SWIR1 spectrometer-only
+# model_path="/projects/0/prjs1294/output/results/spectrometer_only_swir1/default/logs/wandb/run-20250707_113642-idmuxa8v/files/checkpoints/last.ckpt" # base NN-PCA SWIR1 spectrometer-only, dropout=0.1
+
+model_path="/projects/0/prjs1294/output/results/spectrometer_only_swir1/default/logs/wandb/run-20250709_094503-c2m63tlv/files/checkpoints/last.ckpt" # base NN-PCA SWIR1 spectrometer-only, fixed dataset
+
+srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_spectrometer_only_test_set model=MLP_PCA model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=spectrometer_only_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_spectrometer_only_test_set_prior model=MLP_PCA model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=spectrometer_only_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_ratio_spectrometer_only_test_set model=MLP_PCA_Ratio model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=spectrometer_only_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_restricted_no_profiles_small_test model=MLP_PCA model.output_latent_dim=24 model.forward_model.core_nn.n_fc_layers=2 transforms=log_targets_log_proxy logger.project=restricted_random_ensemble_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_restricted_no_profiles_small_test_reduced_v2_fixed_veff model=MLP_PCA model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=restricted_random_ensemble_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_restricted_no_profiles_small_test_reduced_v2_fixed_veff model=SequenceNNSurrogateRTM_proxy_input_new_medium transforms=log_targets_log_proxy logger.project=restricted_random_ensemble_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_restricted_no_profiles_small_test_retrieval_prior model=SequenceNNSurrogateRTM_proxy_input_new transforms=log_targets_log_proxy logger.project=restricted_random_ensemble_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_ratio_restricted_no_profiles_small_test_reduced_v2_fixed_veff model=SequenceNNSurrogateRTMRatio_proxy_input_new_medium transforms=log_targets_log_proxy logger.project=restricted_random_ensemble_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_ratio_restricted_no_profiles_small_test_reduced_v2_fixed_veff model=MLP_PCA_Ratio model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=restricted_random_ensemble_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_restricted_no_profiles_small_test_reduced_v2_fixed_veff model=Linear model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=restricted_random_ensemble_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path
+
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_restricted_no_profiles model=MLP_PCA model.output_latent_dim=24 transforms=log_targets_log_proxy logger.project=restricted_random_ensemble_swir1 task=eval task.final_eval=true task.save_predictions=true seed=0 task.model_path=$model_path

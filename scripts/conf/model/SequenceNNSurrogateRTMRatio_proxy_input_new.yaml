@@ -11,6 +11,8 @@ proxy_latent_dim: 32
 
 dropout_p: 0.0
 
+nonlinearity: relu
+
 loss_terms:
   - _target_: rtm.loss.WeightedMSE
     weight: 1.0
@@ -27,6 +29,7 @@ forward_model:
       - 64
       - 32
     n_out: 1
+    nonlinearity: ${model.nonlinearity}
     kernel_size: 3
     stride: 1
     dropout_p: ${model.dropout_p}
@@ -38,7 +41,7 @@ forward_model:
     noise_level: 0.0
     dropout_p: ${model.dropout_p}
     bias: true
-    nonlinearity: relu
+    nonlinearity: ${model.nonlinearity}
   pos_encoding:
     _target_: rtm.layers.PositionalEncoding
     d_model: ${add_values:${model.input_latent_dim},${model.proxy_latent_dim}}
@@ -50,7 +53,7 @@ forward_model:
     n_hidden: ${model.proxy_latent_dim}
     n_fc_layers: 1
     dropout_p: ${model.dropout_p}
-    nonlinearity: relu
+    nonlinearity: ${model.nonlinearity}
   profile_module: null
   input_processing: null
   use_proxy_input: true
@@ -93,7 +96,7 @@ lr_schedulers:
           total_iters: 5000  # 10 # number of intervals (steps or epochs)
         - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
           _partial_: true
-          T_max: 145000 #75000 #${trainer.max_epochs}
+          T_max: 75000 #145000 #${trainer.max_epochs}
           eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
         - _target_: torch.optim.lr_scheduler.ConstantLR
           _partial_: true
@@ -110,4 +113,4 @@ lr_schedulers:
         #     gamma_interval: 1000
 lr_milestones:
        - 5000 # 10
-       - 150000 #80000
+       - 80000 #150000
