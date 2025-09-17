@@ -18,7 +18,7 @@ predict_ratio: false
 
 # should be adjusted to the actual number of features and wavelengths in 
 # the dataset (is used to define the model input/output dimensions)
-input_dim: 9 # all features
+input_dim: 10 # all features
 output_dim: 801 # all wavelengths
 
 # define input features
@@ -26,7 +26,7 @@ pixel_features:
   - cos_SolarZenithAngle
   - cos_ViewingZenithAngle
   - RelativeAzimuthAngle_rad # note that Lintran uses this in radians as defined by De Haan et al. (1987)
-  # - ScatteringAngle_rad
+  - ScatteringAngle_rad
   # - surface_pressure_meteo
   # - tropopause_height
   # - surface_elevation_meteo
