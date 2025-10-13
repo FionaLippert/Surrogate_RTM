@@ -155,6 +155,13 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         # list of loss terms making up the overall loss
         self.loss_terms = kwargs.get('loss_terms', [torch.nn.MSELoss()])
 
+        # jacobian regularization
+        jacobian_weights = kwargs.get('jacobian_weights', 1.0)
+        jacobian_weights = torch.tensor(jacobian_weights, dtype=torch.float32)
+        self.register_buffer('jacobian_weights', jacobian_weights)
+        self.jacobian_loss_scale = kwargs.get('jacobian_loss_scale', 0.0)
+        self.jacobian_regularization = self.jacobian_loss_scale > 0.0
+
         # learning rate scheduling
         self.lr_schedulers = kwargs.get('lr_schedulers', None)
         self.lr_milestones = kwargs.get('lr_milestones', None)
@@ -184,7 +191,25 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         return loss
     
-    def eval_step(self, batch) -> torch.Tensor:
+    def jacobian_loss(self, nn_jacobian: torch.Tensor, target_jacobian: torch.Tensor) -> torch.Tensor: 
+        """compute jacobian regularization loss"""
+        if target_jacobian is None:
+            raise ValueError('Target jacobian required for jacobian regularization')
+
+        # mean squared error between jacobians (weighted by jacobian_weights)
+        squared_errors = torch.pow(nn_jacobian - target_jacobian, 2)
+        # weight each input dimension separately
+        weighted_squared_errors = squared_errors * self.jacobian_weights
+        # average over input dimensions, weighted by jacobian_weights
+        weighted_mse = torch.sum(weighted_squared_errors, dim=-1) / torch.sum(self.jacobian_weights)
+        # average over output dimensions
+        jac_loss = torch.mean(weighted_mse)
+        # scale jacobian loss
+        jac_loss = jac_loss * self.jacobian_loss_scale
+
+        return jac_loss
+
+    def eval_step(self, batch, split) -> torch.Tensor:
 
         inputs = batch['inputs']
         proxy_targets = batch.get('proxy_targets', None)
@@ -200,21 +225,54 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         targets = self.forward_model.transform_targets(batch['targets'])
         loss = self.compute_loss(outputs, targets)
 
+        # log loss and log-loss
+        self.log(f'{split}/loss', jac_loss, on_epoch=True, 
+                    on_step=(True if split == 'train' else False),
+                    prog_bar=(True if split == 'train' else False), 
+                    logger=True, sync_dist=True)
+        self.log(f'{split}/log_loss', torch.log(jac_loss), on_epoch=True, 
+                    on_step=(True if split == 'train' else False),
+                    prog_bar=(True if split == 'train' else False), 
+                    logger=True, sync_dist=True)
+
+        # compute jacobian if required for regularization
+        if self.jacobian_regularization:
+            target_jacobian = batch.get('target_jacobian', None)
+            proxy_jacobian = batch.get('proxy_jacobian', None)
+            jacobian = self.jacobian_exact(inputs,
+                                           proxy_targets=proxy_targets,
+                                           profile_inputs=profile_inputs,
+                                           proxy_jacobian=proxy_jacobian)
+            
+            jac_loss = self.jacobian_loss(jacobian, target_jacobian)
+            loss = loss + jac_loss
+
+            # log jacobian loss separately
+            self.log(f'{split}/jacobian_loss', jac_loss, on_epoch=True, 
+                    on_step=(True if split == 'train' else False),
+                    prog_bar=(True if split == 'train' else False), 
+                    logger=True, sync_dist=True)
+            self.log(f'{split}/log_jacobian_loss', torch.log(jac_loss), on_epoch=True, 
+                    on_step=(True if split == 'train' else False),
+                    prog_bar=(True if split == 'train' else False), 
+                    logger=True, sync_dist=True)
+
+
         return loss
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
-        loss = self.eval_step(batch)
-        self.log('train/loss', loss, on_step=True, on_epoch=True, 
-                 prog_bar=True, logger=True, sync_dist=True)
-        self.log('train/log_loss', torch.log(loss), on_step=True, 
-                 on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        loss = self.eval_step(batch, split='train')
+        # self.log('train/loss', loss, on_step=True, on_epoch=True, 
+        #          prog_bar=True, logger=True, sync_dist=True)
+        # self.log('train/log_loss', torch.log(loss), on_step=True, 
+        #          on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
         return loss
             
     def validation_step(self, batch, batch_idx):
-        loss = self.eval_step(batch)
-        self.log('val/loss', loss, on_epoch=True, logger=True, sync_dist=True)
-        self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
+        loss = self.eval_step(batch, split='val')
+        # self.log('val/loss', loss, on_epoch=True, logger=True, sync_dist=True)
+        # self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
@@ -1055,8 +1113,8 @@ class NNForwardModel(torch.nn.Module):
         n_features = inputs.size(1)
 
         # initialize jacobian
-        jac = torch.zeros(batch_size, n_outputs, n_features) #, dtype=inputs.dtype, device=inputs.device)
-        jac = jac.type_as(inputs, device=self.device)
+        jac = torch.zeros(batch_size, n_outputs, n_features, dtype=inputs.dtype, device=inputs.device)
+        # jac = jac.type_as(inputs, device=inputs.device)
 
         if feature_indices is None:
             feature_indices = range(n_features)
