@@ -205,18 +205,21 @@ class RTDataset(Dataset):
         return data_dict
     
     def _collect_pixel_data(self, data_dir: str, prefix: str):
+
+        if self.pixel_features is None:
+            # Nothing to be done here
+            return None
+        
         # load pixel netcdf file
         pixel_file = f'{prefix}_pixel_data.nc'
         ds = xr.open_dataset(osp.join(data_dir, pixel_file))
 
-        # get number of pixels
-        n_pixels = ds.dims['pixelID']
-
         # extract relevant features
         if self.pixel_features == 'all':
-            self.pixel_features = list(ds.data_vars.keys())
-        elif self.pixel_features is None:
-            return None
+            self.pixel_features = list(ds.data_vars.keys())    
+
+        # get number of pixels
+        n_pixels = ds.dims['pixelID']
         
         self.pixel_feature_names = []
         pixel_data = []
@@ -242,6 +245,11 @@ class RTDataset(Dataset):
         return pixel_data # shape: (nobs, nvars)
     
     def _collect_profile_data(self, data_dir: str, prefix: str):
+        
+        if self.profile_features is None:
+            # Nothing to be done here
+            return None
+
         # load profile netcdf file
         profile_file = f'{prefix}_profile_data.nc'
         ds = xr.open_dataset(osp.join(data_dir, profile_file))
@@ -249,8 +257,6 @@ class RTDataset(Dataset):
         # extract relevant features
         if self.profile_features == 'all':
             self.profile_features = list(ds.data_vars.keys())
-        elif self.profile_features is None:
-            return None
 
         self.profile_feature_names = []
         profile_data = []
@@ -291,22 +297,45 @@ class RTDataset(Dataset):
         return full_physics, proxy
     
     def _collect_jacobians(self, data_dir: str, prefix: str):
+
+        # For now, we assume only pixel features are used as inputs to the NN.
+        if self.pixel_features is None:
+            return None, None
+
         # load jacobian netcdf file
-        jacobian_file = f'{prefix}_jacobians.nc'
+        jacobian_file = f'{prefix}_pixel_jacobians.nc'
         ds = xr.open_dataset(osp.join(data_dir, jacobian_file))
 
-        # extract target jacobian
-        target_jacobian = ds['jacobian'].data # shape (nobs, nwave, ninputs)
-        target_jacobian = target_jacobian.astype(np.float64)
+        # extract jacobians only for selected pixel features
+        # (assuming that _collect_pixel_data has been called before)
+        jacobian_data = []
+        proxy_jacobian_data = []
+        for feature in self.pixel_feature_names:
+            data = ds[f'{feature}_jac'].data
+            # make sure data is float64 to avoid precision issues when normalizing
+            data = data.astype(np.float64)
+            jacobian_data.append(data)
 
-        # extract proxy jacobian, if available
-        if 'proxy_jacobian' in ds.data_vars:
-            proxy_jacobian = ds['proxy_jacobian'].data # shape (nobs, nwave, ninputs)
-            proxy_jacobian = proxy_jacobian.astype(np.float64)
+            if f'{feature}_proxy_jac' in ds.data_vars:
+                # also load the proxy jacobian for this feature
+                proxy_jacobian_data = ds[f'{feature}_proxy_jac'].data
+                proxy_jacobian_data = proxy_jacobian_data.astype(np.float64)
+                proxy_jacobian_data.append(proxy_jacobian_data)
+
+        if len(jacobian_data) > 0:
+            # stack along the last dimension to get shape (nobs, nwave, nvars)
+            jacobian_data = np.stack(jacobian_data, axis=-1)
         else:
-            proxy_jacobian = None
-        
-        return target_jacobian, proxy_jacobian
+            jacobian_data = None
+
+        if len(proxy_jacobian_data) > 0:
+            # stack along the last dimension to get shape (nobs, nwave, nvars)
+            proxy_jacobian_data = np.stack(proxy_jacobian_data, axis=-1)
+        else:
+            proxy_jacobian_data = None
+
+        return jacobian_data, proxy_jacobian_data
+
     
     def _load_wavelengths(self, data_dir: str, prefix: str):
         # load wavelengths from spectra netcdf file
