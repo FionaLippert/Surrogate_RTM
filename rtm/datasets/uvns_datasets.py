@@ -35,6 +35,7 @@ class RTDataset(Dataset):
                  test_size: float = 0.2, # TODO: explicitly define train/val/test split
                 #  split_sizes: Dict[str, float] = {'train': 0.7, 'val': 0.1, 'test': 0.2},
                  radiance_thr: float = None,
+                 include_jacobian: bool = False,
                  **kwargs
                  ):
         
@@ -61,6 +62,14 @@ class RTDataset(Dataset):
         self.wavelengths = self._load_wavelengths(data_dir, prefix)
         self.n_wavelengths = len(self.wavelengths)
         self.radiance_thr = radiance_thr
+
+        if include_jacobian:
+            # Collect jacobians for target and proxy spectra.
+            # Here we assume that the jacobians have been precomputed for exactly the 
+            # input features defined here and used by the NN.
+            self.target_jacobians, self.proxy_jacobians = self._collect_jacobians(data_dir, prefix)
+        else:
+            self.target_jacobians, self.proxy_jacobians = None, None
 
         # fix random seed for reproducibility
         self.seed = seed
@@ -281,6 +290,24 @@ class RTDataset(Dataset):
         
         return full_physics, proxy
     
+    def _collect_jacobians(self, data_dir: str, prefix: str):
+        # load jacobian netcdf file
+        jacobian_file = f'{prefix}_jacobians.nc'
+        ds = xr.open_dataset(osp.join(data_dir, jacobian_file))
+
+        # extract target jacobian
+        target_jacobian = ds['jacobian'].data # shape (nobs, nwave, ninputs)
+        target_jacobian = target_jacobian.astype(np.float64)
+
+        # extract proxy jacobian, if available
+        if 'proxy_jacobian' in ds.data_vars:
+            proxy_jacobian = ds['proxy_jacobian'].data # shape (nobs, nwave, ninputs)
+            proxy_jacobian = proxy_jacobian.astype(np.float64)
+        else:
+            proxy_jacobian = None
+        
+        return target_jacobian, proxy_jacobian
+    
     def _load_wavelengths(self, data_dir: str, prefix: str):
         # load wavelengths from spectra netcdf file
         spectra_file = f'{prefix}_spectra.nc'
@@ -294,6 +321,7 @@ class RTDataset(Dataset):
                       indices: List[int] = None, 
                       per_wavelength: bool = True,
                       per_layer: bool = False,
+                      per_state_variable: bool = True,
                       coupled_proxy: bool = False, 
                       max_spectral_scaling: bool = False,
                       **kwargs):
@@ -321,6 +349,11 @@ class RTDataset(Dataset):
             transform=transforms.get('proxy_transform', None),
             per_wavelength=per_wavelength
         )
+        jacobian_stats = self.get_jacobian_statistics(
+            indices=indices, 
+            transform=transforms.get('jacobian_transform', None),
+            per_state_variable=per_state_variable
+        )
 
         if max_spectral_scaling:
             # scale spectral data by overall maximum value
@@ -332,6 +365,7 @@ class RTDataset(Dataset):
         pixel_norm = rtm_transforms.normalization(pixel_stats, ) if pixel_stats else None
         profile_norm = rtm_transforms.normalization(profile_stats) if profile_stats else None
         target_norm = rtm_transforms.normalization(target_stats)
+        jacobian_norm = rtm_transforms.normalization(jacobian_stats) if jacobian_stats else None
 
         if coupled_proxy:
             proxy_norm = target_norm
@@ -344,7 +378,8 @@ class RTDataset(Dataset):
             'pixel_transform': pixel_norm, 
             'profile_transform': profile_norm, 
             'target_transform': target_norm,
-            'proxy_transform': proxy_norm
+            'proxy_transform': proxy_norm,
+            'jacobian_transform': jacobian_norm
         }
     
     def get_pixel_statistics(self, indices: List[int], transform: RTMTransform = None):
@@ -443,6 +478,32 @@ class RTDataset(Dataset):
             'std': proxy.std(**kwargs),
             'min': proxy.min(**kwargs),
             'max': proxy.max(**kwargs),
+        }
+
+        return stats
+    
+    def get_jacobian_statistics(self, 
+                             indices: List[int], 
+                             transform: RTMTransform = None,
+                             per_state_variable: bool = True
+                             ):
+        if self.target_jacobians is not None:
+            jacobian = self.target_jacobians[indices]
+            if transform is not None:
+                jacobian = transform(jacobian)
+        else:
+            return None
+
+        if isinstance(jacobian, torch.Tensor):
+            jacobian = jacobian.numpy()
+
+        # compute stats
+        kwargs = dict(axis=(0, 1)) if per_state_variable else dict()
+        stats = {
+            'mean': jacobian.mean(**kwargs),
+            'std': jacobian.std(**kwargs),
+            'min': jacobian.min(**kwargs),
+            'max': jacobian.max(**kwargs),
         }
 
         return stats
