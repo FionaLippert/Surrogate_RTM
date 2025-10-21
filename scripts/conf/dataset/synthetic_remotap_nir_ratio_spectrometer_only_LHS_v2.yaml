@@ -60,6 +60,9 @@ profile_features: []
   # - pressure
   # - temperature
 
+# info for Jacobian fine-tuning
+gas_scaling_indices: [] # no gases used currently
+jacobian_weights: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # if using jacobian-based loss terms, weights for each input dimension
 
 # normalization settings
 normalization:
