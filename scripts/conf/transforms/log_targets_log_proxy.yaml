@@ -9,3 +9,4 @@ transforms:
     _target_: rtm.rtm_transforms.LogTransform
   proxy_transform:
     _target_: rtm.rtm_transforms.LogTransform
+  jacobian_transform: null
