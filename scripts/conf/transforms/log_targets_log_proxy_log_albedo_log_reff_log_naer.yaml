@@ -5,7 +5,7 @@ _target_: rtm.rtm_transforms.RTMTransformCollection
 transforms:
   pixel_transform:
     _target_: rtm.rtm_transforms.LogTransformSelectedFeatures
-    feature_indices: [3, 4, 5] # N_aer, albedo, reff_mode1
+    feature_indices: [4, 5, 6] # N_aer, albedo, reff_mode1
     n_features: ${len:${dataset.pixel_features}} # number of pixel features
     feature_dim: 1 # pixel features have shape (batch_size, n_features)
   profile_transform: null
