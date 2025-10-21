@@ -157,16 +157,16 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         # jacobian regularization
         # weights for input dimensions
-        # jacobian_weights = kwargs.get('jacobian_weights', 1.0)
-        # self.register_buffer('jacobian_weights', torch.tensor(jacobian_weights, dtype=torch.float32))
+        jacobian_weights = kwargs.get('jacobian_weights', 1.0)
+        self.register_buffer('jacobian_weights', torch.tensor(jacobian_weights, dtype=torch.float32))
 
-        # # mask for input dimensions to include in jacobian regularization
-        # jacobian_mask = self.jacobian_weights > 0.0
-        # self.register_buffer('jacobian_mask', jacobian_mask)
+        # mask for input dimensions to include in jacobian regularization
+        jacobian_mask = self.jacobian_weights > 0.0
+        self.register_buffer('jacobian_mask', jacobian_mask)
 
-        # # scale for jacobian loss term
-        # self.jacobian_loss_scale = kwargs.get('jacobian_loss_scale', 0.0)
-        # self.jacobian_regularization = self.jacobian_loss_scale > 0.0
+        # scale for jacobian loss term
+        self.jacobian_loss_scale = kwargs.get('jacobian_loss_scale', 0.0)
+        self.jacobian_regularization = self.jacobian_loss_scale > 0.0
 
         # learning rate scheduling
         self.lr_schedulers = kwargs.get('lr_schedulers', None)
