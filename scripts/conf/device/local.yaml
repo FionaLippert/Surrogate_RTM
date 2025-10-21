@@ -3,6 +3,7 @@ name: local
 root: /nfs/Sentinel5/users/${oc.env:USER}/gitlab/surrogate_rtm
 # data_root: /deos/fional/remotap/simulations/RemoTAP_FWD
 data_root: /nfs/Sentinel5/users/${oc.env:USER}/OPERA/simulations
+retrieval_root: /nfs/Sentinel5/users/${oc.env:USER}/OPERA/retrievals
 output_dir: ${device.root}/output
 accelerator: gpu
 devices: 1

@@ -20,6 +20,10 @@ INSTRUMENT="instr2_noise2" # instr2_noise2 if MAP is also simulated
 POSTFIX_PROXY="ns" # include non-scattering spectra as proxy
 INSTRUMENT_PROXY="instr1_noise2" # non-scattering is only run for spectrometer, not MAP
 
+LAND_THRESHOLD=0.5
+SZA_THRESHOLD=70.0
+VZA_THRESHOLD=30.0
+
 script_path="/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts"
 python_path="/deos/fional/anaconda3/envs/sron_pytorch/bin/python"
 
@@ -31,5 +35,6 @@ for BAND in "NIR" "SWIR1" "SWIR3"; do
     $python_path $script_path/prepare_remotap_data.py \
         --data_dir $DATA_DIR --target_dir $TARGET_DIR --prefix $PREFIX --postfix $POSTFIX \
         --band $BAND --n_chunks $NCHUNKS --instrument $INSTRUMENT \
-        --postfix_proxy $POSTFIX_PROXY --instrument_proxy $INSTRUMENT_PROXY
+        --postfix_proxy $POSTFIX_PROXY --instrument_proxy $INSTRUMENT_PROXY \
+        --land_threshold $LAND_THRESHOLD --sza_threshold $SZA_THRESHOLD --vza_threshold $VZA_THRESHOLD
 done

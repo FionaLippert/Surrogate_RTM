@@ -39,12 +39,15 @@ class RTDataset(Dataset):
                  **kwargs
                  ):
         
+        super().__init__()
+        
         # define inputs and outputs
         self.pixel_features = pixel_features
         self.profile_features = profile_features 
         self.target_quantity = target_quantity
         self.predict_difference = predict_difference
         self.predict_ratio = predict_ratio
+        self.include_jacobian = include_jacobian
 
         # transformations
         # self.pixel_transform = pixel_transform
@@ -63,13 +66,15 @@ class RTDataset(Dataset):
         self.n_wavelengths = len(self.wavelengths)
         self.radiance_thr = radiance_thr
 
-        if include_jacobian:
+        if self.include_jacobian:
             # Collect jacobians for target and proxy spectra.
             # Here we assume that the jacobians have been precomputed for exactly the 
             # input features defined here and used by the NN.
             self.target_jacobians, self.proxy_jacobians = self._collect_jacobians(data_dir, prefix)
         else:
             self.target_jacobians, self.proxy_jacobians = None, None
+        # if target jacobians are available, compute SVD (only for selected input features)
+        self.target_U, self.target_S, self.target_Vt = self._compute_jacobian_svd(self.target_jacobians) 
 
         # fix random seed for reproducibility
         self.seed = seed
@@ -107,6 +112,22 @@ class RTDataset(Dataset):
         if self.proxy is not None:
             self.proxy = self.proxy[self.indices]
             self.proxy = rtm_transforms.numpy_to_tensor(self.proxy)
+
+        if self.target_jacobians is not None:
+            self.target_jacobians = self.target_jacobians[self.indices]
+            self.target_jacobians = rtm_transforms.numpy_to_tensor(self.target_jacobians)
+
+            # also prepare SVD components
+            self.target_U = self.target_U[self.indices]
+            self.target_S = self.target_S[self.indices]
+            self.target_Vt = self.target_Vt[self.indices]
+            self.target_U = rtm_transforms.numpy_to_tensor(self.target_U)
+            self.target_S = rtm_transforms.numpy_to_tensor(self.target_S)
+            self.target_Vt = rtm_transforms.numpy_to_tensor(self.target_Vt)
+
+        if self.proxy_jacobians is not None:
+            self.proxy_jacobians = self.proxy_jacobians[self.indices]
+            self.proxy_jacobians = rtm_transforms.numpy_to_tensor(self.proxy_jacobians)
 
         if self.predict_difference:
             if self.proxy is None:
@@ -202,6 +223,20 @@ class RTDataset(Dataset):
             #     proxy = self.proxy_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
+        if self.target_jacobians is not None:
+            jac = self.target_jacobians[idx]
+            data_dict['target_jacobians'] = jac
+
+            # also include SVD components
+            data_dict['target_U'] = self.target_U[idx] # shape (nwave, min(nwave, nfeatures))
+            data_dict['target_S'] = self.target_S[idx] # shape (min(nwave, nfeatures),)
+            data_dict['target_Vt'] = self.target_Vt[idx] # shape (min(nwave, nfeatures), nfeatures)
+
+        if self.proxy_jacobians is not None:
+            proxy_jacobian = self.proxy_jacobians[idx]
+            data_dict['proxy_jacobians'] = proxy_jacobian
+
+
         return data_dict
     
     def _collect_pixel_data(self, data_dir: str, prefix: str):
@@ -212,7 +247,8 @@ class RTDataset(Dataset):
         
         # load pixel netcdf file
         pixel_file = f'{prefix}_pixel_data.nc'
-        ds = xr.open_dataset(osp.join(data_dir, pixel_file))
+        print(f'Loading pixel data from {osp.join(data_dir, pixel_file)}')
+        ds = xr.load_dataset(osp.join(data_dir, pixel_file))
 
         # extract relevant features
         if self.pixel_features == 'all':
@@ -252,7 +288,8 @@ class RTDataset(Dataset):
 
         # load profile netcdf file
         profile_file = f'{prefix}_profile_data.nc'
-        ds = xr.open_dataset(osp.join(data_dir, profile_file))
+        print(f'Loading profile data from {osp.join(data_dir, profile_file)}')
+        ds = xr.load_dataset(osp.join(data_dir, profile_file))
 
         # extract relevant features
         if self.profile_features == 'all':
@@ -279,7 +316,8 @@ class RTDataset(Dataset):
     def _collect_spectra(self, data_dir: str, prefix: str):
         # load spectra netcdf file
         spectra_file = f'{prefix}_spectra.nc'
-        ds = xr.open_dataset(osp.join(data_dir, spectra_file))
+        print(f'Loading spectra from {osp.join(data_dir, spectra_file)}')
+        ds = xr.load_dataset(osp.join(data_dir, spectra_file))
 
         # extract full physics spectra
         full_physics = ds[self.target_quantity].data # shape (nobs, nwave)
@@ -303,8 +341,9 @@ class RTDataset(Dataset):
             return None, None
 
         # load jacobian netcdf file
-        jacobian_file = f'{prefix}_pixel_jacobians.nc'
-        ds = xr.open_dataset(osp.join(data_dir, jacobian_file))
+        jacobian_file = f'{prefix}_jacobians.nc'
+        print(f'Loading jacobians from {osp.join(data_dir, jacobian_file)}')
+        ds = xr.load_dataset(osp.join(data_dir, jacobian_file))
 
         # extract jacobians only for selected pixel features
         # (assuming that _collect_pixel_data has been called before)
@@ -318,9 +357,9 @@ class RTDataset(Dataset):
 
             if f'{feature}_proxy_jac' in ds.data_vars:
                 # also load the proxy jacobian for this feature
-                proxy_jacobian_data = ds[f'{feature}_proxy_jac'].data
-                proxy_jacobian_data = proxy_jacobian_data.astype(np.float64)
-                proxy_jacobian_data.append(proxy_jacobian_data)
+                proxy_data = ds[f'{feature}_proxy_jac'].data
+                proxy_data = proxy_data.astype(np.float64)
+                proxy_jacobian_data.append(proxy_data)
 
         if len(jacobian_data) > 0:
             # stack along the last dimension to get shape (nobs, nwave, nvars)
@@ -335,12 +374,22 @@ class RTDataset(Dataset):
             proxy_jacobian_data = None
 
         return jacobian_data, proxy_jacobian_data
+    
+    def _compute_jacobian_svd(self, jacobians: np.ndarray):
+
+        if jacobians is None:
+            return None, None, None
+        
+        # compute SVD of target jacobians
+        U, S, Vt = np.linalg.svd(jacobians, full_matrices=False, compute_uv=True)
+
+        return U, S, Vt
 
     
     def _load_wavelengths(self, data_dir: str, prefix: str):
         # load wavelengths from spectra netcdf file
         spectra_file = f'{prefix}_spectra.nc'
-        ds = xr.open_dataset(osp.join(data_dir, spectra_file))
+        ds = xr.load_dataset(osp.join(data_dir, spectra_file))
         wavelengths = ds['wavelength'].data.astype(np.float64)
         return wavelengths
         

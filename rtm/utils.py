@@ -36,6 +36,19 @@ def s5_band_to_wl_range(band: str) -> Tuple[int, int]:
         raise ValueError(f'Band {band} not recognized')
     return wl_range
 
+def s5_band_to_iwin(band: str) -> int:
+    # get Fortran band ID for a given band
+    if band in ['NIR', '3']:
+        band_id = 1
+    elif band in ['SWIR1', '4']:
+        band_id = 2
+    elif band in ['SWIR3', '5']:
+        band_id = 3
+    else:
+        raise ValueError(f'Band {band} not supported by NN forward model')
+    
+    return band_id
+
 def s5_band_to_absorbers(band: str) -> List[str]:
     if band in ['NIR', 'NIR1', 'NIR2', '3', '3a', '3b']:
         absorbers = ['o2']
@@ -56,6 +69,16 @@ def gas_to_hitran_index(gas: str) -> int:
         'ch4': 6,
     }
     return gas2hitran[gas.lower()]
+
+def hitran_index_to_gas(index: int) -> str:
+    hitran2gas = {
+        1: 'h2o',
+        2: 'co2',
+        5: 'co',
+        6: 'ch4',
+        7: 'o2',
+    }
+    return hitran2gas[index]
 
 ##################################################
 # radiative transfer model specific functions
