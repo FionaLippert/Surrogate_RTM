@@ -286,7 +286,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         # Compute the singular vectors of the predicted Jacobians
         nn_jacobian_masked = nn_jacobian * self.jacobian_mask  # Mask input dimensions if required
-        S_k_nn = U_k.T @ nn_jacobian_masked @ V_k
+        S_k_nn = U_k.transpose(-2, -1) @ nn_jacobian_masked @ V_k
 
         # Compute the squared Frobenius norm of the difference
         projection_loss = torch.linalg.matrix_norm(S_k - S_k_nn, ord='fro', dim=(-2, -1)) #**2
@@ -326,27 +326,28 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                     prog_bar=(True if split == 'train' else False), 
                     logger=True, sync_dist=True)
 
-        # # compute jacobian if required for regularization
-        # if self.jacobian_regularization:
-        #     target_jacobian = batch.get('target_jacobian', None)
-        #     proxy_jacobian = batch.get('proxy_jacobian', None)
-        #     jacobian = self.jacobian_exact(inputs,
-        #                                    proxy_targets=proxy_targets,
-        #                                    profile_inputs=profile_inputs,
-        #                                    proxy_jacobian=proxy_jacobian)
+        # compute jacobian if required for regularization
+        if self.jacobian_regularization:
+            print(batch)
+            target_jacobian = batch.get('target_jacobians', None)
+            proxy_jacobian = batch.get('proxy_jacobians', None)
+            jacobian = self.forward_model.jacobian_exact(inputs,
+                                           proxy_targets=proxy_targets,
+                                           profile_inputs=profile_inputs,
+                                           proxy_jacobian=proxy_jacobian)
             
-        #     jac_loss = self.jacobian_loss(jacobian, target_jacobian)
-        #     loss = loss + jac_loss
+            jac_loss = self.jacobian_loss(jacobian, target_jacobian)
+            loss = loss + jac_loss
 
-        #     # log jacobian loss separately
-        #     self.log(f'{split}/jacobian_loss', jac_loss, on_epoch=True, 
-        #             on_step=(True if split == 'train' else False),
-        #             prog_bar=(True if split == 'train' else False), 
-        #             logger=True, sync_dist=True)
-        #     self.log(f'{split}/log_jacobian_loss', torch.log(jac_loss), on_epoch=True, 
-        #             on_step=(True if split == 'train' else False),
-        #             prog_bar=(True if split == 'train' else False), 
-        #             logger=True, sync_dist=True)
+            # log jacobian loss separately
+            self.log(f'{split}/jacobian_loss', jac_loss, on_epoch=True, 
+                    on_step=(True if split == 'train' else False),
+                    prog_bar=(True if split == 'train' else False), 
+                    logger=True, sync_dist=True)
+            self.log(f'{split}/log_jacobian_loss', torch.log(jac_loss), on_epoch=True, 
+                    on_step=(True if split == 'train' else False),
+                    prog_bar=(True if split == 'train' else False), 
+                    logger=True, sync_dist=True)
 
 
         return loss
