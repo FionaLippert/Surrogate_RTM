@@ -80,6 +80,7 @@ def run(cfg: DictConfig):
     # setup model
     print(cfg.model)
     model = instantiate(cfg.model)
+    trained = False
 
     # optional: load pretrained model weights
     if cfg.task.get('model_path', None) is not None:
@@ -89,9 +90,12 @@ def run(cfg: DictConfig):
         print('Loading model state from checkpoint...')
         model.load_model_state(checkpoint)
 
+        # remember that this is a pretrained model
+        trained = True
+
     if 'train' in cfg.task.name:
         # transforms = train(trainer, model, cfg)
-        train(trainer, model, cfg)
+        train(trainer, model, cfg, pretrained=trained)
         trained = True
     else:
         trained = False
@@ -114,7 +118,7 @@ def run(cfg: DictConfig):
         wandb.finish()
 
 
-def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
+def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretrained: bool):
 
     if cfg.verbose:
         print('####### Start model training ########')
@@ -129,11 +133,14 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
         train_indices = np.random.choice(train_indices, n_subset, replace=False)
 
     # get transforms
-    transforms = data_utils.prepare_transforms(cfg.transforms, 
-                                               dataset, 
-                                               train_indices, 
-                                               **cfg.dataset.normalization)
-    model.set_transforms(transforms)
+    if not pretrained:
+        transforms = data_utils.prepare_transforms(cfg.transforms, 
+                                                dataset, 
+                                                train_indices, 
+                                                **cfg.dataset.normalization)
+        model.set_transforms(transforms)
+    else:
+        transforms = model.transforms
 
     # update config with final transforms (including normalization and double-to-float conversion)
     cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
@@ -147,51 +154,47 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     val_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
                              batch_size=1, shuffle=False)
 
-    # fit PCA to training data, if applicable
     train_data = dataset[train_indices]
     device = utils.get_device(**cfg.device)
-    # if isinstance(getattr(model, 'input_dim_reduction', None), 
-    #               (dimensionality_reduction.PCA, layers.PCAEncoder)):
-    #     model.input_dim_reduction.fit(train_data['inputs'].to(device))
-    #     exp_var = 100 * model.input_dim_reduction.explained_variance_ratio()
-    #     print(f'Explained input variance (%): {exp_var:.4f}')
+    
+    if not pretrained:
+        # fit PCA to training data, if applicable
+        if isinstance(getattr(model.forward_model, 'encoder', None), layers.PCAEncoder):
+            print('Fitting input PCA...')
+            inputs = model.forward_model.input_transform(train_data['inputs'])
+            model.forward_model.encoder.fit(inputs)
+            exp_var = 100 * model.forward_model.encoder.explained_variance_ratio()
+            print(f'Explained input variance (%): {exp_var:.4f}')
 
-    if isinstance(getattr(model.forward_model, 'encoder', None), layers.PCAEncoder):
-        print('Fitting input PCA...')
-        inputs = model.forward_model.input_transform(train_data['inputs'])
-        model.forward_model.encoder.fit(inputs)
-        exp_var = 100 * model.forward_model.encoder.explained_variance_ratio()
-        print(f'Explained input variance (%): {exp_var:.4f}')
+        if isinstance(getattr(model.forward_model, 'proxy_nn', None), layers.PCAEncoder):
+            print('Fitting proxy PCA...')
+            proxy = model.forward_model.proxy_transform(train_data['proxy_targets'])
+            model.forward_model.proxy_nn.fit(proxy)
+            exp_var = 100 * model.forward_model.proxy_nn.explained_variance_ratio()
+            print(f'Explained proxy variance (%): {exp_var:.4f}')
 
-    if isinstance(getattr(model.forward_model, 'proxy_nn', None), layers.PCAEncoder):
-        print('Fitting proxy PCA...')
-        proxy = model.forward_model.proxy_transform(train_data['proxy_targets'])
-        model.forward_model.proxy_nn.fit(proxy)
-        exp_var = 100 * model.forward_model.proxy_nn.explained_variance_ratio()
-        print(f'Explained proxy variance (%): {exp_var:.4f}')
+        # if isinstance(getattr(model, 'output_dim_reduction', None), 
+        #               (dimensionality_reduction.PCA, layers.PCADecoder)):
+        #     model.output_dim_reduction.fit(train_data['targets'].to(device))
+        #     exp_var = 100 * model.output_dim_reduction.explained_variance_ratio()
+        #     print(f'Explained output variance (%): {exp_var:.4f}')
 
-    # if isinstance(getattr(model, 'output_dim_reduction', None), 
-    #               (dimensionality_reduction.PCA, layers.PCADecoder)):
-    #     model.output_dim_reduction.fit(train_data['targets'].to(device))
-    #     exp_var = 100 * model.output_dim_reduction.explained_variance_ratio()
-    #     print(f'Explained output variance (%): {exp_var:.4f}')
-
-    if isinstance(getattr(model.forward_model, 'decoder', None), layers.PCADecoder):
-        print('Fitting output PCA...')
-        targets = model.forward_model.target_transform(train_data['targets'])
-        model.forward_model.decoder.fit(train_data['targets'])
-        exp_var = 100 * model.forward_model.decoder.explained_variance_ratio()
-        print(f'Explained output variance (%): {exp_var:.4f}')
+        if isinstance(getattr(model.forward_model, 'decoder', None), layers.PCADecoder):
+            print('Fitting output PCA...')
+            targets = model.forward_model.target_transform(train_data['targets'])
+            model.forward_model.decoder.fit(train_data['targets'])
+            exp_var = 100 * model.forward_model.decoder.explained_variance_ratio()
+            print(f'Explained output variance (%): {exp_var:.4f}')
 
     
-    # adjust loss scale based on target variance
-    targets = train_data['targets']
-    if model.forward_model.target_transform is not None:
-        targets = model.forward_model.target_transform(targets)
-    # if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
-    #     targets = model.output_dim_reduction.encode(targets.to(device))
-    model.loss_scale = targets.std().item()
-    print(f'loss scale = {model.loss_scale}')
+        # adjust loss scale based on target variance
+        targets = train_data['targets']
+        if model.forward_model.target_transform is not None:
+            targets = model.forward_model.target_transform(targets)
+        # if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
+        #     targets = model.output_dim_reduction.encode(targets.to(device))
+        model.loss_scale = targets.std().item()
+        print(f'loss scale = {model.loss_scale}')
 
     # train model
     trainer.validate(model, val_loader)

@@ -328,7 +328,6 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         # compute jacobian if required for regularization
         if self.jacobian_regularization:
-            print(batch)
             target_jacobian = batch.get('target_jacobians', None)
             proxy_jacobian = batch.get('proxy_jacobians', None)
             jacobian = self.forward_model.jacobian_exact(inputs,
@@ -404,7 +403,12 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
             self.set_transforms(instantiate(checkpoint['hydra_config']['transforms']))
 
         # load standard pytorch state_dict
-        self.load_state_dict(checkpoint['state_dict'])
+        missing, unexpected = self.load_state_dict(checkpoint['state_dict'], strict=False)
+
+        if missing:
+            print(f"Warning: Missing keys when loading state_dict: {missing}")
+        if unexpected:
+            print(f"Warning: Unexpected keys when loading state_dict: {unexpected}")
 
         # # load additional objects from checkpoint
         # self.target_transform = checkpoint['target_transform']
@@ -1119,19 +1123,36 @@ class NNForwardModel(torch.nn.Module):
                          profile_inputs, 
                          normalized_inputs, 
                          combine_with_proxy)
+        
+        # process jacobians to match target and proxy jacobian definitions
+        jac = self.prepare_jacobians(jac, inputs)
 
         # if applicable, combine with proxy jacobian
         jac = self.combine_jacobians(jac, proxy_jacobian, inputs, proxy_targets, profile_inputs)
-
-        # if applicable, scale gas dimensions to get derivatives w.r.t. scaling factors instead of total columns
-        for gas_idx in self.gas_scaling_indices:
-            jac[:, :, gas_idx] = jac[:, :, gas_idx] * inputs[:, gas_idx].unsqueeze(1)
 
         if dim == 1:
             # remove batch dimension if inputs were 1D
             jac = jac.squeeze(0)
 
         return jac # shape (batch_size, n_outputs, n_features)
+    
+    def prepare_jacobians(self,
+                          jac: torch.Tensor,
+                          inputs: torch.Tensor,
+                          ) -> torch.Tensor:
+        """
+        Prepare raw NN Jacobians to match the target and proxy jacobians in 
+        the provided batch
+        """
+
+        # If applicable, scale gas dimensions to get derivatives w.r.t. scaling factors 
+        # instead of total columns.
+        # Note that the provided proxy_jacobian should already include this scaling
+        for gas_idx in self.gas_scaling_indices:
+            jac = jac.clone() # to prevent issues with slicing of autograd output
+            jac[:, :, gas_idx] = jac[:, :, gas_idx] * inputs[:, gas_idx].unsqueeze(1)
+
+        return jac
     
     def combine_jacobians(self,
                           jac: torch.Tensor,
@@ -1308,7 +1329,17 @@ class LatentNNForwardModel(NNForwardModel):
             proxy_transf = self.proxy_nn(proxy_transf)
             inputs = torch.cat([inputs, proxy_transf], dim=-1)
 
+        training_flag = self.core_nn.training
+        if not train:
+            # temporarily switch off training mode
+            # (e.g. for jacobian computation)
+            self.core_nn.training = False
+
+        # Run core part of the NN forward model
         outputs = self.core_nn(inputs)
+        
+        # switch training mode back on if applicable
+        self.core_nn.training = training_flag
 
         if self.decoder is not None:
             outputs = self.decoder.decode(outputs)

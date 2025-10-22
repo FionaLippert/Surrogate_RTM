@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_a100
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=36
+#SBATCH --mem=240G
+#SBATCH --gpus=2
+#SBATCH --job-name=finetuning
+#SBATCH --time=10:00:00
+#SBATCH --output=slurm_output_%A_%a.out
+
+
+export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
+
+cd $HOME/SRON/surrogate_rtm/scripts
+source activate rtm_env
+
+export TORCH_USE_CUDA_DSA=1
+
+nvidia-smi
+
+model_path="/projects/0/prjs1294/output/results/spectrometer_only_swir1/default/logs/wandb/run-20250820_132706-6urvx3d8/files/checkpoints/last.ckpt" # ratio MLP-PCA SWIR1 spectrometer-only, fixed PCA, dropout=0.001
+
+srun python train_eval.py device=snellius dataset=synthetic_remotap_retrieval_swir1_ratio_spectrometer_only_LHS_max_AOT_03 model=MLP_PCA_Ratio model.output_latent_dim=128 model.hidden_dim=128 model.nonlinearity=silu model.dropout_p=0.001 model.forward_model.decoder.fixed_components=true logger.project=spectrometer_only_swir1_finetuning transforms=log_targets_log_proxy_log_albedo_log_reff task.final_eval=true task.save_predictions=true seed=0 task.train_frac=1.0 trainer.max_epochs=150 +task.model_path=$model_path model.lr=1e-4 model.lr_decay=1.0 model.jacobian_loss_scale=1e14
+# srun python train_eval.py device=snellius dataset=synthetic_remotap_swir1_ratio_spectrometer_only_LHS model=MLP_PCA_Ratio model.output_latent_dim=128 model.hidden_dim=128 model.nonlinearity=silu model.dropout_p=0.001 model.forward_model.decoder.fixed_components=true logger.project=spectrometer_only_swir1_finetuning transforms=log_targets_log_proxy_log_albedo_log_reff task.final_eval=true task.save_predictions=true seed=0 task.train_frac=0.2 trainer.max_epochs=50 +task.model_path=$model_path model.lr=1e-4 model.lr_decay=1.0 model.jacobian_loss_scale=0.0
+

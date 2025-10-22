@@ -565,7 +565,7 @@ class RTDataset(Dataset):
                              transform: RTMTransform = None,
                              per_state_variable: bool = True
                              ):
-        if self.target_jacobians is not None:
+        if hasattr(self, 'target_jacobians') and self.target_jacobians is not None:
             jacobian = self.target_jacobians[indices]
             if transform is not None:
                 jacobian = transform(jacobian)
@@ -653,7 +653,7 @@ class FlatRTDataset(RTDataset):
                 # proxy = self.proxy_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
-        if self.target_jacobians is not None:
+        if hasattr(self, 'target_jacobians') and self.target_jacobians is not None:
             jac = self.target_jacobians[idx]
             data_dict['target_jacobians'] = jac
 
@@ -662,7 +662,7 @@ class FlatRTDataset(RTDataset):
             data_dict['target_S'] = self.target_S[idx] # shape (min(nwave, nfeatures),)
             data_dict['target_Vt'] = self.target_Vt[idx] # shape (min(nwave, nfeatures), nfeatures)
 
-        if self.proxy_jacobians is not None:
+        if hasattr(self, 'proxy_jacobians') and self.proxy_jacobians is not None:
             proxy_jacobian = self.proxy_jacobians[idx]
             data_dict['proxy_jacobians'] = proxy_jacobian
 
