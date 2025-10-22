@@ -653,6 +653,19 @@ class FlatRTDataset(RTDataset):
                 # proxy = self.proxy_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
+        if self.target_jacobians is not None:
+            jac = self.target_jacobians[idx]
+            data_dict['target_jacobians'] = jac
+
+            # also include SVD components
+            data_dict['target_U'] = self.target_U[idx] # shape (nwave, min(nwave, nfeatures))
+            data_dict['target_S'] = self.target_S[idx] # shape (min(nwave, nfeatures),)
+            data_dict['target_Vt'] = self.target_Vt[idx] # shape (min(nwave, nfeatures), nfeatures)
+
+        if self.proxy_jacobians is not None:
+            proxy_jacobian = self.proxy_jacobians[idx]
+            data_dict['proxy_jacobians'] = proxy_jacobian
+
         return data_dict
 
 
