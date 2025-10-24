@@ -416,7 +416,7 @@ class RTDataset(Dataset):
         else:
             gas_priors = None
 
-        gas_indices = np.array(gas_indices, dtype=np.int)
+        gas_indices = np.array(gas_indices, dtype=int)
 
         return gas_priors, gas_indices
     
@@ -706,6 +706,10 @@ class FlatRTDataset(RTDataset):
             data_dict['target_U'] = self.target_U[idx] # shape (nwave, min(nwave, nfeatures))
             data_dict['target_S'] = self.target_S[idx] # shape (min(nwave, nfeatures),)
             data_dict['target_Vt'] = self.target_Vt[idx] # shape (min(nwave, nfeatures), nfeatures)
+
+            if self.gas_priors is not None:
+                data_dict['gas_priors'] = self.gas_priors[idx]
+                data_dict['gas_indices'] = self.gas_indices
 
         if hasattr(self, 'proxy_jacobians') and self.proxy_jacobians is not None:
             proxy_jacobian = self.proxy_jacobians[idx]
