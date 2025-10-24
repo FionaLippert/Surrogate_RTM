@@ -142,6 +142,12 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     else:
         transforms = model.transforms
 
+    print(cfg.dataset.jacobian_mask)
+    print(cfg.dataset.jacobian_weights)
+
+    print(model.jacobian_mask)
+    print(model.jacobian_weights)
+
     # update config with final transforms (including normalization and double-to-float conversion)
     cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
     cfg_resolved['transforms'] = transforms.__dict_repr__()

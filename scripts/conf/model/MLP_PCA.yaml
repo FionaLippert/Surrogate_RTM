@@ -52,17 +52,21 @@ forward_model:
   gas_scaling_indices: ${dataset.gas_scaling_indices} # if using gas scaling factors, indices of gas columns in input features
 
 jacobian_weights: ${dataset.jacobian_weights} # if using jacobian-based loss terms, weights for each input dimension
-jacobian_loss_scale: 0.0 # scale for jacobian-based loss terms
+jacobian_mask: ${dataset.jacobian_mask}
+jacobian_mse_loss_scale: 0.0 # scale for MSE-based jacobian loss terms
+jacobian_proj_loss_scale: 0.0 # scale for SVD projection-based jacobian loss term
+jacobian_subspace_loss_scale: 0.0 # scale for SVD subspace-based jacobian loss term
 
 
 lr: 1e-3
 l2_reg: 0.0 # 4e-5
 lr_decay: 0.001
+lr_start_factor: 1e-5
 lr_scheduler_interval: step
 lr_schedulers:
         - _target_: torch.optim.lr_scheduler.LinearLR
           _partial_: true
-          start_factor: 1e-5
+          start_factor: ${model.lr_start_factor}
           end_factor: 1.0
           total_iters: 5000  # 10 # number of intervals (steps or epochs)
         - _target_: torch.optim.lr_scheduler.CosineAnnealingLR

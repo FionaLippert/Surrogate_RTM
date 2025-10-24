@@ -71,8 +71,10 @@ class RTDataset(Dataset):
             # Here we assume that the jacobians have been precomputed for exactly the 
             # input features defined here and used by the NN.
             self.target_jacobians, self.proxy_jacobians = self._collect_jacobians(data_dir, prefix)
+            self.gas_priors, self.gas_indices = self._collect_gas_priors(data_dir, prefix)
         else:
             self.target_jacobians, self.proxy_jacobians = None, None
+            self.gas_priors, self.gas_indices = None
         # if target jacobians are available, compute SVD (only for selected input features)
         self.target_U, self.target_S, self.target_Vt = self._compute_jacobian_svd(self.target_jacobians) 
 
@@ -124,6 +126,12 @@ class RTDataset(Dataset):
             self.target_U = rtm_transforms.numpy_to_tensor(self.target_U)
             self.target_S = rtm_transforms.numpy_to_tensor(self.target_S)
             self.target_Vt = rtm_transforms.numpy_to_tensor(self.target_Vt)
+
+            # also prepare gas indices
+            if len(self.gas_indices) > 0:
+                self.gas_priors = self.gas_priors[self.indices]
+                self.gas_priors = rtm_transforms.numpy_to_tensor(self.gas_priors)
+                self.gas_indices = rtm_transforms.numpy_to_tensor(self.gas_indices)
 
         if self.proxy_jacobians is not None:
             self.proxy_jacobians = self.proxy_jacobians[self.indices]
@@ -231,6 +239,10 @@ class RTDataset(Dataset):
             data_dict['target_U'] = self.target_U[idx] # shape (nwave, min(nwave, nfeatures))
             data_dict['target_S'] = self.target_S[idx] # shape (min(nwave, nfeatures),)
             data_dict['target_Vt'] = self.target_Vt[idx] # shape (min(nwave, nfeatures), nfeatures)
+
+            if self.gas_priors is not None:
+                data_dict['gas_priors'] = self.gas_priors[idx]
+                data_dict['gas_indices'] = self.gas_indices
 
         if self.proxy_jacobians is not None:
             proxy_jacobian = self.proxy_jacobians[idx]
@@ -374,6 +386,39 @@ class RTDataset(Dataset):
             proxy_jacobian_data = None
 
         return jacobian_data, proxy_jacobian_data
+
+    def _collect_gas_priors(self, data_dir: str, prefix: str):
+
+        # For now, we assume only pixel features are used as inputs to the NN.
+        if self.pixel_features is None:
+            return None, None
+
+        # load jacobian netcdf file
+        jacobian_file = f'{prefix}_jacobians.nc'
+        print(f'Loading gas priors from {osp.join(data_dir, jacobian_file)}')
+        ds = xr.load_dataset(osp.join(data_dir, jacobian_file))
+
+        # extract jacobians only for selected pixel features
+        # (assuming that _collect_pixel_data has been called before)
+        gas_priors = []
+        gas_indices = []
+        for fidx, feature in enumerate(self.pixel_feature_names):
+            if feature.startswith('vmol_'):
+                data = ds[f'{feature}_prior'].data
+                # make sure data is float64 to avoid precision issues when normalizing
+                data = data.astype(np.float64)
+                gas_priors.append(data)
+                gas_indices.append(fidx)
+
+        if len(gas_priors) > 0:
+            # stack along the last dimension to get shape (nobs, nwave, nvars)
+            gas_priors = np.stack(gas_priors, axis=-1)
+        else:
+            gas_priors = None
+
+        gas_indices = np.array(gas_indices, dtype=np.int)
+
+        return gas_priors, gas_indices
     
     def _compute_jacobian_svd(self, jacobians: np.ndarray):
 

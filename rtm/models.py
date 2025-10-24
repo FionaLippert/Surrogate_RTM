@@ -157,16 +157,21 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         # jacobian regularization
         # weights for input dimensions
-        jacobian_weights = kwargs.get('jacobian_weights', 1.0)
+        jacobian_weights = kwargs.get('jacobian_weights', [1.0])
         self.register_buffer('jacobian_weights', torch.tensor(jacobian_weights, dtype=torch.float32))
 
         # mask for input dimensions to include in jacobian regularization
-        jacobian_mask = self.jacobian_weights > 0.0
-        self.register_buffer('jacobian_mask', jacobian_mask)
+        jacobian_mask = kwargs.get('jacobian_mask', None)
+        if jacobian_mask:
+            self.register_buffer('jacobian_mask', torch.tensor(jacobian_mask, dtype=torch.bool))
 
         # scale for jacobian loss term
-        self.jacobian_loss_scale = kwargs.get('jacobian_loss_scale', 0.0)
-        self.jacobian_regularization = self.jacobian_loss_scale > 0.0
+        self.jac_mse_loss_scale = kwargs.get('jacobian_mse_loss_scale', 0.0)
+        self.jac_proj_loss_scale = kwargs.get('jacobian_proj_loss_scale', 0.0)
+        self.jac_subspace_loss_scale = kwargs.get('jacobian_subspace_loss_scale', 0.0)
+        self.jac_regularization = (self.jac_mse_loss_scale + \
+                                   self.jac_proj_loss_scale + \
+                                   self.jac_subspace_loss_scale) > 0.0
 
         # learning rate scheduling
         self.lr_schedulers = kwargs.get('lr_schedulers', None)
@@ -197,7 +202,11 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         return loss
     
-    def jacobian_loss(self, nn_jacobian: torch.Tensor, target_jacobian: torch.Tensor) -> torch.Tensor: 
+    def jacobian_loss(self, 
+                      nn_jacobian: torch.Tensor, 
+                      target_jacobian: torch.Tensor,
+                      continuum: Optional[torch.Tensor] = None,
+                      ) -> torch.Tensor: 
         """Compute jacobian regularization loss
         
         Args:
@@ -211,21 +220,31 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         # TODO: first apply transformations to jacobians if applicable
 
+        # compute jacobian errors
+        errors = nn_jacobian - target_jacobian
+
+        # scale errors by continuum, if applicable
+        if continuum is not None:
+            errors = errors / continuum.view(-1, 1, 1)
+
         # mean squared error between jacobians (weighted by jacobian_weights)
-        squared_errors = torch.pow(nn_jacobian - target_jacobian, 2)
+        squared_errors = torch.pow(errors, 2)
         # weight each input dimension separately
         weighted_squared_errors = squared_errors * self.jacobian_weights
         # average over input dimensions, weighted by jacobian_weights
         weighted_mse = torch.sum(weighted_squared_errors, dim=-1) / torch.sum(self.jacobian_weights)
         # average over output dimensions and samples
         jac_loss = torch.mean(weighted_mse)
-        # scale jacobian loss
-        jac_loss = jac_loss * self.jacobian_loss_scale
 
         return jac_loss
 
-    def compute_subspace_loss(self, nn_jacobian: torch.Tensor, target_U: torch.Tensor, 
-                              target_Vt: torch.Tensor, k_max: int, continuum: Union[float, torch.Tensor] = 1.0) -> torch.Tensor:
+    def compute_subspace_loss(self, nn_jacobian: torch.Tensor, 
+                              dy_target: torch.Tensor,
+                            #   target_U: torch.Tensor, 
+                            #   target_Vt: torch.Tensor, 
+                              k_max: int, 
+                              continuum: Union[float, torch.Tensor] = 1.0,
+                              ) -> torch.Tensor:
         """Compute subspace loss between target and NN Jacobians.
         
         Args:
@@ -238,31 +257,42 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
             subspace_loss: Computed subspace loss value
         """
         # Compute the SVD of the target Jacobians
-        # U, S, Vt = torch.linalg.svd(target_jacobian, full_matrices=False)
+        if hasattr(self, 'jacobian_mask'):
+            target_U, _, target_Vt = torch.linalg.svd(dy_target.detach()[..., self.jacobian_mask], full_matrices=False)
+        else:
+            target_U, _, target_Vt = torch.linalg.svd(dy_target.detach(), full_matrices=False)
+
 
         # Project the predicted Jacobians onto the dominant input subspace 
         # (dy_nn (I - V_k V_k^T)) and output subspace ((I - U_k U_k^T) dy_nn) 
         # spanned by the target Jacobians
         V_k = target_Vt[..., :k_max, :].transpose(-2, -1)  # Take the first k_max right singular vectors
-        U_k = target_U[..., :k_max]     # Take the first k_max left singular vectors
-        nn_jacobian_masked = nn_jacobian * self.jacobian_mask  # Mask input dimensions if required
-        nn_jacobian_proj_in = (nn_jacobian_masked - nn_jacobian_masked @ V_k @ V_k.T)  # Project onto input subspace
-        nn_jacobian_proj_out = (nn_jacobian_masked - U_k @ U_k.T @ nn_jacobian_masked)  # Project onto output subspace
+        U_k = target_U[..., :k_max]     # Take the first k_max left singular vectors (n_samples, n_outputs, k_max)
+
+        if hasattr(self, 'jacobian_mask'):
+            nn_jacobian_masked = nn_jacobian[..., self.jacobian_mask]  # Mask input dimensions if required (n_samples, n_outputs, n_features)
+            nn_jacobian_proj_in = (nn_jacobian_masked - nn_jacobian_masked @ V_k @ V_k.transpose(-2, -1))  # Project onto input subspace
+            nn_jacobian_proj_out = (nn_jacobian_masked - U_k @ U_k.transpose(-2, -1) @ nn_jacobian_masked)  # Project onto output subspace
+        else:
+            nn_jacobian_proj_in = (nn_jacobian - nn_jacobian @ V_k @ V_k.transpose(-2, -1))  # Project onto input subspace
+            nn_jacobian_proj_out = (nn_jacobian - U_k @ U_k.transpose(-2, -1) @ nn_jacobian)  # Project onto output subspace
+
 
         # Compute the squared Frobenius norm of both projections
-        subspace_loss_in = torch.linalg.matrix_norm(nn_jacobian_proj_in, ord='fro', dim=(-2, -1))**2
-        subspace_loss_out = torch.linalg.matrix_norm(nn_jacobian_proj_out, ord='fro', dim=(-2, -1))**2
+        subspace_loss_in = torch.linalg.matrix_norm(nn_jacobian_proj_in, ord='fro', dim=(-2, -1)) #**2
+        subspace_loss_out = torch.linalg.matrix_norm(nn_jacobian_proj_out, ord='fro', dim=(-2, -1)) #**2
 
         # Compute the subspace loss
-        subspace_loss = (subspace_loss_in + subspace_loss_out) / continuum**2
+        subspace_loss = (subspace_loss_in + subspace_loss_out) / continuum #**2
 
         # Now take the mean over all samples
         subspace_loss = torch.mean(subspace_loss)
 
         return subspace_loss
 
-    def compute_projection_loss(self, nn_jacobian: torch.Tensor, target_U: torch.Tensor, target_S: torch.Tensor,
-                                target_Vt: torch.Tensor, k_max: int, continuum: Union[float, torch.Tensor] = 1.0) -> torch.Tensor:
+    def compute_projection_loss(self, nn_jacobian: torch.Tensor, dy_target: torch.Tensor, 
+                                # target_U: torch.Tensor, target_S: torch.Tensor, target_Vt: torch.Tensor, 
+                                k_max: int, continuum: Union[float, torch.Tensor] = 1.0) -> torch.Tensor:
         """Compute projection loss between target and NN Jacobians.
         
         Args:
@@ -276,20 +306,27 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
             projection_loss: Computed projection loss value
         """
         # Compute the SVD of the target Jacobians
-        # U, S, Vt = torch.linalg.svd(dy_target, full_matrices=False)
+        if hasattr(self, 'jacobian_mask'):
+            target_U, target_S, target_Vt = torch.linalg.svd(dy_target.detach()[..., self.jacobian_mask], full_matrices=False)
+        else:
+            target_U, target_S, target_Vt = torch.linalg.svd(dy_target.detach(), full_matrices=False)
 
         # Compare top-k singular vectors of target and predicted Jacobians,
         # using the projection matrices U and V of the SVD of the target Jacobians
         V_k = target_Vt[..., :k_max, :].transpose(-2, -1)  # Take the first k_max right singular vectors
         U_k = target_U[..., :k_max]     # Take the first k_max left singular vectors
-        S_k = torch.diag(target_S[..., :k_max])  # Take the first k_max singular values
+        S_k = torch.diag_embed(target_S[..., :k_max])  # Take the first k_max singular values
 
         # Compute the singular vectors of the predicted Jacobians
-        nn_jacobian_masked = nn_jacobian * self.jacobian_mask  # Mask input dimensions if required
-        S_k_nn = U_k.transpose(-2, -1) @ nn_jacobian_masked @ V_k
+        if hasattr(self, 'jacobian_mask'):
+            nn_jacobian_masked = nn_jacobian[..., self.jacobian_mask] # * self.jacobian_mask  # Mask input dimensions if required
+            S_k_nn = U_k.transpose(-2, -1) @ nn_jacobian_masked @ V_k
+        else:
+            S_k_nn = U_k.transpose(-2, -1) @ nn_jacobian @ V_k
 
         # Compute the squared Frobenius norm of the difference
         projection_loss = torch.linalg.matrix_norm(S_k - S_k_nn, ord='fro', dim=(-2, -1)) #**2
+        # projection_loss = (torch.diagonal(S_k, dim1=-2, dim2=-1) - torch.diagonal(S_k_nn, dim1=-2, dim2=-1)).pow(2)
 
         # Normalize the loss
         projection_loss = projection_loss / continuum #**2
@@ -317,39 +354,64 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         loss = self.compute_loss(outputs, targets)
 
         # log loss and log-loss
-        self.log(f'{split}/loss', loss, on_epoch=True, 
-                    on_step=(True if split == 'train' else False),
-                    prog_bar=(True if split == 'train' else False), 
-                    logger=True, sync_dist=True)
-        self.log(f'{split}/log_loss', torch.log(loss), on_epoch=True, 
-                    on_step=(True if split == 'train' else False),
-                    prog_bar=(True if split == 'train' else False), 
-                    logger=True, sync_dist=True)
+        self.log_loss(loss, 'loss', split)
 
         # compute jacobian if required for regularization
-        if self.jacobian_regularization:
+        if self.jac_regularization:
             target_jacobian = batch.get('target_jacobians', None)
             proxy_jacobian = batch.get('proxy_jacobians', None)
             jacobian = self.forward_model.jacobian_exact(inputs,
                                            proxy_targets=proxy_targets,
                                            profile_inputs=profile_inputs,
                                            proxy_jacobian=proxy_jacobian)
+            continuum = self.forward_model.combine_with_proxy(
+                                batch['targets'], 
+                                batch['proxy_targets']
+                            ).max(dim=-1).values
             
-            jac_loss = self.jacobian_loss(jacobian, target_jacobian)
-            loss = loss + jac_loss
+            if self.jac_mse_loss_scale > 0:
+                jac_mse_loss = self.jacobian_loss(jacobian, target_jacobian, continuum)
+                jac_mse_loss = jac_mse_loss * self.jac_mse_loss_scale
+                self.log_loss(jac_mse_loss, 'jacobian_mse_loss', split)
+            else:
+                jac_mse_loss = 0.0
 
-            # log jacobian loss separately
-            self.log(f'{split}/jacobian_loss', jac_loss, on_epoch=True, 
-                    on_step=(True if split == 'train' else False),
-                    prog_bar=(True if split == 'train' else False), 
-                    logger=True, sync_dist=True)
-            self.log(f'{split}/log_jacobian_loss', torch.log(jac_loss), on_epoch=True, 
-                    on_step=(True if split == 'train' else False),
-                    prog_bar=(True if split == 'train' else False), 
-                    logger=True, sync_dist=True)
+            if self.jac_proj_loss_scale > 0:
+                jac_proj_loss = self.compute_projection_loss(
+                                jacobian, 
+                                target_jacobian, 
+                                k_max=7, 
+                                continuum=continuum)
+                jac_proj_loss = jac_proj_loss * self.jac_proj_loss_scale
+                self.log_loss(jac_proj_loss, 'jac_proj_loss', split)
+            else:
+                jac_proj_loss = 0.0
 
+            if self.jac_subspace_loss_scale > 0:
+                jac_subspace_loss = self.compute_subspace_loss(
+                                jacobian,
+                                target_jacobian,
+                                k_max=7,
+                                continuum=continuum)
+                jac_subspace_loss = jac_subspace_loss * self.jac_subspace_loss_scale
+                self.log_loss(jac_subspace_loss, 'jac_subspace_loss', split)
+            else:
+                jac_subspace_loss = 0.0
+
+            loss = loss + jac_mse_loss + jac_proj_loss + jac_subspace_loss
 
         return loss
+    
+    def log_loss(self, loss, loss_name, split):
+        # log loss term and its logarithm
+        self.log(f'{split}/{loss_name}', loss, on_epoch=True, 
+                    on_step=(True if split == 'train' else False),
+                    prog_bar=(True if split == 'train' else False), 
+                    logger=True, sync_dist=True)
+        self.log(f'{split}/log_{loss_name}', torch.log(loss), on_epoch=True, 
+                    on_step=(True if split == 'train' else False),
+                    prog_bar=(True if split == 'train' else False), 
+                    logger=True, sync_dist=True)
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         loss = self.eval_step(batch, split='train')
@@ -1083,6 +1145,8 @@ class NNForwardModel(torch.nn.Module):
                  proxy_targets: Optional[torch.Tensor] = None,
                  profile_inputs: Optional[torch.Tensor] = None,
                  proxy_jacobian: Optional[torch.Tensor] = None,
+                 gas_priors: Optional[torch.Tensor] = None,
+                 gas_indices: Optional[torch.Tensor] = None,
                  ) -> torch.Tensor:
         """
         Compute exact jacobian using autograd.
@@ -1097,6 +1161,8 @@ class NNForwardModel(torch.nn.Module):
                 profile_inputs = profile_inputs.unsqueeze(0)
             if proxy_jacobian is not None:
                 proxy_jacobian = proxy_jacobian.unsqueeze(0)
+            if gas_priors is not None:
+                gas_priors = gas_priors.unsqueeze(0)
             dim = 1
         else:
             dim = inputs.dim()
@@ -1112,7 +1178,7 @@ class NNForwardModel(torch.nn.Module):
         # compute jacobian w.r.t. inputs using autograd,
         # parallelizing over batch dimension
         f_jac = torch.func.jacrev(self._predict, argnums=0)
-        f_jac_vmap = torch.func.vmap(f_jac, in_dims=batch_dims, out_dims=0)
+        f_jac_vmap = torch.func.vmap(f_jac, in_dims=batch_dims, out_dims=0, randomness='different')
 
         # for ratio or diff models, compute jacobian for correction term only 
         # i.e. without combining it with proxy
@@ -1125,7 +1191,7 @@ class NNForwardModel(torch.nn.Module):
                          combine_with_proxy)
         
         # process jacobians to match target and proxy jacobian definitions
-        jac = self.prepare_jacobians(jac, inputs)
+        jac = self.prepare_jacobians(jac, gas_priors, gas_indices)
 
         # if applicable, combine with proxy jacobian
         jac = self.combine_jacobians(jac, proxy_jacobian, inputs, proxy_targets, profile_inputs)
@@ -1138,7 +1204,8 @@ class NNForwardModel(torch.nn.Module):
     
     def prepare_jacobians(self,
                           jac: torch.Tensor,
-                          inputs: torch.Tensor,
+                          gas_priors: Optional[torch.Tensor] = None,
+                          gas_indices: Optional[torch.Tensor] = None,
                           ) -> torch.Tensor:
         """
         Prepare raw NN Jacobians to match the target and proxy jacobians in 
@@ -1148,9 +1215,16 @@ class NNForwardModel(torch.nn.Module):
         # If applicable, scale gas dimensions to get derivatives w.r.t. scaling factors 
         # instead of total columns.
         # Note that the provided proxy_jacobian should already include this scaling
-        for gas_idx in self.gas_scaling_indices:
-            jac = jac.clone() # to prevent issues with slicing of autograd output
-            jac[:, :, gas_idx] = jac[:, :, gas_idx] * inputs[:, gas_idx].unsqueeze(1)
+        # for gas_idx in self.gas_scaling_indices:
+        #     jac = jac.clone() # to prevent issues with slicing of autograd output
+        #     jac[:, :, gas_idx] = jac[:, :, gas_idx] * inputs[:, gas_idx].unsqueeze(1)
+
+        print(gas_indices.shape)
+
+        if gas_indices:
+            for i, gas_idx in enumerate(gas_indices):
+                jac = jac.clone() # to prevent issues with slicing of autograd output
+                jac[:, :, gas_idx] = jac[:, :, gas_idx] * gas_priors[:, i].unsqueeze(1)
 
         return jac
     
@@ -1329,17 +1403,17 @@ class LatentNNForwardModel(NNForwardModel):
             proxy_transf = self.proxy_nn(proxy_transf)
             inputs = torch.cat([inputs, proxy_transf], dim=-1)
 
-        training_flag = self.core_nn.training
-        if not train:
-            # temporarily switch off training mode
-            # (e.g. for jacobian computation)
-            self.core_nn.training = False
+        # training_flag = self.core_nn.training
+        # if not train:
+        #     # temporarily switch off training mode (e.g. for jacobian computation)
+        #     # to not apply any dropout
+        #     self.core_nn.training = False
 
         # Run core part of the NN forward model
         outputs = self.core_nn(inputs)
         
         # switch training mode back on if applicable
-        self.core_nn.training = training_flag
+        # self.core_nn.training = training_flag
 
         if self.decoder is not None:
             outputs = self.decoder.decode(outputs)

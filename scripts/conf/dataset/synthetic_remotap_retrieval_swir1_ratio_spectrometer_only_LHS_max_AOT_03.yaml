@@ -42,7 +42,8 @@ profile_features: null
 
 # info for Jacobian fine-tuning
 gas_scaling_indices: [8, 9, 10] # indices of total gas columns in input features (0-based) --> used to get Jacobians w.r.t. gas scaling factors
-jacobian_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] # if using jacobian-based loss terms, weights for each input dimension
+jacobian_weights: [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] # if using jacobian-based loss terms, weights for each input dimension
+jacobian_mask: [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1] # if using jacobian-based loss terms, mask for input dimensions included in state vector (here, geometry-related variables are excluded)
 
 # normalization settings
 normalization:
