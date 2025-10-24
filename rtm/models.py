@@ -360,10 +360,15 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         if self.jac_regularization:
             target_jacobian = batch.get('target_jacobians', None)
             proxy_jacobian = batch.get('proxy_jacobians', None)
+            gas_priors = batch.get('gas_priors', None)
+            gas_indices = batch.get('gas_indices', None)
             jacobian = self.forward_model.jacobian_exact(inputs,
                                            proxy_targets=proxy_targets,
                                            profile_inputs=profile_inputs,
-                                           proxy_jacobian=proxy_jacobian)
+                                           proxy_jacobian=proxy_jacobian,
+                                           gas_priors=gas_priors,
+                                           gas_indices=gas_indices
+                                           )
             continuum = self.forward_model.combine_with_proxy(
                                 batch['targets'], 
                                 batch['proxy_targets']
@@ -1163,9 +1168,13 @@ class NNForwardModel(torch.nn.Module):
                 proxy_jacobian = proxy_jacobian.unsqueeze(0)
             if gas_priors is not None:
                 gas_priors = gas_priors.unsqueeze(0)
+            if gas_indices is not None:
+                gas_indices = gas_indices.unsqueeze(0)
             dim = 1
         else:
             dim = inputs.dim()
+
+        print(gas_priors.shape, gas_indices.shape)
         
         # define batch dimensions
         batch_dims = [0, 0, 0, None, None]
@@ -1219,10 +1228,9 @@ class NNForwardModel(torch.nn.Module):
         #     jac = jac.clone() # to prevent issues with slicing of autograd output
         #     jac[:, :, gas_idx] = jac[:, :, gas_idx] * inputs[:, gas_idx].unsqueeze(1)
 
-        print(gas_indices.shape)
-
-        if gas_indices:
-            for i, gas_idx in enumerate(gas_indices):
+        if gas_indices is not None:
+            for i, gas_idx in enumerate(gas_indices.squeeze(0)):
+                print(gas_idx)
                 jac = jac.clone() # to prevent issues with slicing of autograd output
                 jac[:, :, gas_idx] = jac[:, :, gas_idx] * gas_priors[:, i].unsqueeze(1)
 

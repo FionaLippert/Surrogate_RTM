@@ -131,7 +131,7 @@ class RTDataset(Dataset):
             if len(self.gas_indices) > 0:
                 self.gas_priors = self.gas_priors[self.indices]
                 self.gas_priors = rtm_transforms.numpy_to_tensor(self.gas_priors)
-                self.gas_indices = rtm_transforms.numpy_to_tensor(self.gas_indices)
+                self.gas_indices = rtm_transforms.numpy_to_tensor(self.gas_indices, dtype=torch.int)
 
         if self.proxy_jacobians is not None:
             self.proxy_jacobians = self.proxy_jacobians[self.indices]
