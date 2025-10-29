@@ -232,7 +232,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         # weight each input dimension separately
         weighted_squared_errors = squared_errors * self.jacobian_weights
         # average over input dimensions, weighted by jacobian_weights
-        weighted_mse = torch.sum(weighted_squared_errors, dim=-1) / torch.sum(self.jacobian_weights)
+        weighted_mse = torch.sum(weighted_squared_errors, dim=-1) # / torch.sum(self.jacobian_weights)
         # average over output dimensions and samples
         jac_loss = torch.mean(weighted_mse)
 
@@ -362,6 +362,11 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
             proxy_jacobian = batch.get('proxy_jacobians', None)
             gas_priors = batch.get('gas_priors', None)
             gas_indices = batch.get('gas_indices', None)
+
+            # switch off training mode for jacobian evaluation
+            self.eval()
+
+            # compute NN jacobians with autograd
             jacobian = self.forward_model.jacobian_exact(inputs,
                                            proxy_targets=proxy_targets,
                                            profile_inputs=profile_inputs,
@@ -385,7 +390,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                 jac_proj_loss = self.compute_projection_loss(
                                 jacobian, 
                                 target_jacobian, 
-                                k_max=7, 
+                                k_max=3, 
                                 continuum=continuum)
                 jac_proj_loss = jac_proj_loss * self.jac_proj_loss_scale
                 self.log_loss(jac_proj_loss, 'jac_proj_loss', split)
@@ -396,7 +401,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                 jac_subspace_loss = self.compute_subspace_loss(
                                 jacobian,
                                 target_jacobian,
-                                k_max=7,
+                                k_max=3,
                                 continuum=continuum)
                 jac_subspace_loss = jac_subspace_loss * self.jac_subspace_loss_scale
                 self.log_loss(jac_subspace_loss, 'jac_subspace_loss', split)
@@ -404,6 +409,10 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                 jac_subspace_loss = 0.0
 
             loss = loss + jac_mse_loss + jac_proj_loss + jac_subspace_loss
+
+            # switch back to training (if applicable)
+            if split == 'train':
+                self.train()
 
         return loss
     
@@ -987,7 +996,7 @@ class NNForwardModel(torch.nn.Module):
     """
     Base class for neural network forward models
     """
-    def __init__(self, proxy_operation: Optional[str] = None, gas_scaling_indices: Optional[List[int]] = None):
+    def __init__(self, proxy_operation: Optional[str] = None):
         super().__init__()
 
         # operation used to combine neural network output with proxy targets
@@ -995,9 +1004,6 @@ class NNForwardModel(torch.nn.Module):
         self.proxy_operation = proxy_operation
 
         print(f'Using proxy operation {self.proxy_operation}...')
-
-        # indices of input dimensions for which Jacobian should be scaled when using gas scaling
-        self.gas_scaling_indices = [] if gas_scaling_indices is None else gas_scaling_indices
 
         # transforms can be set later based on training dataset
         self.transforms = None
@@ -1174,8 +1180,6 @@ class NNForwardModel(torch.nn.Module):
         else:
             dim = inputs.dim()
 
-        print(gas_priors.shape, gas_indices.shape)
-        
         # define batch dimensions
         batch_dims = [0, 0, 0, None, None]
         if proxy_targets is None:
@@ -1229,10 +1233,13 @@ class NNForwardModel(torch.nn.Module):
         #     jac[:, :, gas_idx] = jac[:, :, gas_idx] * inputs[:, gas_idx].unsqueeze(1)
 
         if gas_indices is not None:
-            for i, gas_idx in enumerate(gas_indices.squeeze(0)):
-                print(gas_idx)
+            n_samples = jac.shape[0]
+            batch_idx = torch.arange(n_samples) # shape (n_samples,)
+            for i in range(gas_indices.shape[-1]):
+                gas_idx = gas_indices[:, i] # shape (n_samples,)
                 jac = jac.clone() # to prevent issues with slicing of autograd output
-                jac[:, :, gas_idx] = jac[:, :, gas_idx] * gas_priors[:, i].unsqueeze(1)
+                # jac[:, :, gas_idx] = jac[:, :, gas_idx] * gas_priors[:, i].unsqueeze(1)
+                jac[batch_idx, :, gas_idx] *= gas_priors[:, i].view(n_samples, 1)
 
         return jac
     
@@ -1420,7 +1427,7 @@ class LatentNNForwardModel(NNForwardModel):
         # Run core part of the NN forward model
         outputs = self.core_nn(inputs)
         
-        # switch training mode back on if applicable
+        # # switch training mode back on if applicable
         # self.core_nn.training = training_flag
 
         if self.decoder is not None:
