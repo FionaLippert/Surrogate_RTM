@@ -1233,8 +1233,10 @@ class NNForwardModel(torch.nn.Module):
         #     jac[:, :, gas_idx] = jac[:, :, gas_idx] * inputs[:, gas_idx].unsqueeze(1)
 
         if gas_indices is not None:
-            for i, gas_idx in enumerate(gas_indices.squeeze(0)):
-                print(gas_idx)
+            n_samples = jac.shape[0]
+            batch_idx = torch.arange(n_samples) # shape (n_samples,)
+            for i in range(gas_indices.shape[-1]):
+                gas_idx = gas_indices[:, i] # shape (n_samples,)
                 jac = jac.clone() # to prevent issues with slicing of autograd output
                 # jac[:, :, gas_idx] = jac[:, :, gas_idx] * gas_priors[:, i].unsqueeze(1)
                 jac[batch_idx, :, gas_idx] *= gas_priors[:, i].view(n_samples, 1)
