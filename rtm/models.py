@@ -1173,8 +1173,6 @@ class NNForwardModel(torch.nn.Module):
             dim = 1
         else:
             dim = inputs.dim()
-
-        print(gas_priors.shape, gas_indices.shape)
         
         # define batch dimensions
         batch_dims = [0, 0, 0, None, None]
@@ -1230,7 +1228,6 @@ class NNForwardModel(torch.nn.Module):
 
         if gas_indices is not None:
             for i, gas_idx in enumerate(gas_indices.squeeze(0)):
-                print(gas_idx)
                 jac = jac.clone() # to prevent issues with slicing of autograd output
                 jac[:, :, gas_idx] = jac[:, :, gas_idx] * gas_priors[:, i].unsqueeze(1)
 
