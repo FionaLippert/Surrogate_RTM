@@ -142,11 +142,6 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     else:
         transforms = model.transforms
 
-    print(cfg.dataset.jacobian_mask)
-    print(cfg.dataset.jacobian_weights)
-
-    print(model.jacobian_mask)
-    print(model.jacobian_weights)
 
     # update config with final transforms (including normalization and double-to-float conversion)
     cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
@@ -199,8 +194,8 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
             targets = model.forward_model.target_transform(targets)
         # if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
         #     targets = model.output_dim_reduction.encode(targets.to(device))
-        model.loss_scale = targets.std().item()
-        print(f'loss scale = {model.loss_scale}')
+        # model.loss_scale = targets.std().item()
+        # print(f'loss scale = {model.loss_scale}')
 
     # train model
     trainer.validate(model, val_loader)
