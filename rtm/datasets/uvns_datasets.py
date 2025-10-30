@@ -74,7 +74,7 @@ class RTDataset(Dataset):
             self.gas_priors, self.gas_indices = self._collect_gas_priors(data_dir, prefix)
         else:
             self.target_jacobians, self.proxy_jacobians = None, None
-            self.gas_priors, self.gas_indices = None
+            self.gas_priors, self.gas_indices = None, None
         # if target jacobians are available, compute SVD (only for selected input features)
         self.target_U, self.target_S, self.target_Vt = self._compute_jacobian_svd(self.target_jacobians) 
 
@@ -433,6 +433,7 @@ class RTDataset(Dataset):
     
     def _load_wavelengths(self, data_dir: str, prefix: str):
         # load wavelengths from spectra netcdf file
+        print(f'Loading wavelengths from {osp.join(data_dir, prefix+"_spectra.nc")}')
         spectra_file = f'{prefix}_spectra.nc'
         ds = xr.load_dataset(osp.join(data_dir, spectra_file))
         wavelengths = ds['wavelength'].data.astype(np.float64)
