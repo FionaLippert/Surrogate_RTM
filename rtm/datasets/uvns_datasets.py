@@ -725,7 +725,7 @@ class FlatRTDataset(RTDataset):
             proxy_jacobian = self.proxy_jacobians[idx]
             data_dict['proxy_jacobians'] = proxy_jacobian
 
-        for key, values in data_dict:
+        for key, values in data_dict.items():
             data_dict[key] = values.to(dtype=self.torch_dtype)
 
         return data_dict
