@@ -330,7 +330,8 @@ class PowerTransform(RTMTransform):
     
     
     
-def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable:
+def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]], 
+                  dtype: torch.dtype = torch.float64) -> Callable:
     mean = stats['mean']
     std = stats['std']
 
@@ -345,6 +346,9 @@ def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable
         mean = torch.tensor(mean)
     if isinstance(std, (float, np.floating)):
         std = torch.tensor(std)
+
+    mean = mean.to(dtype=dtype)
+    std = std.to(dtype=dtype)
 
     print(mean.dtype, std.dtype)
 
@@ -374,7 +378,7 @@ def save_transforms(transforms, dir: str, types=['pixel', 'profile', 'target', '
         torch.save(transforms[i], fname)
     
 
-def numpy_to_tensor(data: np.ndarray, dtype=torch.double) -> torch.Tensor:
+def numpy_to_tensor(data: np.ndarray, dtype=torch.float64) -> torch.Tensor:
     # convert numpy array to Pytorch tensor
     return torch.from_numpy(data).to(dtype)
 
