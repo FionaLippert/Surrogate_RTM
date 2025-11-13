@@ -8,9 +8,9 @@ transforms:
     feature_indices: [4, 5] # albedo, reff_mode1 (for datasets with scattering angle)
     n_features: ${len:${dataset.pixel_features}} # number of pixel features
     feature_dim: 1 # pixel features have shape (batch_size, n_features)
-  profile_transform: null
+  profile_transform: rtm.rtm_transforms.NullTransform
   target_transform:
     _target_: rtm.rtm_transforms.LogTransform
   proxy_transform:
     _target_: rtm.rtm_transforms.LogTransform
-  jacobian_transform: null
+  jacobian_transform: rtm.rtm_transforms.NullTransform

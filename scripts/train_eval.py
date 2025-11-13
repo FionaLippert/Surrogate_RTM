@@ -134,6 +134,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
 
     # get transforms
     if not pretrained:
+        dataset.precision = 'float64'
         transforms = data_utils.prepare_transforms(cfg.transforms, 
                                                 dataset, 
                                                 train_indices, 

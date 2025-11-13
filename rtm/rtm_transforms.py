@@ -335,14 +335,18 @@ def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable
     std = stats['std']
 
     if isinstance(mean, np.ndarray):
+        print(mean.dtype)
         mean = torch.from_numpy(mean.copy())
     if isinstance(std, np.ndarray):
+        print(std.dtype)
         std = torch.from_numpy(std.copy())
 
     if isinstance(mean, (float, np.floating)):
         mean = torch.tensor(mean)
     if isinstance(std, (float, np.floating)):
         std = torch.tensor(std)
+
+    print(mean.dtype, std.dtype)
 
     # if no variation, replace with 1 to avoid division by zero
     std = torch.where(std==0, torch.ones_like(std), std)

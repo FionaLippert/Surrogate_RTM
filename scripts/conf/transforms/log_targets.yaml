@@ -3,9 +3,9 @@ name: log_target_transform
 _target_: rtm.rtm_transforms.RTMTransformCollection
 
 transforms:
-  pixel_transform: null
-  profile_transform: null
+  pixel_transform: rtm.rtm_transforms.NullTransform
+  profile_transform: rtm.rtm_transforms.NullTransform
   target_transform:
     _target_: rtm.rtm_transforms.LogTransform
-  proxy_transform: null
-  jacobian_transform: null
+  proxy_transform: rtm.rtm_transforms.NullTransform
+  jacobian_transform: rtm.rtm_transforms.NullTransform

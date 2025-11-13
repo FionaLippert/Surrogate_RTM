@@ -337,7 +337,9 @@ class RTDataset(Dataset):
         full_physics = ds[self.target_quantity].data # shape (nobs, nwave)
 
         # make sure data is float64 to avoid precision issues when normalizing
+        print(self.precision, full_physics.dtype)
         full_physics = full_physics.astype(self.precision)
+        print(self.precision, full_physics.dtype)
 
         # extract proxy spectra, if available
         if 'proxy' in ds.data_vars:
