@@ -142,6 +142,9 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     else:
         transforms = model.transforms
 
+        # make sure to overwrite jacobian weights
+        model.jacobian_weights = torch.tensor(cfg.dataset.jacobian_weights, dtype=torch.float32)
+
 
     # update config with final transforms (including normalization and double-to-float conversion)
     cfg_resolved = OmegaConf.to_container(cfg, resolve=True)

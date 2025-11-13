@@ -62,6 +62,7 @@ profile_features: []
 
 # info for Jacobian fine-tuning
 jacobian_weights: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # if using jacobian-based loss terms, weights for each input dimension
+jacobian_mask: null
 
 # normalization settings
 normalization:

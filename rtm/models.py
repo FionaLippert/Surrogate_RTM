@@ -150,6 +150,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         # training hyperparameters
         self.lr = lr
         self.l2_reg = kwargs.get('l2_reg', 0)
+        self.betas = kwargs.get('betas', (0.9, 0.999))
         self.loss_scale = kwargs.get('loss_scale', 1.0)
 
         # list of loss terms making up the overall loss
@@ -196,9 +197,6 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         loss = 0
         for loss_fct in self.loss_terms:
             loss = loss + loss_fct(outputs, targets)
-
-        # if using SGD without regularization, this is equivalent to scaling the lr
-        loss = loss * self.loss_scale
 
         return loss
     
@@ -356,6 +354,9 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         # log loss and log-loss
         self.log_loss(loss, 'loss', split)
 
+        # if using SGD without regularization, this is equivalent to scaling the lr
+        loss = loss * self.loss_scale
+
         # compute jacobian if required for regularization
         if self.jac_regularization:
             target_jacobian = batch.get('target_jacobians', None)
@@ -378,11 +379,12 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                                 batch['targets'], 
                                 batch['proxy_targets']
                             ).max(dim=-1).values
+
             
             if self.jac_mse_loss_scale > 0:
                 jac_mse_loss = self.jacobian_loss(jacobian, target_jacobian, continuum)
-                jac_mse_loss = jac_mse_loss * self.jac_mse_loss_scale
                 self.log_loss(jac_mse_loss, 'jacobian_mse_loss', split)
+                jac_mse_loss = jac_mse_loss * self.jac_mse_loss_scale
             else:
                 jac_mse_loss = 0.0
 
@@ -390,10 +392,10 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                 jac_proj_loss = self.compute_projection_loss(
                                 jacobian, 
                                 target_jacobian, 
-                                k_max=3, 
+                                k_max=4, 
                                 continuum=continuum)
-                jac_proj_loss = jac_proj_loss * self.jac_proj_loss_scale
                 self.log_loss(jac_proj_loss, 'jac_proj_loss', split)
+                jac_proj_loss = jac_proj_loss * self.jac_proj_loss_scale
             else:
                 jac_proj_loss = 0.0
 
@@ -401,10 +403,10 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
                 jac_subspace_loss = self.compute_subspace_loss(
                                 jacobian,
                                 target_jacobian,
-                                k_max=3,
+                                k_max=4,
                                 continuum=continuum)
-                jac_subspace_loss = jac_subspace_loss * self.jac_subspace_loss_scale
                 self.log_loss(jac_subspace_loss, 'jac_subspace_loss', split)
+                jac_subspace_loss = jac_subspace_loss * self.jac_subspace_loss_scale
             else:
                 jac_subspace_loss = 0.0
 
@@ -442,7 +444,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         # self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg, betas=self.betas)
 
         if self.lr_schedulers is not None and self.lr_milestones is not None:
             scheduler = SequentialLR(optimizer, 
@@ -674,6 +676,7 @@ class NNSurrogateRTM(SurrogateRTM):
         
         self.lr = lr
         self.l2_reg = kwargs.get('l2_reg', 0)
+        self.betas = kwargs.get('betas', (0.9, 0.999))
         self.loss_scale = kwargs.get('loss_scale', 1.0)
 
         # list of loss terms making up the overall loss
@@ -752,7 +755,7 @@ class NNSurrogateRTM(SurrogateRTM):
         self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg, betas=self.betas)
 
         if self.lr_schedulers is not None and self.lr_milestones is not None:
             scheduler = SequentialLR(optimizer, 

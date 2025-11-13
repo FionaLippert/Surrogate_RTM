@@ -41,7 +41,7 @@ pixel_features:
 profile_features: null
 
 # info for Jacobian fine-tuning
-jacobian_weights: [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] # if using jacobian-based loss terms, weights for each input dimension
+jacobian_weights: [0.0, 0.0, 0.0, 0.0, 0.01, 1.0, 0.1, 1000.0, 1.0, 1.0, 1.0] # if using jacobian-based loss terms, weights for each input dimension
 jacobian_mask: [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1] # if using jacobian-based loss terms, mask for input dimensions included in state vector (here, geometry-related variables are excluded)
 
 # normalization settings
