@@ -41,17 +41,16 @@ def reconstruction_error(pca, data, log_mean, log_std, z='targets'):
 
 if __name__ == '__main__':
 
-    normalization = 'targets'
+    # normalization = 'targets'
+    normalization = 'continuum'
     dataset_type = f'spectrometer_only_z={normalization}_train_val'
+    train_frac = 1.0
 
     data_dict = {
         r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_spectrometer_only_LHS',
         r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_spectrometer_only_LHS',
         r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_spectrometer_only_LHS',
     }
-
-    train_frac = 0.2
-
     
     data_path = '/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/output/datasets'
     figure_path = '/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/output/figures'
@@ -63,8 +62,6 @@ if __name__ == '__main__':
 
     for band, dataset_name in data_dict.items():
         print(f'Processing {band} band...')
-        # full_test_path = os.path.join(data_path, f'{dataset_name}_test', 'test_dataset.pt')
-        # test_dataset = torch.load(full_test_path, weights_only=False)
 
         train_path = os.path.join(data_path, f'{dataset_name}_train_val')
         train_dataset = torch.load(os.path.join(train_path, 'train_dataset.pt'), weights_only=False)

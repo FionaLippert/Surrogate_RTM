@@ -8,7 +8,7 @@ test_size: 1.0 # fraction of the dataset to be used for testing
 val_size: 0.0 # fraction of the training dataset to be used for validation
 
 # point to data files
-data_dir: ${device.data_root}/simple_s5_spectrometer_only_1e3_test_set_fixed_LHS/SWIR1_preprocessed
+data_dir: ${device.data_root}/simple_s5_spectrometer_only_1e4_test_set_fixed_LHS/SWIR1_preprocessed
 prefix: syn_meas_s5_random_ensemble_1
 
 # define output quantity

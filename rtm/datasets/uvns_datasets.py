@@ -36,6 +36,7 @@ class RTDataset(Dataset):
                 #  split_sizes: Dict[str, float] = {'train': 0.7, 'val': 0.1, 'test': 0.2},
                  radiance_thr: float = None,
                  include_jacobian: bool = False,
+                 precision: str = 'float32',
                  **kwargs
                  ):
         
@@ -48,6 +49,7 @@ class RTDataset(Dataset):
         self.predict_difference = predict_difference
         self.predict_ratio = predict_ratio
         self.include_jacobian = include_jacobian
+        self.precision = precision
 
         # transformations
         # self.pixel_transform = pixel_transform
@@ -276,7 +278,7 @@ class RTDataset(Dataset):
             data = ds[feature].data.reshape(n_pixels, -1)
 
             # make sure data is float64 to avoid precision issues when normalizing
-            data = data.astype(np.float64)
+            data = data.astype(self.precision)
             pixel_data.append(data)
 
             f_dim = data.shape[-1]
@@ -312,7 +314,7 @@ class RTDataset(Dataset):
         for feature in self.profile_features:
             data = ds[feature].data
             # make sure data is float64 to avoid precision issues when normalizing
-            data = data.astype(np.float64)
+            data = data.astype(self.precision)
             profile_data.append(data)
 
             f_dim = data.shape[-1]
@@ -335,12 +337,12 @@ class RTDataset(Dataset):
         full_physics = ds[self.target_quantity].data # shape (nobs, nwave)
 
         # make sure data is float64 to avoid precision issues when normalizing
-        full_physics = full_physics.astype(np.float64)
+        full_physics = full_physics.astype(self.precision)
 
         # extract proxy spectra, if available
         if 'proxy' in ds.data_vars:
             proxy = ds['proxy'].data # shape (nobs, nwave)
-            proxy = proxy.astype(np.float64)
+            proxy = proxy.astype(self.precision)
         else:
             proxy = None
         
@@ -364,13 +366,13 @@ class RTDataset(Dataset):
         for feature in self.pixel_feature_names:
             data = ds[f'{feature}_jac'].data
             # make sure data is float64 to avoid precision issues when normalizing
-            data = data.astype(np.float64)
+            data = data.astype(self.precision)
             jacobian_data.append(data)
 
             if f'{feature}_proxy_jac' in ds.data_vars:
                 # also load the proxy jacobian for this feature
                 proxy_data = ds[f'{feature}_proxy_jac'].data
-                proxy_data = proxy_data.astype(np.float64)
+                proxy_data = proxy_data.astype(self.precision)
                 proxy_jacobian_data.append(proxy_data)
 
         if len(jacobian_data) > 0:
@@ -406,7 +408,7 @@ class RTDataset(Dataset):
             if feature.startswith('vmol_'):
                 data = ds[f'{feature}_prior'].data
                 # make sure data is float64 to avoid precision issues when normalizing
-                data = data.astype(np.float64)
+                data = data.astype(self.precision)
                 gas_priors.append(data)
                 gas_indices.append(fidx)
 
@@ -436,7 +438,7 @@ class RTDataset(Dataset):
         print(f'Loading wavelengths from {osp.join(data_dir, prefix+"_spectra.nc")}')
         spectra_file = f'{prefix}_spectra.nc'
         ds = xr.load_dataset(osp.join(data_dir, spectra_file))
-        wavelengths = ds['wavelength'].data.astype(np.float64)
+        wavelengths = ds['wavelength'].data.astype(self.precision)  # shape (nwave,)
         return wavelengths
         
     

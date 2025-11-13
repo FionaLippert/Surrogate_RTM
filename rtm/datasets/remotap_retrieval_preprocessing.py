@@ -24,25 +24,34 @@ def prepare_data(target_dir: str,
     
     os.makedirs(target_dir, exist_ok=True)
 
-    # load retrieval data
-    ret_data = load_retrieval_data(data_dir, iwin=iwin, npix=npix)
+    # loop over batches of 1000 pixels, save resulting data and concatenate at the end
+    spectral_data = []
+    pixel_data = []
+    jacobian_data = []
+    for i in range(0, npix, 1000):
+        # load retrieval data
+        ret_data = load_retrieval_data(data_dir, iwin=iwin, ipix_min=i, ipix_max=i+1000)
 
-    # filter data based on chi2
-    valid = filter_data(ret_data, max_chi2=max_chi2)
+        # filter data based on chi2
+        valid = filter_data(ret_data, max_chi2=max_chi2)
 
-    # load spectral data
-    spectral_data = prepare_spectra(ret_data, valid)
+        # load spectral data
+        spectral_data.append(prepare_spectra(ret_data, valid))
 
-    # load pixel data
-    pixel_data = prepare_pixel_data(ret_data, valid)
+        # load pixel data
+        pixel_data.append(prepare_pixel_data(ret_data, valid))
 
-    # load jacobians
-    jacobian_data = prepare_jacobians(ret_data, valid)
+        # load jacobians
+        jacobian_data.append(prepare_jacobians(ret_data, valid))
 
+        if 'proxy' in spectral_data[-1]:
+            # add proxy radiances as additional features
+            pixel_data[-1]['proxy'] = spectral_data[-1]['proxy']
 
-    if 'proxy' in spectral_data:
-        # add proxy radiances as additional features
-        pixel_data['proxy'] = spectral_data['proxy']
+    # concatenate data from all batches
+    spectral_data = xr.concat(spectral_data, dim='pixelID')
+    pixel_data = xr.concat(pixel_data, dim='pixelID')
+    jacobian_data = xr.concat(jacobian_data, dim='pixelID')
             
 
     # save data to disk (and apply filtering)
@@ -51,10 +60,10 @@ def prepare_data(target_dir: str,
     save_netcdf_file(jacobian_data, osp.join(target_dir, f'{prefix}_jacobians.nc'))
 
 
-def load_retrieval_data(data_dir: str, iwin: int, npix: int = 1000) -> xr.Dataset:
+def load_retrieval_data(data_dir: str, iwin: int, ipix_min: int = 0, ipix_max: int = 1000) -> xr.Dataset:
     ds_list = []
-    for i in range(npix):
-        fp = f'{data_dir}/pix_00{i+1:>03}_win_{iwin:02}.nc'
+    for i in range(ipix_min, ipix_max):
+        fp = f'{data_dir}/pix_{i+1:>05}_win_{iwin:02}.nc'
         if not osp.exists(fp):
             continue
         ds_list.append(xr.load_dataset(fp))

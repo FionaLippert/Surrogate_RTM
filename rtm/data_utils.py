@@ -21,7 +21,7 @@ def prepare_transforms(cfg_transforms: DictConfig, dataset: Dataset, indices: Li
         **kwargs
     )
     transforms.add_transforms(normalization)
-    transforms.add_transform_to_all(rtm_transforms.DoubleToFloat())
+    # transforms.add_transform_to_all(rtm_transforms.DoubleToFloat())
 
     return transforms
 
@@ -30,8 +30,6 @@ def prepare_train_dataset(cfg_dataset: DictConfig):
 
     # get training data
     dataset = instantiate(cfg_dataset, train=True)
-
-    print(dataset)
 
     # split training data into training and validation sets
     train_indices, val_indices = dataset.get_data_split(cfg_dataset.val_size)

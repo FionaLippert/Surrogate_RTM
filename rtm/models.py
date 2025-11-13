@@ -1003,6 +1003,8 @@ class NNForwardModel(torch.nn.Module):
         # one of 'difference', 'ratio', None
         self.proxy_operation = proxy_operation
 
+        self.use_proxy_input = False
+
         print(f'Using proxy operation {self.proxy_operation}...')
 
         # transforms can be set later based on training dataset
@@ -1078,7 +1080,8 @@ class NNForwardModel(torch.nn.Module):
     
     def prepare_proxy(self, proxy_targets: torch.Tensor) -> torch.Tensor:
         # apply proxy transform if applicable
-        if self.proxy_transform is not None and proxy_targets is not None:
+        if self.use_proxy_input and self.proxy_transform is not None and proxy_targets is not None:
+            print('Transforming proxy targets...')
             proxy_targets = self.proxy_transform(proxy_targets)
 
         return proxy_targets
@@ -1117,9 +1120,17 @@ class NNForwardModel(torch.nn.Module):
         if not train:
             # undo normalization and transforms if applicable
             if self.target_transform is not None:
+                # outputs = torch.clamp(outputs, min=-1.0, max=1.0)
                 outputs = self.target_transform.inverse(outputs)
+                # for all but diff models, outputs should now be positive
+                # if not, set to smallest float32 value
+                # if self.proxy_operation != 'difference':
+                #     # outputs = torch.clamp(outputs, min=0.01, max=10.0) #np.finfo(np.float32).eps)
+                #     outputs = outputs * 0.0 + 1.0
 
             if combine_with_proxy and proxy_targets is not None:
+                # outputs = torch.where(torch.isfinite(outputs), outputs, torch.ones_like(outputs))
+                # outputs = torch.clamp(outputs, min=0.0, max=10.0)
                 outputs = self.combine_with_proxy(outputs, proxy_targets)
 
         return outputs
@@ -1388,6 +1399,8 @@ class LatentNNForwardModel(NNForwardModel):
 
         # optional proxy processing (e.g. non-scattering radiances)
         self.proxy_nn = proxy_nn
+        if self.proxy_nn is not None:
+            self.use_proxy_input = True
 
         # optional encoder and decoder
         self.encoder = encoder
@@ -1411,31 +1424,22 @@ class LatentNNForwardModel(NNForwardModel):
         profile_transf = self.prepare_profiles(profile_inputs)
         
         if self.encoder is not None:
-            # print(f'Input stats: {inputs.mean(dim=0)}, {inputs.std(dim=0)}')
             inputs = self.encoder.encode(inputs)
 
         if self.proxy_nn is not None:
             proxy_transf = self.proxy_nn(proxy_transf)
             inputs = torch.cat([inputs, proxy_transf], dim=-1)
 
-        # training_flag = self.core_nn.training
-        # if not train:
-        #     # temporarily switch off training mode (e.g. for jacobian computation)
-        #     # to not apply any dropout
-        #     self.core_nn.training = False
-
         # Run core part of the NN forward model
         outputs = self.core_nn(inputs)
-        
-        # # switch training mode back on if applicable
-        # self.core_nn.training = training_flag
 
         if self.decoder is not None:
             outputs = self.decoder.decode(outputs)
 
+        # outputs = proxy_targets * 0.0 - 1.0 # dummy line for FTorch testing
+
         # undo any transforms and normalization, 
         # and combine with proxy targets if applicable
-        # proxy_targets = kwargs.get('proxy_targets', None)
         outputs = self.prepare_outputs(outputs, proxy_targets, train, combine_with_proxy)
 
         return outputs
