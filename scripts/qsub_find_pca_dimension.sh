@@ -11,8 +11,8 @@
 
 
 # run this script with:
+# 
 # qsub -l h_vmem=10G -pe Earth 32 -e /nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/scripts/qsub.err -q Earth-cluster qsub_find_pca_dimension.sh
-
 
 ####################################################
 

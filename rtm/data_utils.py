@@ -22,10 +22,10 @@ def prepare_transforms(cfg_transforms: DictConfig, dataset: Dataset, indices: Li
     )
     transforms.add_transforms(normalization)
 
-    # transforms.add_transform_to_all(rtm_transforms.DoubleToFloat())
+    transforms.add_transform_to_all(rtm_transforms.DoubleToFloat())
 
     # make sure all components have a valid RTMTransform instance
-    transforms.add_transform_to_all(rtm_transforms.NullTransform())
+    # transforms.add_transform_to_all(rtm_transforms.NullTransform())
 
 
     return transforms

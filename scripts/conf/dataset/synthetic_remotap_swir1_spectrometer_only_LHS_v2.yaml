@@ -8,7 +8,7 @@ test_size: 0.04 # fraction of the dataset to be used for testing
 val_size: 0.01 # fraction of the training dataset to be used for validation
 
 # point to data files
-data_dir: ${device.data_root}/simple_s5_spectrometer_only_1e6_fixed_LHS_sza75_vza35/SWIR1_preprocessed/combined_nchunks=16
+data_dir: ${device.data_root}/simple_s5_spectrometer_only_1e6_fixed_LHS_sza75_vza35_lowerAOT/SWIR1_preprocessed/combined_nchunks=16
 prefix: syn_meas_s5_random_ensemble_combined
 
 # define output quantity

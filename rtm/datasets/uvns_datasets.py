@@ -36,7 +36,7 @@ class RTDataset(Dataset):
                 #  split_sizes: Dict[str, float] = {'train': 0.7, 'val': 0.1, 'test': 0.2},
                  radiance_thr: float = None,
                  include_jacobian: bool = False,
-                 torch_dtype: torch.dtype = torch.float32,
+                 torch_dtype: torch.dtype = torch.float64,
                  **kwargs
                  ):
         

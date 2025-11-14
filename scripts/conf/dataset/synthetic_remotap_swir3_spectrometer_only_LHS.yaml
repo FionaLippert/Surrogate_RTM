@@ -9,7 +9,7 @@ val_size: 0.01 # fraction of the training dataset to be used for validation
 
 # point to data files
 # data_dir: ${device.data_root}/simple_s5_spectrometer_only_5e6_fixed_LHS/SWIR3_preprocessed/combined_nchunks=64
-data_dir: ${device.data_root}/simple_s5_spectrometer_only_1e6_fixed_LHS_sza75_vza35/SWIR3_preprocessed/combined_nchunks=16
+data_dir: ${device.data_root}/simple_s5_spectrometer_only_1e6_fixed_LHS_sza75_vza35_lowerAOT/SWIR3_preprocessed/combined_nchunks=16
 prefix: syn_meas_s5_random_ensemble_combined
 
 # define output quantity
