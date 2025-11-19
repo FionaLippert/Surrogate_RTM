@@ -187,10 +187,10 @@ class Normalize(RTMTransform):
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         # reverse standardization
         # denormalized = data * self.std.to(data.device) + self.mean.to(data.device)
-        print(f'stats before inverse normalize: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(self.std).sum()}')
+        # print(f'stats before inverse normalize: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(self.std).sum()}')
         denormalized = data * self.std + self.mean
 
-        print(f'stats after inverse normalize: min={denormalized.min()}, max={denormalized.max()}, nans={torch.isnan(denormalized).sum()}, infs={torch.isinf(denormalized).sum()}')
+        # print(f'stats after inverse normalize: min={denormalized.min()}, max={denormalized.max()}, nans={torch.isnan(denormalized).sum()}, infs={torch.isinf(denormalized).sum()}')
         return denormalized
     
     def derivative(self, data, **kwargs):
@@ -213,10 +213,10 @@ class LogTransform(RTMTransform):
         return torch.log(data)
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        print(data.dtype)
-        print(f'stats before inverse log: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(data).sum()}')
+        # print(data.dtype)
+        # print(f'stats before inverse log: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(data).sum()}')
         result = torch.exp(data)
-        print(f'stats after inverse log: min={result.min()}, max={result.max()}, nans={torch.isnan(result).sum()}, infs={torch.isinf(result).sum()}')
+        # print(f'stats after inverse log: min={result.min()}, max={result.max()}, nans={torch.isnan(result).sum()}, infs={torch.isinf(result).sum()}')
         return result
     
     def derivative(self, data, **kwargs):

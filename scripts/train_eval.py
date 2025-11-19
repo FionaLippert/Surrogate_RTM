@@ -35,6 +35,10 @@ OmegaConf.register_new_resolver("len", len)
 # run with CUDA_LAUNCH_BLOCKING=1
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
+# for debugging
+torch.autograd.set_detect_anomaly(True) # detect nans
+torch.set_flush_denormal(True) # detect tiny numbers
+
 
 ##################################################################
 ## Notes on computing gradients w.r.t. inputs for retrievals

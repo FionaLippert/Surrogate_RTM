@@ -93,7 +93,7 @@ class MLP(torch.nn.Module):
         self.fc_out = torch.nn.Linear(n_hidden, n_out)
 
         if kwargs.get('use_batch_norm', False):
-            self.batch_norms = nn.ModuleList([nn.BatchNorm1d(n_hidden) for _ in range(self.n_layers)])
+            self.batch_norms = nn.ModuleList([nn.BatchNorm1d(n_hidden) for _ in range(self.n_layers + 1)])
 
         self.reset_parameters()
 
@@ -106,13 +106,15 @@ class MLP(torch.nn.Module):
     def forward(self, features):
 
         x = self.fc_in(features)
+        if hasattr(self, 'batch_norms'):
+                x = self.batch_norms[0](x)
         x = self.nonlinearity(x)
         x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         for i, l in enumerate(self.fc_hidden):
             x = l(x)
             if hasattr(self, 'batch_norms'):
-                x = self.batch_norms[i](x)
+                x = self.batch_norms[i + 1](x)
             x = self.nonlinearity(x)
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 

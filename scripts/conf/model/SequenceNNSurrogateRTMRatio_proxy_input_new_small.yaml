@@ -1,13 +1,13 @@
 # @package model
-name: SequenceNNSurrogateRTMRatio_proxy_input
+name: SequenceNNSurrogateRTMRatio_proxy_input_small
 _target_: rtm.models.NNSurrogateRTMWrapper
 
 input_dim: ${dataset.input_dim} # all features
 output_dim: ${dataset.output_dim} # all wavelengths
 
 # input_latent_dim: ${dataset.input_dim} # all features
-input_latent_dim: 64
-proxy_latent_dim: 32
+input_latent_dim: 32
+proxy_latent_dim: 16
 
 dropout_p: 0.0
 
@@ -24,7 +24,7 @@ forward_model:
     _target_: rtm.models.ResNet1D
     n_channels: 
       - ${add_values:${model.input_latent_dim},${model.proxy_latent_dim}}
-      - 128
+      # - 128
       - 64
       - 32
     n_out: 1
@@ -85,17 +85,20 @@ forward_model:
 
 lr: 1e-3
 l2_reg: 0.0 # 4e-5
+# betas: [0.9, 0.0] 
+betas: [0.9, 0.999]
 lr_decay: 0.001
+lr_start_factor: 1e-5
 lr_scheduler_interval: step
 lr_schedulers:
         - _target_: torch.optim.lr_scheduler.LinearLR
           _partial_: true
-          start_factor: 1e-5
+          start_factor: ${model.lr_start_factor}
           end_factor: 1.0
           total_iters: 5000  # 10 # number of intervals (steps or epochs)
         - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
           _partial_: true
-          T_max: 75000 #145000 #${trainer.max_epochs}
+          T_max: 65000 #75000 #145000 #${trainer.max_epochs}
           eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
         - _target_: torch.optim.lr_scheduler.ConstantLR
           _partial_: true
@@ -112,4 +115,4 @@ lr_schedulers:
         #     gamma_interval: 1000
 lr_milestones:
        - 5000 # 10
-       - 80000 #150000
+       - 70000 #80000 #150000
