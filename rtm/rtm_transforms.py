@@ -181,20 +181,27 @@ class Normalize(RTMTransform):
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         # standardize to zero mean and unit variance
         # normalized = (data - self.mean.to(data.device)) / self.std.to(data.device)
-        normalized = (data - self.mean) / self.std
+
+        # get minimum value of data type to avoid division by zero
+        min_value = torch.finfo(data.dtype).tiny
+
+        normalized = (data - self.mean) / torch.clamp(self.std, min=min_value)
         return normalized
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         # reverse standardization
         # denormalized = data * self.std.to(data.device) + self.mean.to(data.device)
-        print(f'stats before inverse normalize: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(self.std).sum()}')
+        # print(f'stats before inverse normalize: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(self.std).sum()}')
         denormalized = data * self.std + self.mean
 
-        print(f'stats after inverse normalize: min={denormalized.min()}, max={denormalized.max()}, nans={torch.isnan(denormalized).sum()}, infs={torch.isinf(denormalized).sum()}')
+        # print(f'stats after inverse normalize: min={denormalized.min()}, max={denormalized.max()}, nans={torch.isnan(denormalized).sum()}, infs={torch.isinf(denormalized).sum()}')
         return denormalized
     
     def derivative(self, data, **kwargs):
-        return torch.ones_like(data) / self.std
+
+        # get minimum value of data type to avoid division by zero
+        min_value = torch.finfo(data.dtype).tiny
+        return torch.ones_like(data) / torch.clamp(self.std, min=min_value)
     
     def __dict_repr__(self):
         return {
@@ -210,17 +217,33 @@ class LogTransform(RTMTransform):
         super().__init__()
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
-        return torch.log(data)
+
+        # get minimum value of data type to avoid log(0)
+        min_value = torch.finfo(data.dtype).tiny
+
+        # apply log transform
+        result = torch.log(torch.clamp(data, min=min_value))
+
+        return result
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        print(data.dtype)
-        print(f'stats before inverse log: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(data).sum()}')
-        result = torch.exp(data)
-        print(f'stats after inverse log: min={result.min()}, max={result.max()}, nans={torch.isnan(result).sum()}, infs={torch.isinf(result).sum()}')
+        # print(data.dtype)
+        # print(f'stats before inverse log: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(data).sum()}')
+
+        # clamp data to avoid overflow or underflow in exp
+        result = torch.exp(torch.clamp(data, min=-50, max=50))
+        # print(f'stats after inverse log: min={result.min()}, max={result.max()}, nans={torch.isnan(result).sum()}, infs={torch.isinf(result).sum()}')
         return result
     
     def derivative(self, data, **kwargs):
-        return 1 / data
+
+        # get minimum value of data type to avoid division by zero
+        min_value = torch.finfo(data.dtype).tiny
+
+        # now compute derivative
+        der = 1 / torch.clamp(data, min=min_value)
+
+        return der
     
     def __dict_repr__(self):
         return {'_target_': 'rtm.rtm_transforms.LogTransform'}
@@ -249,6 +272,7 @@ class LogTransformSelectedFeatures(RTMTransform):
         
         if feature_dim > 1:
             mask = mask.view(-1, 1).expand(-1, feature_dim)
+
         self.register_buffer('mask', mask)
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
@@ -262,7 +286,8 @@ class LogTransformSelectedFeatures(RTMTransform):
 
         # combine log-transformed data with original data
         mask = self.mask.view(new_shape).to(data.device)
-        log_data = torch.log(data.clip(min=min_value)) * mask
+        # log_data = torch.log(data.clip(min=min_value)) * mask
+        log_data = torch.log(torch.clamp(data, min=min_value)) * mask
         original_data = data * (torch.logical_not(mask))
         data = log_data + original_data
 
@@ -294,7 +319,7 @@ class LogTransformSelectedFeatures(RTMTransform):
         min_value = torch.finfo(data.dtype).tiny
 
         # combine derivatives
-        derivative = 1 / data.clip(min=min_value)
+        derivative = 1 / torch.clamp(data, min=min_value)
         derivative = derivative * mask + (1 - mask)
 
         return derivative
