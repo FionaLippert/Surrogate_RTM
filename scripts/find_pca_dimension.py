@@ -41,15 +41,15 @@ def reconstruction_error(pca, data, log_mean, log_std, z='targets'):
 
 if __name__ == '__main__':
 
-    # normalization = 'targets'
+    normalization = 'targets'
     normalization = 'continuum'
-    dataset_type = f'spectrometer_only_z={normalization}_train_val'
+    dataset_type = f'ratio_spectrometer_only_z={normalization}_train_val'
     train_frac = 1.0
 
     data_dict = {
-        r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_spectrometer_only_LHS',
-        r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_spectrometer_only_LHS',
-        r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_spectrometer_only_LHS',
+        r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_ratio_spectrometer_only_LHS',
+        r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_ratio_spectrometer_only_LHS',
+        r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_ratio_spectrometer_only_LHS',
     }
     
     data_path = '/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/output/datasets'

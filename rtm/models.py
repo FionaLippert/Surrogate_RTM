@@ -1123,7 +1123,7 @@ class NNForwardModel(torch.nn.Module):
         if not train:
             # undo normalization and transforms if applicable
             if self.target_transform is not None:
-                # outputs = torch.clamp(outputs, min=-1.0, max=1.0)
+
                 outputs = self.target_transform.inverse(outputs)
                 # for all but diff models, outputs should now be positive
                 # if not, set to smallest float32 value
@@ -1427,20 +1427,28 @@ class LatentNNForwardModel(NNForwardModel):
         profile_transf = self.prepare_profiles(profile_inputs)
         
         if self.encoder is not None:
+            # inputs = torch.clamp(inputs, min=-1.0, max=1.0)
             inputs = self.encoder.encode(inputs)
+            # print(f'Min/max after input encoding: {inputs.min().item()} / {inputs.max().item()}')
+            
 
         if self.proxy_nn is not None:
             proxy_transf = self.proxy_nn(proxy_transf)
             inputs = torch.cat([inputs, proxy_transf], dim=-1)
 
         # Run core part of the NN forward model
+        # inputs = torch.clamp(inputs, min=-1.0, max=1.0)
         outputs = self.core_nn(inputs)
+        # print(f'Min/max after core NN: {outputs.min().item()} / {outputs.max().item()}')
 
         if self.decoder is not None:
+            # outputs = torch.clamp(outputs, min=-1.0, max=1.0)
             outputs = self.decoder.decode(outputs)
+            # print(f'Min/max after output decoding: {outputs.min().item()} / {outputs.max().item()}')
 
-        # outputs = proxy_targets * 0.0 - 1.0 # dummy line for FTorch testing
+        # outputs = proxy_targets * 0.0 + outputs.mean() # dummy line for FTorch testing
 
+        # outputs = torch.clamp(outputs, min=-0.1, max=0.1)
         # undo any transforms and normalization, 
         # and combine with proxy targets if applicable
         outputs = self.prepare_outputs(outputs, proxy_targets, train, combine_with_proxy)

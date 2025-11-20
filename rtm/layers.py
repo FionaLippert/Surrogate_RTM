@@ -105,18 +105,30 @@ class MLP(torch.nn.Module):
 
     def forward(self, features):
 
+        # print(f'Min/max input to MLP: {features.min().item()} / {features.max().item()}')
         x = self.fc_in(features)
         x = self.nonlinearity(x)
+        # print(f'Min/max after first layer: {x.min().item()} / {x.max().item()}')
         x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+        # if not self.training:
+        #     x = torch.clamp(x, min=-15.0, max=15.0)
 
         for i, l in enumerate(self.fc_hidden):
             x = l(x)
             if hasattr(self, 'batch_norms'):
                 x = self.batch_norms[i](x)
             x = self.nonlinearity(x)
+            # print(f'Min/max after layer {i+1}: {x.min().item()} / {x.max().item()}')
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
+            # if not self.training:
+            #     x = torch.clamp(x, min=-100.0, max=100.0)
+
         x = self.fc_out(x)
+
+        # if not self.training:
+        #     x = torch.clamp(x, min=-100.0, max=100.0)
 
         return x
     
