@@ -29,6 +29,7 @@ forward_model:
     n_fc_layers: 5
     dropout_p: ${model.dropout_p}
     nonlinearity: ${model.nonlinearity}
+    use_batch_norm: true
   # encoder:
   #   _target_: rtm.layers.PCAEncoder
   #   n_components: ${model.input_latent_dim}
@@ -58,6 +59,8 @@ jacobian_subspace_loss_scale: 0.0 # scale for SVD subspace-based jacobian loss t
 
 lr: 1e-3
 l2_reg: 0.0 # 4e-5
+# betas: [0.9, 0.0] 
+betas: [0.9, 0.999]
 lr_decay: 0.001
 lr_start_factor: 1e-5
 lr_scheduler_interval: step
@@ -69,7 +72,7 @@ lr_schedulers:
           total_iters: 5000  # 10 # number of intervals (steps or epochs)
         - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
           _partial_: true
-          T_max: 75000 #145000 #${trainer.max_epochs}
+          T_max: 65000 #75000 #145000 #${trainer.max_epochs}
           eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
         - _target_: torch.optim.lr_scheduler.ConstantLR
           _partial_: true
@@ -86,5 +89,5 @@ lr_schedulers:
         #     gamma_interval: 1000
 lr_milestones:
        - 5000 # 10
-       - 80000 #150000
+       - 70000 #80000 #150000
       

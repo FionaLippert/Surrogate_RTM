@@ -1083,8 +1083,7 @@ class NNForwardModel(torch.nn.Module):
     
     def prepare_proxy(self, proxy_targets: torch.Tensor) -> torch.Tensor:
         # apply proxy transform if applicable
-        if self.use_proxy_input and self.proxy_transform is not None and proxy_targets is not None:
-            print('Transforming proxy targets...')
+        if self.proxy_transform is not None and proxy_targets is not None:
             proxy_targets = self.proxy_transform(proxy_targets)
 
         return proxy_targets
