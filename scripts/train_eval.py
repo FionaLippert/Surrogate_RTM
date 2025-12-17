@@ -175,18 +175,19 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
             exp_var = 100 * model.forward_model.encoder.explained_variance_ratio()
             print(f'Explained input variance (%): {exp_var:.4f}')
 
-        if isinstance(getattr(model.forward_model, 'proxy_nn', None), layers.PCAEncoder):
+        if isinstance(getattr(model.forward_model, 'proxy_module', None), layers.PCAEncoder):
             print('Fitting proxy PCA...')
             proxy = model.forward_model.proxy_transform(train_data['proxy_targets'])
-            model.forward_model.proxy_nn.fit(proxy)
-            exp_var = 100 * model.forward_model.proxy_nn.explained_variance_ratio()
+            model.forward_model.proxy_module.fit(proxy)
+            exp_var = 100 * model.forward_model.proxy_module.explained_variance_ratio()
             print(f'Explained proxy variance (%): {exp_var:.4f}')
 
-        # if isinstance(getattr(model, 'output_dim_reduction', None), 
-        #               (dimensionality_reduction.PCA, layers.PCADecoder)):
-        #     model.output_dim_reduction.fit(train_data['targets'].to(device))
-        #     exp_var = 100 * model.output_dim_reduction.explained_variance_ratio()
-        #     print(f'Explained output variance (%): {exp_var:.4f}')
+        if isinstance(getattr(model.forward_model, 'profile_module', None), layers.PCAEncoder):
+            print('Fitting profile PCA...')
+            profile = model.forward_model.profile_transform(train_data['profile_inputs'])
+            model.forward_model.profile_module.fit(profile)
+            exp_var = 100 * model.forward_model.profile_module.explained_variance_ratio()
+            print(f'Explained profile variance (%): {exp_var:.4f}')
 
         if isinstance(getattr(model.forward_model, 'decoder', None), layers.PCADecoder):
             print('Fitting output PCA...')

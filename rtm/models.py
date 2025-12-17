@@ -1390,7 +1390,8 @@ class LatentNNForwardModel(NNForwardModel):
     """
     def __init__(self,  
                  core_nn: torch.nn.Module, 
-                 proxy_nn: Optional[torch.nn.Module] = None,
+                 proxy_module: Optional[torch.nn.Module] = None,
+                 profile_module: Optional[torch.nn.Module] = None,
                  encoder: Optional[Encoder] = None, 
                  decoder: Optional[Decoder] = None,
                  **kwargs
@@ -1400,9 +1401,14 @@ class LatentNNForwardModel(NNForwardModel):
         self.core_nn = core_nn
 
         # optional proxy processing (e.g. non-scattering radiances)
-        self.proxy_nn = proxy_nn
-        if self.proxy_nn is not None:
+        self.proxy_module = proxy_module
+        if self.proxy_module is not None:
             self.use_proxy_input = True
+
+        # optional profile processing (e.g. atmospheric profiles)
+        self.profile_module = profile_module
+        if self.profile_module is not None:
+            self.use_profile_input = True
 
         # optional encoder and decoder
         self.encoder = encoder
@@ -1431,9 +1437,13 @@ class LatentNNForwardModel(NNForwardModel):
             # print(f'Min/max after input encoding: {inputs.min().item()} / {inputs.max().item()}')
             
 
-        if self.proxy_nn is not None:
-            proxy_transf = self.proxy_nn(proxy_transf)
+        if self.proxy_module is not None:
+            proxy_transf = self.proxy_module(proxy_transf)
             inputs = torch.cat([inputs, proxy_transf], dim=-1)
+
+        if self.profile_module is not None:
+            profile_transf = self.profile_module(profile_transf)
+            inputs = torch.cat([inputs, profile_transf], dim=-1)
 
         # Run core part of the NN forward model
         # inputs = torch.clamp(inputs, min=-1.0, max=1.0)
