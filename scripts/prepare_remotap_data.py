@@ -33,8 +33,7 @@ if __name__ == '__main__':
                         help='number of aerosol modes to consider (1, 2, or 3)')
     args = parser.parse_args()
 
-    gas_names = ['co', 'co2', 'ch4'] # TODO: add o2 
-    # gas_names = ['co2', 'ch4']
+    gas_names = ['co', 'co2', 'ch4']
     wl_range = rtm.utils.s5_band_to_wl_range(args.band)
 
     if len(args.postfix) > 0:
@@ -52,7 +51,6 @@ if __name__ == '__main__':
         if args.n_chunks > 1:
             # find chunk number
             chunk = f.split(f'{base_prefix}_')[-1].split('-aux')[0]
-            # chunk = f.split('_')[-1].split('-aux')[0]
             prefix = f'{base_prefix}_{chunk}'
             prefix_proxy = f'{args.prefix}_{args.postfix_proxy}_{chunk}'
 
