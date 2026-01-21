@@ -1424,6 +1424,12 @@ class LatentNNForwardModel(NNForwardModel):
                 ) -> torch.Tensor:
         # predicts radiance spectrum from input features, and optionally proxy spectra
 
+        if inputs.dim() == 1:
+            batched_input = False
+        else:
+            batched_input = True
+            batch_size = inputs.size(0)
+
         # apply transforms and normalization if applicable
         if not normalized_inputs:
             inputs = self.prepare_inputs(inputs)
@@ -1438,11 +1444,15 @@ class LatentNNForwardModel(NNForwardModel):
             
 
         if self.proxy_module is not None:
+            # encode proxy targets
             proxy_transf = self.proxy_module(proxy_transf)
+             # add proxy information to inputs
             inputs = torch.cat([inputs, proxy_transf], dim=-1)
 
         if self.profile_module is not None:
+            # encode profile inputs
             profile_transf = self.profile_module(profile_transf)
+            # add profile information to inputs
             inputs = torch.cat([inputs, profile_transf], dim=-1)
 
         # Run core part of the NN forward model

@@ -294,6 +294,7 @@ class PCAEncoder(Encoder):
         self._latent_dim = n_components
         self.fixed_components = fixed_components
         self.pca = PCA(n_components=n_components)
+        self.merge_dims = 0
 
         components = torch.empty(n_components, n_features)
         mean = torch.empty(n_features)
@@ -309,6 +310,18 @@ class PCAEncoder(Encoder):
 
 
     def fit(self, data):
+
+        # first, make sure data is 2D array
+        if data.dim() > 2:
+            # reshape into 2D array, keeping first dimension (samples)
+            data = data.reshape(data.shape[0], -1)
+            self.merge_dims = data.dim() - 1
+
+        # make sure that second dimension matches expected number of features
+        assert data.size(1) == self.pca.n_features_, \
+            f"Data has {data.size(1)} features, but PCA was initialized with {self.pca.n_features_} features."
+
+        # now, fit PCA
         self.pca.fit(data)
 
         components = torch.tensor(self.pca.components_, dtype=torch.float32)
@@ -329,6 +342,18 @@ class PCAEncoder(Encoder):
         return self.pca.explained_variance_ratio_.sum()
     
     def encode(self, x: torch.Tensor) -> torch.Tensor:
+        # reshape input if needed
+        if self.merge_dims > 0:
+            # note that we don't know if x has batch dimension or not
+            if x.dim() == self.merge_dims + 1:
+                # has batch dimension
+                batch_size = x.size(0)
+                x = x.reshape(batch_size, -1)
+            else:
+                # no batch dimension
+                x = x.reshape(-1)
+
+        # apply PCA encoding
         z = F.linear(x, self.components, - self.mean @ self.components.T)
         return z
     
