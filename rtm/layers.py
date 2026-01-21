@@ -314,12 +314,8 @@ class PCAEncoder(Encoder):
         # first, make sure data is 2D array
         if data.dim() > 2:
             # reshape into 2D array, keeping first dimension (samples)
-            data = data.reshape(data.shape[0], -1)
             self.merge_dims = data.dim() - 1
-
-        # make sure that second dimension matches expected number of features
-        assert data.size(1) == self.pca.n_features_, \
-            f"Data has {data.size(1)} features, but PCA was initialized with {self.pca.n_features_} features."
+            data = data.reshape(data.shape[0], -1)
 
         # now, fit PCA
         self.pca.fit(data)
