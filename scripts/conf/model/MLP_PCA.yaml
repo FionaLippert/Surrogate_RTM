@@ -58,7 +58,7 @@ jacobian_subspace_loss_scale: 0.0 # scale for SVD subspace-based jacobian loss t
 
 
 lr: 1e-3
-l2_reg: 0.0 # 4e-5
+l2_reg: 1e-6 # 4e-5
 # betas: [0.9, 0.0] 
 betas: [0.9, 0.999]
 lr_decay: 0.001

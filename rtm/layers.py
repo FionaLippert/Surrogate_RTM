@@ -286,6 +286,7 @@ class PCAEncoder(Encoder):
     def __init__(self,
                  n_components: int, 
                  n_features: int,
+                 n_feature_dims: int = 1,
                  fixed_components: bool = True,
                  **kwargs
                  ):
@@ -293,8 +294,8 @@ class PCAEncoder(Encoder):
 
         self._latent_dim = n_components
         self.fixed_components = fixed_components
+        self.n_feature_dims = n_feature_dims
         self.pca = PCA(n_components=n_components)
-        self.register_buffer('merge_dims', torch.tensor([]))
 
         components = torch.empty(n_components, n_features)
         mean = torch.empty(n_features)
@@ -311,15 +312,19 @@ class PCAEncoder(Encoder):
 
     def fit(self, data):
 
-        # first, make sure data is 2D array
-        if data.dim() > 2:
-            # reshape into 2D array, keeping first dimension (samples)
-            # self.merge_dims = data.dim() - 1
-            # self.register_buffer('merge_dims', torch.tensor(data.shape[1:]))
-            self.merge_dims = torch.tensor(data.shape[1:])
+        # # first, make sure data is 2D array
+        # if data.dim() > 2:
+        #     # reshape into 2D array, keeping first dimension (samples)
+        #     # self.merge_dims = data.dim() - 1
+        #     # self.register_buffer('merge_dims', torch.tensor(data.shape[1:]))
+        #     self.merge_dims = torch.tensor(data.shape[1:])
+        #     data = data.reshape(data.shape[0], -1)
+        # # else:
+        # #     self.merge_dims = None
+
+        if self.n_feature_dims > 1:
+            # merge feature dims into one
             data = data.reshape(data.shape[0], -1)
-        # else:
-        #     self.merge_dims = None
 
         # now, fit PCA
         self.pca.fit(data)
@@ -343,12 +348,12 @@ class PCAEncoder(Encoder):
     
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         # reshape input if needed
-        if self.merge_dims.numel() > 0:
+        if self.n_feature_dims > 1:
             # note that we don't know if x has batch dimension or not
-            if x.dim() == self.merge_dims.numel() + 1:
+            if x.dim() == self.n_feature_dims + 1:
                 # has batch dimension
                 # multiply merge_dims to get last dimension
-                x = x.reshape(-1, torch.prod(self.merge_dims))
+                x = x.reshape(x.shape[0], -1)
             else:
                 # no batch dimension
                 x = x.reshape(-1)

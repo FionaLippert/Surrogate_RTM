@@ -29,7 +29,7 @@ forward_model:
     n_fc_layers: 5
     dropout_p: ${model.dropout_p}
     nonlinearity: ${model.nonlinearity}
-    use_batch_norm: true
+    # use_batch_norm: true
   # encoder:
   #   _target_: rtm.layers.PCAEncoder
   #   n_components: ${model.input_latent_dim}
@@ -58,7 +58,7 @@ jacobian_proj_loss_scale: 0.0 # scale for SVD projection-based jacobian loss ter
 jacobian_subspace_loss_scale: 0.0 # scale for SVD subspace-based jacobian loss term
 
 lr: 1e-3
-l2_reg: 0.0 # 4e-5
+l2_reg: 1e-6 #0.0 # 4e-5
 # betas: [0.9, 0.0] 
 betas: [0.9, 0.999]
 lr_decay: 0.001
