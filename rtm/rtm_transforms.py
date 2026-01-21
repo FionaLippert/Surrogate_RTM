@@ -70,8 +70,13 @@ class RTMTransformCollection(torch.nn.Module):
             if name in self.names:
                 t_old = getattr(self, name, None)
                 if isinstance(t_old, RTMTransform):
-                    # compose new with existing transform
-                    t_new = RTMCompose([t_old, t_new])
+                    if isinstance(t_new, RTMTransform):
+                        # compose new with existing transform
+                        t_new = RTMCompose([t_old, t_new])
+                    else:
+                        # throw warning and keep old transform
+                        print(f'{t_new} is not an RTMTransform... Ignore.')
+                        t_new = t_old
                 # set new transform
                 setattr(self, name, t_new)
             else:

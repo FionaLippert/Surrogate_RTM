@@ -309,6 +309,7 @@ class PCAEncoder(Encoder):
 
 
     def fit(self, data):
+
         self.pca.fit(data)
 
         components = torch.tensor(self.pca.components_, dtype=torch.float32)

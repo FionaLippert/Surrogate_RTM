@@ -1442,6 +1442,12 @@ class LatentNNForwardModel(NNForwardModel):
             inputs = torch.cat([inputs, proxy_transf], dim=-1)
 
         if self.profile_module is not None:
+            # first flatten last two dimensions of profile features (n_layers and n_features)
+            profile_dim = profile_transf.size()
+            new_dim = profile_dim[:-2] + (profile_dim[-2] * profile_dim[-1],)
+            profile_transf = profile_transf.reshape(new_dim)
+            
+            # now apply profile module and append to inputs
             profile_transf = self.profile_module(profile_transf)
             inputs = torch.cat([inputs, profile_transf], dim=-1)
 
