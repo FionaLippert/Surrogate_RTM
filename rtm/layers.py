@@ -294,7 +294,6 @@ class PCAEncoder(Encoder):
         self._latent_dim = n_components
         self.fixed_components = fixed_components
         self.pca = PCA(n_components=n_components)
-        self.merge_dims = None
 
         components = torch.empty(n_components, n_features)
         mean = torch.empty(n_features)
@@ -315,8 +314,10 @@ class PCAEncoder(Encoder):
         if data.dim() > 2:
             # reshape into 2D array, keeping first dimension (samples)
             # self.merge_dims = data.dim() - 1
-            self.register_buffer('merge_dims', data.shape[1:])
+            self.register_buffer('merge_dims', torch.tensor(data.shape[1:]))
             data = data.reshape(data.shape[0], -1)
+        else:
+            self.merge_dims = None
 
         # now, fit PCA
         self.pca.fit(data)
@@ -342,9 +343,10 @@ class PCAEncoder(Encoder):
         # reshape input if needed
         if self.merge_dims is not None:
             # note that we don't know if x has batch dimension or not
-            if x.dim() == len(self.merge_dims) + 1:
+            if x.dim() == self.merge_dims.numel() + 1:
                 # has batch dimension
-                x = x.reshape(-1, *self.merge_dims)
+                # multiply merge_dims to get last dimension
+                x = x.reshape(-1, torch.prod(self.merge_dims))
             else:
                 # no batch dimension
                 x = x.reshape(-1)
