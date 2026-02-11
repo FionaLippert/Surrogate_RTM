@@ -1,0 +1,124 @@
+# @package model
+name: SequenceNNSurrogateRTMRatio_medium_tempPCA
+_target_: rtm.models.NNSurrogateRTMWrapper
+
+input_dim: ${dataset.input_dim} # all features
+output_dim: ${dataset.output_dim} # all wavelengths
+profile_dim: ${dataset.profile_dim} # atmospheric profile features
+
+# input_latent_dim: ${dataset.input_dim} # all features
+input_latent_dim: 128
+proxy_latent_dim: 32
+profile_latent_dim: 2 # number of PCs to use to encode temperature profile
+
+dropout_p: 0.0
+
+nonlinearity: relu
+
+loss_terms:
+  - _target_: rtm.loss.WeightedMSE
+    weight: 1.0
+
+forward_model:
+  _target_: rtm.models.SequenceNNForwardModel
+  sequence_length: ${dataset.output_dim}
+  sequence_module:
+    _target_: rtm.models.ResNet1D
+    n_channels: 
+      - ${add_values:${model.input_latent_dim},${model.profile_latent_dim}}
+      - 128
+      - 64
+      - 32
+    n_out: 1
+    nonlinearity: ${model.nonlinearity}
+    kernel_size: 3
+    stride: 1
+    dropout_p: ${model.dropout_p}
+  encoder:
+    _target_: rtm.dimensionality_reduction.MLPEncoder
+    enc_dims: 
+      - ${model.input_dim}
+      - ${model.input_latent_dim}
+    noise_level: 0.0
+    dropout_p: ${model.dropout_p}
+    bias: true
+    nonlinearity: ${model.nonlinearity}
+  pos_encoding:
+    _target_: rtm.layers.PositionalEncoding
+    d_model: ${add_values:${model.input_latent_dim},${model.profile_latent_dim}}
+    num_wavelengths: ${dataset.output_dim}
+  proxy_module: null
+  profile_module:
+    _target_: rtm.layers.PCAEncoder
+    n_components: ${model.profile_latent_dim}
+    n_features: ${model.profile_dim}
+    n_feature_dims: 2
+    fixed_components: true
+  input_processing: null
+  use_proxy_input: false
+  use_profile_input: true
+  proxy_operation: ratio
+
+jacobian_weights: ${dataset.jacobian_weights} # if using jacobian-based loss terms, weights for each input dimension
+jacobian_mask: ${dataset.jacobian_mask}
+jacobian_mse_loss_scale: 0.0 # scale for MSE-based jacobian loss terms
+jacobian_proj_loss_scale: 0.0 # scale for SVD projection-based jacobian loss term
+jacobian_subspace_loss_scale: 0.0 # scale for SVD subspace-based jacobian loss term
+
+
+# forward_model:
+#   _target_: rtm.models.Transformer
+#   num_layers: 2
+#   d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+#   d_out: 1
+#   nhead: 1
+#   dim_feedforward: ${multiply_values:${model.forward_model.d_model},2} #32
+#   dropout_p: ${model.dropout_p}
+
+# forward_model:
+#   _target_: rtm.models.ResNet1D
+#   n_channels: 
+#     - ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
+#     - 256
+#     - 128
+#     - 64
+#     - 32
+#   n_out: 1
+#   kernel_size: 3
+#   stride: 1
+#   dropout_p: ${model.dropout_p}
+
+
+lr: 1e-3
+l2_reg: 0.0 # 4e-5
+# betas: [0.9, 0.0] 
+betas: [0.9, 0.999]
+lr_decay: 0.001
+lr_start_factor: 1e-5
+lr_scheduler_interval: step
+lr_schedulers:
+        - _target_: torch.optim.lr_scheduler.LinearLR
+          _partial_: true
+          start_factor: ${model.lr_start_factor}
+          end_factor: 1.0
+          total_iters: 5000  # 10 # number of intervals (steps or epochs)
+        - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+          _partial_: true
+          T_max: 65000 #75000 #145000 #${trainer.max_epochs}
+          eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
+        - _target_: torch.optim.lr_scheduler.ConstantLR
+          _partial_: true
+          factor: ${model.lr_decay}
+          total_iters: 1e6
+        # - _target_: torch.optim.lr_scheduler.LambdaLR
+        #   _partial_: true
+        #   lr_lambda: 
+        #     _target_: rtm.utils.LRDampenedCosine
+        #     lr_min: ${model.lr_decay}
+        #     lr_max: 1.0
+        #     T_max: 50000
+        #     gamma: 0.99
+        #     gamma_interval: 1000
+lr_milestones:
+       - 5000 # 10
+       - 70000 #80000 #150000

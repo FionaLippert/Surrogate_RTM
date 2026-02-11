@@ -6,6 +6,7 @@ from torch.optim.lr_scheduler import SequentialLR, ConstantLR
 from typing import Callable, Union, List, Dict, Tuple, Optional
 import numpy as np
 from hydra.utils import instantiate
+import time
 
 from rtm import rtm_transforms, utils, layers
 from rtm.dimensionality_reduction import DimensionalityReduction, Encoder, Decoder, PCA
@@ -64,6 +65,8 @@ class SurrogateRTMWrapper(pl.LightningModule):
         proxy_targets = batch.get('proxy_targets', None)
         profile_inputs = batch.get('profile_inputs', None)
 
+        start_time = time.perf_counter()
+
         # make prediction (and transform back to physical quantities)
         outputs = self.forward(inputs,
                                proxy_targets=proxy_targets,
@@ -75,19 +78,25 @@ class SurrogateRTMWrapper(pl.LightningModule):
 
         outputs, targets = self.prepare_outputs(outputs, targets)
 
+        end_time = time.perf_counter()
+        runtime = end_time - start_time
+
         self.outputs.append(outputs)
         self.targets.append(targets)
+        self.runtimes.append(runtime)
     
     def on_test_epoch_start(self) -> None:
         """initialize lists to store predictions and targets"""
         self.outputs = []
         self.targets = []
+        self.runtimes = []
     
     def on_test_epoch_end(self) -> None:
 
         # process all predictions and targets from the test set
         outputs = np.concatenate(self.outputs, axis=0)
         targets = np.concatenate(self.targets, axis=0)
+        runtimes = np.array(self.runtimes)
        
         # compute evaluation metrics, average across input/output dimension
         rmse = utils.rmse(outputs, targets, axis=0).mean()
@@ -104,6 +113,10 @@ class SurrogateRTMWrapper(pl.LightningModule):
         outputs = np.maximum(outputs, np.finfo(outputs.dtype).eps)
         r2_log = utils.r2_score(np.log(outputs), np.log(targets), axis=0).mean()
 
+        # compute average runtime
+        mean_runtime = runtimes.mean()
+        std_runtime = runtimes.std()
+
         self.log_dict({'test/RMSE': rmse,
                        'test/NRMSE': nrmse,
                        'test/MAPE': mape,
@@ -113,6 +126,8 @@ class SurrogateRTMWrapper(pl.LightningModule):
                        'test/rel_bias': rel_bias,
                        'test/R2': r2,
                        'test/R2_log': r2_log,
+                       'test/runtime_mean': mean_runtime,
+                       'test/runtime_std': std_runtime,
                        },
                        sync_dist=True)
 
@@ -1573,6 +1588,7 @@ class SequenceNNForwardModel(NNForwardModel):
             # add positional information to inputs
             inputs = self.pos_encoding(inputs)
 
+
         # make prediction
         outputs = self.sequence_module(inputs)
         outputs = outputs.reshape(-1, self.sequence_length)
@@ -2093,12 +2109,53 @@ class Transformer(torch.nn.Module):
     
 
 class ResNet1D(torch.nn.Module):
+    def __init__(self, n_channels: int, n_layers: int, n_out: int = 1, 
+                 kernel_size: int = 3, stride: int = 1, **kwargs):
+        super().__init__()
+
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.is_sequence_model = True
+
+        nonlinearity = kwargs.get('nonlinearity', 'relu')
+
+        self.layers = nn.ModuleList([
+            layers.ResidualBlock1D(n_channels, n_channels, 
+                                   kernel_size=kernel_size, stride=stride,
+                                   nonlinearity=nonlinearity, 
+                                   dropout_p=self.dropout_p)
+                                   for i in range(n_layers)
+        ])
+        self.fc_out = torch.nn.Linear(n_channels, n_out)
+
+    #     self.reset_parameters()
+
+    # def reset_parameters(self):
+
+    #     self.fc_hidden.apply(init_weights)
+    #     init_weights(self.fc_in)
+    #     init_weights(self.fc_out)
+
+    def forward(self, x):
+        # x has shape (batch_size, seq_length, n_channels)
+        # conv1d expects shape (batch_size, n_channels, seq_length)
+        x = x.permute((0, 2, 1))
+
+        for layer in self.layers:
+            x = layer(x)
+            x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+        x = x.permute(0, 2, 1)
+        x = self.fc_out(x)
+
+        return x
+
+class ResNet1D_v2(torch.nn.Module):
+    """ Version with custom channel definition per layer """
     def __init__(self, n_channels: List[int], n_out: int = 1, 
                  kernel_size: int = 3, stride: int = 1, **kwargs):
         super().__init__()
 
         self.dropout_p = kwargs.get('dropout_p', 0)
-        self.n_channels = kwargs.get('n_fc_layers', 1)
         self.is_sequence_model = True
 
         nonlinearity = kwargs.get('nonlinearity', 'relu')
@@ -2108,7 +2165,7 @@ class ResNet1D(torch.nn.Module):
                                    kernel_size=kernel_size, stride=stride,
                                    nonlinearity=nonlinearity, 
                                    dropout_p=self.dropout_p)
-                                   for i in range(len(n_channels) - 1)
+                                   for i in range(len(n_channels)-1)
         ])
         self.fc_out = torch.nn.Linear(n_channels[-1], n_out)
 

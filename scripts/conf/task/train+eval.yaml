@@ -12,3 +12,6 @@ final_eval: false
 
 # use best instead of last model for evaluation and prediction?
 load_best_model: true
+
+# measure model runtime on CPU?
+measure_cpu_time: false
