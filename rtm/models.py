@@ -1454,6 +1454,7 @@ class LatentNNForwardModel(NNForwardModel):
             profile_transf = self.profile_module(profile_transf)
             # add profile information to inputs
             inputs = torch.cat([inputs, profile_transf], dim=-1)
+            
 
         # Run core part of the NN forward model
         # inputs = torch.clamp(inputs, min=-1.0, max=1.0)
@@ -1544,9 +1545,6 @@ class SequenceNNForwardModel(NNForwardModel):
 
             if self.profile_module is not None:
                 profile_inputs = self.profile_module(profile_inputs)
-
-            # make sure profile features are flattened
-            profile_inputs = profile_inputs.reshape(inputs.size(0), -1)
             
             # add profile information to inputs
             inputs = torch.cat([inputs, profile_inputs], dim=1)
