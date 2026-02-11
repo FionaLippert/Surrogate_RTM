@@ -555,10 +555,10 @@ class ResidualBlock1D(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, nonlinearity='relu', dropout_p=0.0):
         super().__init__()
 
-        padding = (kernel_size - 1) // 2  # To maintain the same sequence length after the convolution
-        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        self.padding = (kernel_size - 1) // 2  # To maintain the same sequence length after the convolution
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=0) #padding)
         self.bn1 = nn.BatchNorm1d(out_channels)
-        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=padding)
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=0) #padding)
         self.bn2 = nn.BatchNorm1d(out_channels)
         # self.relu = nn.ReLU()
         self.nonlinearity = getattr(F, nonlinearity)
@@ -575,10 +575,12 @@ class ResidualBlock1D(nn.Module):
     def forward(self, x):
         shortcut = self.shortcut(x)
 
-        out = self.conv1(x)
+        x_padded = F.pad(x, (self.padding, self.padding), mode='replicate')
+        out = self.conv1(x_padded)
         out = self.bn1(out)
         out = self.nonlinearity(out)
-        out = self.conv2(out)
+        out_padded = F.pad(out, (self.padding, self.padding), mode='replicate')
+        out = self.conv2(out_padded)
         out = self.bn2(out)
 
         out = out + shortcut

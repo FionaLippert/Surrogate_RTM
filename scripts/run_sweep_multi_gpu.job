@@ -1,0 +1,20 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_a100
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=36
+#SBATCH --mem=240G
+#SBATCH --gpus=2
+#SBATCH --job-name=sweep
+#SBATCH --time=48:00:00
+#SBATCH --output=slurm_output_%A_%a.out
+
+
+export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
+
+export TORCH_USE_CUDA_DSA=1
+
+cd $HOME/SRON/surrogate_rtm/scripts
+source activate rtm_env
+wandb agent $1

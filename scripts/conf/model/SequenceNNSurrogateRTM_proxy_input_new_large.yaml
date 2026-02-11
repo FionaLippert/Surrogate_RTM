@@ -61,6 +61,12 @@ forward_model:
   use_profile_input: false
   proxy_operation: null
 
+jacobian_weights: ${dataset.jacobian_weights} # if using jacobian-based loss terms, weights for each input dimension
+jacobian_mask: ${dataset.jacobian_mask}
+jacobian_mse_loss_scale: 0.0 # scale for MSE-based jacobian loss terms
+jacobian_proj_loss_scale: 0.0 # scale for SVD projection-based jacobian loss term
+jacobian_subspace_loss_scale: 0.0 # scale for SVD subspace-based jacobian loss term
+
 
 
 # forward_model:

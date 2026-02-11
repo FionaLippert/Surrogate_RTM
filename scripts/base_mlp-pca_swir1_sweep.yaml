@@ -1,0 +1,39 @@
+program: train_eval.py
+name: base_mlp-pca_swir1_sweep
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - device=snellius
+  - dataset=synthetic_remotap_swir1_spectrometer_only_LHS_matched_retrieval_era5
+  - model=MLP_PCA_tempPCA_constant_latent_dim
+  - model.nonlinearity=silu
+  - model.dropout_p=0.001
+  - model.forward_model.decoder.fixed_components=true
+  - transforms=log_targets_log_proxy_log_albedo_log_reff_era5 # or no log_reff?
+  - task.train_frac=1.0
+  - trainer.max_epochs=50
+  - model.lr=1e-3
+  - dataloader.batch_size=256
+  - task=train+eval
+  - task.final_eval=true
+  - task.save_predictions=true
+  - task.load_best_model=false # use latest
+  - logger.project=spectrometer_only_swir1_era5_sweep
+  - logger.group=default
+method: grid
+metric:
+  name: test/RMSE_continuum
+  goal: minimize
+parameters:
+  # random seed
+  seed:
+    # values: [0]
+    values: [0, 1, 2]
+  # hidden (and PCA) dimension
+  model.hidden_dim:
+    # values: [30, 60, 90, 120, 150, 180, 210]
+    values: [851]
+  model.forward_model.core_nn.n_fc_layers:
+    values: [1, 2, 3, 4, 5, 6]

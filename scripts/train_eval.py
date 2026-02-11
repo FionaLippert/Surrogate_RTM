@@ -60,6 +60,7 @@ def run(cfg: DictConfig):
     pl.seed_everything(cfg.seed, workers=True)
 
     print('GPU available?', torch.cuda.is_available())
+    print("CPU cores reserved by Slurm:", os.environ.get("SLURM_CPUS_PER_TASK"))
 
     # setup logging
     os.makedirs(cfg.result_path, exist_ok=True)
@@ -118,6 +119,12 @@ def run(cfg: DictConfig):
     if isinstance(trainer.logger, WandbLogger):
         # save config to wandb
         cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
+
+        # add number of trainable parameters to wandb config
+        num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        cfg_resolved['num_parameters'] = num_params
+        print(f'num parameters = {num_params}')
+
         wandb.config.update(cfg_resolved)
         wandb.finish()
 
@@ -144,6 +151,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
                                                 train_indices, 
                                                 **cfg.dataset.normalization)
         model.set_transforms(transforms)
+        print(f'transforms: {transforms}')
     else:
         transforms = model.transforms
 
@@ -154,6 +162,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     # update config with final transforms (including normalization and double-to-float conversion)
     cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
     cfg_resolved['transforms'] = transforms.__dict_repr__()
+
     # save this for later reference
     model.save_hydra_config(cfg_resolved)
 
@@ -184,8 +193,10 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
 
         if isinstance(getattr(model.forward_model, 'profile_module', None), layers.PCAEncoder):
             print('Fitting profile PCA...')
-            profile = model.forward_model.profile_transform(train_data['profile_inputs'])
-            model.forward_model.profile_module.fit(profile)
+            print(f'profile_inputs shape = {train_data['profile_inputs'].shape}')
+            profiles = model.forward_model.profile_transform(train_data['profile_inputs'])
+            print(f'transformed profiles shape = {profiles.shape}')
+            model.forward_model.profile_module.fit(profiles)
             exp_var = 100 * model.forward_model.profile_module.explained_variance_ratio()
             print(f'Explained profile variance (%): {exp_var:.4f}')
 
@@ -210,8 +221,6 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     trainer.validate(model, val_loader)
     trainer.fit(model, train_loader, val_loader)
 
-    # return dataset.get_transforms()
-
 
 def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         #  transforms: Optional[List[utils.RTMTransform]] = None, 
@@ -219,6 +228,27 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
     
     if cfg.verbose:
         print('####### Start model evaluation ########')
+
+    # use CPU for testing if required
+    if cfg.task.get('measure_cpu_time', False):
+        logger = instantiate(cfg.logger)
+        trainer = instantiate(cfg.trainer, 
+                            accelerator='cpu',
+                            devices=1,
+                            logger=logger, 
+                            default_root_dir=cfg.output_path)
+        
+        print(f'num threads before changing them: {torch.get_num_threads()}')
+        
+        # explicitly set number of threads to know what runtime is actually measured
+        num_cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))
+        torch.set_num_threads(num_cpus)
+        torch.set_num_interop_threads(1)
+        num_workers = 1
+        if cfg.verbose:
+            print(f'Measuring model runtime on {num_cpus} CPUs')
+    else:
+        num_workers = cfg.dataloader.num_workers
 
     if cfg.task.final_eval:
         # get test data
@@ -228,7 +258,8 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
                                                 run=wandb.run)
 
         # setup data loader
-        test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, shuffle=False)
+        test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, 
+                                  shuffle=False, num_workers=num_workers)
     else:
         # get validation data
         dataset, train_indices, val_indices = data_utils.load_train_dataset(
@@ -236,7 +267,7 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
-                                  batch_size=1, shuffle=False)
+                                  batch_size=1, shuffle=False, num_workers=num_workers)
 
     # # set transform if untrained model
     # if not trained:
@@ -244,11 +275,14 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
     #     model.proxy_transform = dataset.proxy_transform
 
     # evaluate model
-    kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}
-    trainer.test(model, test_loader, **kwargs)
+    # kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}
+    # trainer.test(model, test_loader, **kwargs)
+    # 'best' doesn't work if trainer is constructed again
+    trainer.test(model, test_loader)
 
     # also save individual predictions
-    predictions = trainer.predict(model, test_loader, **kwargs)
+    # predictions = trainer.predict(model, test_loader, **kwargs)
+    predictions = trainer.predict(model, test_loader)
     outputs, targets = map(list, zip(*predictions))
     outputs = np.concatenate(outputs, 0)
     targets = np.concatenate(targets, 0)

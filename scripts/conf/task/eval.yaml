@@ -10,5 +10,8 @@ final_eval: true
 # use best instead of last model for evaluation and prediction?
 load_best_model: false
 
+# measure model runtime on CPU?
+measure_cpu_time: false
+
 model_path: null
 normalization_path: null

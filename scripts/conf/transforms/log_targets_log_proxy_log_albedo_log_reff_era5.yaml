@@ -1,0 +1,17 @@
+# @package transforms
+name: log_target_log_proxy_log_albedo_log_reff_era5_transform
+_target_: rtm.rtm_transforms.RTMTransformCollection
+
+transforms:
+  pixel_transform:
+    _target_: rtm.rtm_transforms.LogTransformSelectedFeatures
+    feature_indices: [5, 6] # albedo, reff_mode1
+    n_features: ${len:${dataset.pixel_features}} # number of pixel features
+    feature_dim: 1 # pixel features have shape (batch_size, n_features)
+  profile_transform: 
+    _target_: rtm.rtm_transforms.NullTransform
+  target_transform:
+    _target_: rtm.rtm_transforms.LogTransform
+  proxy_transform:
+    _target_: rtm.rtm_transforms.LogTransform
+  jacobian_transform: rtm.rtm_transforms.NullTransform
