@@ -106,6 +106,8 @@ class SurrogateRTMWrapper(pl.LightningModule):
         smape = utils.smape(outputs, targets, axis=0).mean()
         rmse_continuum = utils.rmse_continuum(outputs, targets, axis=0).mean()
         rel_bias = utils.relative_bias(outputs, targets, axis=0).mean()
+        rel_bias_continuum = utils.relative_bias(outputs, targets, axis=0, 
+                                                 z=targets.max(1, keepdims=True)).mean()
         r2 = utils.r2_score(outputs, targets, axis=0).mean()
 
         # compute R2 on log-transformed data
@@ -124,6 +126,7 @@ class SurrogateRTMWrapper(pl.LightningModule):
                        'test/RMSE_continuum': rmse_continuum,
                        'test/SMAPE': smape,
                        'test/rel_bias': rel_bias,
+                       'test/rel_bias_continuum': rel_bias_continuum,
                        'test/R2': r2,
                        'test/R2_log': r2_log,
                        'test/runtime_mean': mean_runtime,
