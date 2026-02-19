@@ -358,14 +358,14 @@ class PCAEncoder(Encoder):
                 # no batch dimension
                 x = x.reshape(-1)
 
-        print(f'PCA encode input shape: {x.shape}')
-        print(f'PCA components shape: {self.components.shape}')
-        print(f'bias shape: {(- self.mean @ self.components.T).shape}')
+        # print(f'PCA encode input shape: {x.shape}')
+        # print(f'PCA components shape: {self.components.shape}')
+        # print(f'bias shape: {(- self.mean @ self.components.T).shape}')
 
         # apply PCA encoding
         z = F.linear(x, self.components, - self.mean @ self.components.T)
 
-        print(f'PCA encode output shape: {z.shape}')
+        # print(f'PCA encode output shape: {z.shape}')
         return z
     
 

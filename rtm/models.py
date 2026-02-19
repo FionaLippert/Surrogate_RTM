@@ -1454,11 +1454,6 @@ class LatentNNForwardModel(NNForwardModel):
 
         proxy_transf = self.prepare_proxy(proxy_targets)
         profile_transf = self.prepare_profiles(profile_inputs)
-        
-        if self.encoder is not None:
-            # inputs = torch.clamp(inputs, min=-1.0, max=1.0)
-            inputs = self.encoder.encode(inputs)
-            # print(f'Min/max after input encoding: {inputs.min().item()} / {inputs.max().item()}')
             
 
         if self.proxy_module is not None:
@@ -1472,6 +1467,11 @@ class LatentNNForwardModel(NNForwardModel):
             profile_transf = self.profile_module(profile_transf)
             # add profile information to inputs
             inputs = torch.cat([inputs, profile_transf], dim=-1)
+
+        if self.encoder is not None:
+            # inputs = torch.clamp(inputs, min=-1.0, max=1.0)
+            inputs = self.encoder.encode(inputs)
+            # print(f'Min/max after input encoding: {inputs.min().item()} / {inputs.max().item()}')
             
 
         # Run core part of the NN forward model
@@ -2118,15 +2118,18 @@ class ResNet1D(torch.nn.Module):
         self.is_sequence_model = True
 
         nonlinearity = kwargs.get('nonlinearity', 'relu')
+        decrease_channels = kwargs.get('decrease_channels', False)
 
         self.layers = nn.ModuleList([
-            layers.ResidualBlock1D(n_channels, n_channels, 
+            layers.ResidualBlock1D(max(n_channels // 2**i, 2) if decrease_channels else n_channels,
+                                   max(n_channels // 2**(i+1), 2) if decrease_channels else n_channels, 
                                    kernel_size=kernel_size, stride=stride,
                                    nonlinearity=nonlinearity, 
                                    dropout_p=self.dropout_p)
                                    for i in range(n_layers)
         ])
-        self.fc_out = torch.nn.Linear(n_channels, n_out)
+        n_channels_final = max(n_channels // 2**n_layers, 2) if decrease_channels else n_channels
+        self.fc_out = torch.nn.Linear(n_channels_final, n_out)
 
     #     self.reset_parameters()
 
