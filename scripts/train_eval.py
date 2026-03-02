@@ -151,7 +151,6 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
                                                 train_indices, 
                                                 **cfg.dataset.normalization)
         model.set_transforms(transforms)
-        print(f'transforms: {transforms}')
     else:
         transforms = model.transforms
 
@@ -232,7 +231,7 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
     # use CPU for testing if required
     if cfg.task.get('measure_cpu_time', False):
         logger = instantiate(cfg.logger)
-        trainer = instantiate(cfg.trainer, 
+        test_trainer = instantiate(cfg.trainer, 
                             accelerator='cpu',
                             devices=1,
                             logger=logger, 
@@ -249,6 +248,7 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
             print(f'Measuring model runtime on {num_cpus} CPUs')
     else:
         num_workers = cfg.dataloader.num_workers
+        test_trainer = trainer
 
     if cfg.task.final_eval:
         # get test data
@@ -260,6 +260,8 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         # setup data loader
         test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, 
                                   shuffle=False, num_workers=num_workers)
+        predict_loader = instantiate(cfg.dataloader, dataset, batch_size=1, 
+                                  shuffle=False)
     else:
         # get validation data
         dataset, train_indices, val_indices = data_utils.load_train_dataset(
@@ -268,6 +270,8 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         # setup data loader
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
                                   batch_size=1, shuffle=False, num_workers=num_workers)
+        predict_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
+                                  batch_size=1, shuffle=False)
 
     # # set transform if untrained model
     # if not trained:
@@ -278,11 +282,11 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
     # kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}
     # trainer.test(model, test_loader, **kwargs)
     # 'best' doesn't work if trainer is constructed again
-    trainer.test(model, test_loader)
+    test_trainer.test(model, test_loader)
 
     # also save individual predictions
     # predictions = trainer.predict(model, test_loader, **kwargs)
-    predictions = trainer.predict(model, test_loader)
+    predictions = trainer.predict(model, predict_loader)
     outputs, targets = map(list, zip(*predictions))
     outputs = np.concatenate(outputs, 0)
     targets = np.concatenate(targets, 0)

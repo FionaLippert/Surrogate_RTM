@@ -52,6 +52,7 @@ forward_model:
     n_components: ${model.output_latent_dim}
     n_features: ${model.output_dim}
     fixed_components: true
+    lr_scale: 1.0
   proxy_operation: null
   
 jacobian_weights: ${dataset.jacobian_weights} # if using jacobian-based loss terms, weights for each input dimension

@@ -6,21 +6,22 @@ command:
   - ${program}
   - ${args_no_hyphens}
   - device=snellius
-  - dataset=synthetic_remotap_swir1_spectrometer_only_LHS_matched_retrieval_era5
+  - dataset=synthetic_remotap_swir1_spectrometer_only_LHS_matched_retrieval_era5_paper
   - model=MLP_PCA_tempPCA_constant_latent_dim
   - model.nonlinearity=silu
   - model.dropout_p=0.001
   - model.forward_model.decoder.fixed_components=true
   - transforms=log_targets_log_proxy_log_albedo_log_reff_era5 # or no log_reff?
   - task.train_frac=1.0
-  - trainer.max_epochs=50
+  - trainer.max_epochs=75
   - model.lr=1e-3
   - dataloader.batch_size=256
   - task=train+eval
-  - task.final_eval=true
-  - task.save_predictions=true
+  - task.final_eval=false
+  - task.save_predictions=false
   - task.load_best_model=false # use latest
-  - logger.project=spectrometer_only_swir1_era5_sweep
+  - task.measure_cpu_time=false
+  - logger.project=spectrometer_only_swir1_era5_sweep_final
   - logger.group=default
 method: grid
 metric:
@@ -29,11 +30,18 @@ metric:
 parameters:
   # random seed
   seed:
-    # values: [0]
-    values: [0, 1, 2]
+    values: [1]
+    # values: [0, 1, 2]
   # hidden (and PCA) dimension
   model.hidden_dim:
-    # values: [30, 60, 90, 120, 150, 180, 210]
-    values: [851]
+    # values: [30, 60, 90, 120, 150, 180, 210, 851]
+    # values: [9, 43, 85, 170, 255, 340, 426, 511, 596, 681, 766, 851]
+    # values: [32, 64, 128, 256]
+    values: [16, 32, 64, 128, 256]
+  model.output_latent_dim:
+    # 20 (RMSE < 1e-3) to 170 (RMSE < 1e-5)
+    # values: [20, 50, 80, 110, 140, 170]
+    values: [160]
   model.forward_model.core_nn.n_fc_layers:
-    values: [1, 2, 3, 4, 5, 6]
+    values: [1, 2, 3, 4, 5]
+    # values: [3]
