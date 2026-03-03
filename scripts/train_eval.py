@@ -251,7 +251,13 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
             print(f'Measuring model runtime on {num_cpus} CPUs')
     else:
         num_workers = cfg.dataloader.num_workers
-        test_trainer = trainer
+        # test_trainer = trainer
+        logger = instantiate(cfg.logger)
+        test_trainer = instantiate(cfg.trainer, 
+                            logger=logger, 
+                            devices=1, # to make sure all predictions are returned
+                            default_root_dir=cfg.output_path,
+                            )
 
     if cfg.task.final_eval:
         # get test data
