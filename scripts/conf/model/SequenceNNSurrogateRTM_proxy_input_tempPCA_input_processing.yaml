@@ -28,7 +28,7 @@ forward_model:
     _target_: rtm.models.ResNet1D
     n_channels: ${model.hidden_dim}
     n_layers: ${model.n_layers}
-    decrease_channels: true
+    decrease_channels: 1
     n_out: 1
     nonlinearity: ${model.nonlinearity}
     kernel_size: 3
