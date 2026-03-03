@@ -25,9 +25,9 @@ if __name__ == '__main__':
                         help='non-scattering simulations are always CO2I-only, so instr id=1')
     parser.add_argument('--land_threshold', type=float, default=0.5,
                         help='minimum amount of land cover considered')
-    parser.add_argument('--sza_threshold', type=float, default=70.0,
+    parser.add_argument('--sza_threshold', type=float, default=75.0,
                         help='maximum solar zenith angle considered')
-    parser.add_argument('--vza_threshold', type=float, default=30.0,
+    parser.add_argument('--vza_threshold', type=float, default=35.0,
                         help='maximum viewing zenith angle considered')
     parser.add_argument('--nmodes', type=int, default=2,
                         help='number of aerosol modes to consider (1, 2, or 3)')

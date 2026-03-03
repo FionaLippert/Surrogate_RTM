@@ -37,6 +37,7 @@ def prepare_train_dataset(cfg_dataset: DictConfig):
     dataset = instantiate(cfg_dataset, train=True)
 
     # split training data into training and validation sets
+    print('split training data into train/val sets')
     train_indices, val_indices = dataset.get_data_split(cfg_dataset.val_size)
 
     # # get transforms

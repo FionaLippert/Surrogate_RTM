@@ -63,7 +63,7 @@ class RTDataset(Dataset):
         self.profile_data = self._collect_profile_data(data_dir, prefix)
         self.n_profile_features = self.profile_data.shape[-1] if self.profile_data is not None else 0
         self.n_levels = self.profile_data.shape[1] if self.profile_data is not None else 0
-        self.targets, self.proxy = self._collect_spectra(data_dir, prefix)
+        self.targets, self.proxy, self.noise = self._collect_spectra(data_dir, prefix)
         self.wavelengths = self._load_wavelengths(data_dir, prefix)
         self.n_wavelengths = len(self.wavelengths)
         self.radiance_thr = radiance_thr
@@ -96,9 +96,11 @@ class RTDataset(Dataset):
         # define train/test split
         self.train = train
         train_indices, test_indices = self.get_data_split(test_size)
+        print(f'split data into {1-test_size} training / {test_size} test set')
         self.train_indices = self.indices[train_indices]
         self.test_indices = self.indices[test_indices]
         self.indices = self.train_indices if self.train else self.test_indices
+        print(f'selected {len(self.indices)} indices')
 
 
         # prepare final data
@@ -112,6 +114,9 @@ class RTDataset(Dataset):
 
         self.targets = self.targets[self.indices]
         self.targets = rtm_transforms.numpy_to_tensor(self.targets)
+
+        self.noise = self.noise[self.indices]
+        self.noise = rtm_transforms.numpy_to_tensor(self.noise)
 
         if self.proxy is not None:
             self.proxy = self.proxy[self.indices]
@@ -220,10 +225,13 @@ class RTDataset(Dataset):
         # if self.target_transform:
         #     y = self.target_transform(y)
 
+        noise = self.noise[idx]
+
         data_dict = {
             'inputs': x_pixels,
             'profile_inputs': x_profiles,
             'targets': y,
+            'noise': noise
         }
 
         # get proxy data and apply transform if available
@@ -339,6 +347,9 @@ class RTDataset(Dataset):
         # extract full physics spectra
         full_physics = ds[self.target_quantity].data # shape (nobs, nwave)
 
+        # get corresponding measurement errors
+        noise = ds[f'{self.target_quantity}_error'].data
+
         # make sure data is float64 to avoid precision issues when normalizing
         full_physics = full_physics.astype(np.float64)
 
@@ -349,7 +360,7 @@ class RTDataset(Dataset):
         else:
             proxy = None
         
-        return full_physics, proxy
+        return full_physics, proxy, noise
     
     def _collect_jacobians(self, data_dir: str, prefix: str):
 

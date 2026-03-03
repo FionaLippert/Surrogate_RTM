@@ -38,13 +38,34 @@ def reconstruction_error(pca, data, log_mean, log_std, z='targets'):
 
     return rel_rmse
 
+def reconstruction_bias(pca, data, log_mean, log_std, z='targets'):
+    # data transformation
+    norm_data, _, _ = transform_targets(data, log_mean, log_std)
+
+    # apply PCA
+    # pca.fit(norm_data)
+    outputs = pca.inverse_transform(pca.transform(norm_data))
+    outputs = inverse_transform_targets(outputs, log_mean, log_std)
+
+    if z == 'continuum':
+        rel_res = 100 * (outputs - data) / data.max(axis=1, keepdims=True)
+    else:
+        rel_res = 100 * (outputs - data) / data
+
+    rel_bias = np.mean(rel_res)
+
+    return rel_bias
+
 
 if __name__ == '__main__':
 
-    normalization = 'targets'
-    # normalization = 'continuum'
+    # normalization = 'targets'
+    normalization = 'continuum'
     # dataset_type = f'ratio_spectrometer_only_z={normalization}_train_val'
-    dataset_type = f'grasp_spectrometer_only_z={normalization}_train_val'
+    # dataset_type = f'grasp_spectrometer_only_z={normalization}_train_val'
+    # dataset_type = f'ratio_spectrometer_only_matched_retrieval_era5_z={normalization}_train_val'
+    # dataset_type = f'spectrometer_only_matched_retrieval_era5_paper_z={normalization}_train_val'
+    dataset_type = f'ratio_spectrometer_only_matched_retrieval_era5_paper_z={normalization}_train_val'
     train_frac = 1.0
 
     # data_dict = {
@@ -52,10 +73,15 @@ if __name__ == '__main__':
     #     r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_ratio_spectrometer_only_LHS',
     #     r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_ratio_spectrometer_only_LHS',
     # }
+    # data_dict = {
+    #     r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_spectrometer_only_LHS_matched_retrieval_era5',
+    #     r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_spectrometer_only_LHS_matched_retrieval_era5',
+    #     r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_spectrometer_only_LHS_matched_retrieval_era5',
+    # }
     data_dict = {
-        r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_spectrometer_only_LHS_grasp',
-        r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_spectrometer_only_LHS_grasp',
-        r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_spectrometer_only_LHS_grasp',
+        r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper',
+        r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper',
+        r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper',
     }
     
     data_path = '/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/output/datasets'
@@ -64,7 +90,7 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(figsize=(6,3))
 
-    df = {'band': [], 'n_components': [], 'rel_rmse': [], 'explained_var': []}
+    df = {'band': [], 'n_components': [], 'rel_rmse': [], 'rel_bias': [], 'explained_var': []}
 
     for band, dataset_name in data_dict.items():
         print(f'Processing {band} band...')
@@ -98,10 +124,12 @@ if __name__ == '__main__':
 
             # evaluate reconstruction error on validation set
             err = reconstruction_error(pca, val_targets, log_mean, log_std, z=normalization)
+            bias = reconstruction_bias(pca, val_targets, log_mean, log_std, z=normalization)
             print(f'  n_components={n}, rel_rmse={err:.4f}%, explained_var={explained_var:.4f}%')
             df['band'].append(band)
             df['n_components'].append(n)
             df['rel_rmse'].append(err)
+            df['rel_bias'].append(bias)
             df['explained_var'].append(explained_var)
 
             errors.append(reconstruction_error(pca, val_targets, log_mean, log_std))

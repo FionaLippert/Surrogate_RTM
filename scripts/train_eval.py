@@ -172,6 +172,9 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     val_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
                              batch_size=1, shuffle=False)
 
+    print(f'Using {len(train_indices)} datapoints for training')
+    print(f'Using {len(val_indices)} datapoints for validation')
+
     train_data = dataset[train_indices]
     device = utils.get_device(**cfg.device)
     
@@ -260,6 +263,8 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         # setup data loader
         test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, 
                                   shuffle=False, num_workers=num_workers)
+
+        print(f'Using {len(dataset)} data points for final testing')
     else:
         # get validation data
         dataset, train_indices, val_indices = data_utils.load_train_dataset(
@@ -268,6 +273,8 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         # setup data loader
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
                                   batch_size=1, shuffle=False, num_workers=num_workers)
+
+        print(f'Using {len(val_indices)} data points for validation/prediction')
 
     # # set transform if untrained model
     # if not trained:

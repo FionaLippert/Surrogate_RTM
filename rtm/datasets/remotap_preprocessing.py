@@ -575,6 +575,7 @@ def load_spectra(data_dir: str, prefix: str, wl_range: str,
 
     # get radiance spectra for specified wavelength range
     spectra['radiance'] = ds['Radiance'].data[:, 0, wl_idx]
+    spectra['radiance_error'] = ds['Radiance_Error'].data[:, 0, wl_idx]
     
     if wavelength:
         spectra['wavelength'] = ds['Wavelength'].data[wl_idx]
