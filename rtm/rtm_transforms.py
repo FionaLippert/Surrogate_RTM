@@ -110,13 +110,6 @@ class RTMTransformCollection(torch.nn.Module):
             'transforms': {name: getattr(self, name).__dict_repr__() for name in self.names}
         }
     
-    # def __getitem__(self, name: str):
-    #     if name in self.names:
-    #         getattr(self, name)
-    #     else:
-    #         raise ValueError(f'no transform registered under name {name}')
-    
-    
 class NullTransform(RTMTransform):
     def __init__(self):
         super().__init__()
@@ -195,11 +188,8 @@ class Normalize(RTMTransform):
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
         # reverse standardization
-        # denormalized = data * self.std.to(data.device) + self.mean.to(data.device)
-        # print(f'stats before inverse normalize: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(self.std).sum()}')
         denormalized = data * self.std + self.mean
 
-        # print(f'stats after inverse normalize: min={denormalized.min()}, max={denormalized.max()}, nans={torch.isnan(denormalized).sum()}, infs={torch.isinf(denormalized).sum()}')
         return denormalized
     
     def derivative(self, data, **kwargs):
@@ -232,12 +222,9 @@ class LogTransform(RTMTransform):
         return result
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        # print(data.dtype)
-        # print(f'stats before inverse log: min={data.min()}, max={data.max()}, nans={torch.isnan(data).sum()}, infs={torch.isinf(data).sum()}')
 
         # clamp data to avoid overflow or underflow in exp
         result = torch.exp(torch.clamp(data, min=-50, max=50))
-        # print(f'stats after inverse log: min={result.min()}, max={result.max()}, nans={torch.isnan(result).sum()}, infs={torch.isinf(result).sum()}')
         return result
     
     def derivative(self, data, **kwargs):
@@ -291,7 +278,6 @@ class LogTransformSelectedFeatures(RTMTransform):
 
         # combine log-transformed data with original data
         mask = self.mask.view(new_shape).to(data.device)
-        # log_data = torch.log(data.clip(min=min_value)) * mask
         log_data = torch.log(torch.clamp(data, min=min_value)) * mask
         original_data = data * (torch.logical_not(mask))
         data = log_data + original_data

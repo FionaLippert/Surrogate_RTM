@@ -90,15 +90,6 @@ lr_schedulers:
           _partial_: true
           factor: ${model.lr_decay}
           total_iters: 1e6
-        # - _target_: torch.optim.lr_scheduler.LambdaLR
-        #   _partial_: true
-        #   lr_lambda: 
-        #     _target_: rtm.utils.LRDampenedCosine
-        #     lr_min: ${model.lr_decay}
-        #     lr_max: 1.0
-        #     T_max: 50000
-        #     gamma: 0.99
-        #     gamma_interval: 1000
 lr_milestones:
        - ${model.lr_warmup_steps}
        - ${eval:'${model.lr_warmup_steps} + ${model.lr_cosine_steps}'}

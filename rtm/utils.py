@@ -265,170 +265,170 @@ def dry_mmr_to_wet_mmr(dry_xh2o: np.ndarray) -> np.ndarray:
     return specific_humidity
 
 
-##################################################
-# torch transforms
-##################################################
+# ##################################################
+# # torch transforms
+# ##################################################
 
-class RTMTransform:
-    def __init__(self):
-        pass
+# class RTMTransform:
+#     def __init__(self):
+#         pass
 
-    def __call__(self, data: Union[np.ndarray, torch.Tensor], **kwargs) -> torch.Tensor:
-        # apply some transformation to data
-        raise NotImplementedError
+#     def __call__(self, data: Union[np.ndarray, torch.Tensor], **kwargs) -> torch.Tensor:
+#         # apply some transformation to data
+#         raise NotImplementedError
     
-    def inverse(self, data: torch.Tensor) -> Union[np.ndarray, torch.Tensor]:
-        # reverse the transformation
-        raise NotImplementedError
+#     def inverse(self, data: torch.Tensor) -> Union[np.ndarray, torch.Tensor]:
+#         # reverse the transformation
+#         raise NotImplementedError
     
-class RTMCompose(RTMTransform):
-    def __init__(self, transforms: List[RTMTransform]):
-        self.transforms = transforms
+# class RTMCompose(RTMTransform):
+#     def __init__(self, transforms: List[RTMTransform]):
+#         self.transforms = transforms
 
-    def __call__(self, data: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
-        for transform in self.transforms:
-            data = transform(data)
-        return data
+#     def __call__(self, data: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+#         for transform in self.transforms:
+#             data = transform(data)
+#         return data
     
-    def inverse(self, data: torch.Tensor) -> Union[np.ndarray, torch.Tensor]:
-        for transform in reversed(self.transforms):
-            data = transform.inverse(data)
-        return data
+#     def inverse(self, data: torch.Tensor) -> Union[np.ndarray, torch.Tensor]:
+#         for transform in reversed(self.transforms):
+#             data = transform.inverse(data)
+#         return data
     
-    def __repr__(self):
-        return f'RTMCompose({self.transforms})'
+#     def __repr__(self):
+#         return f'RTMCompose({self.transforms})'
 
-class NumpyToTensor(RTMTransform):
-    def __init__(self):
-        super().__init__()
+# class NumpyToTensor(RTMTransform):
+#     def __init__(self):
+#         super().__init__()
 
-    def __call__(self, data: np.ndarray) -> torch.Tensor:
-        # convert numpy array to tensor, inheriting the dtype
-        return torch.from_numpy(data)
+#     def __call__(self, data: np.ndarray) -> torch.Tensor:
+#         # convert numpy array to tensor, inheriting the dtype
+#         return torch.from_numpy(data)
     
-    def inverse(self, data: torch.Tensor) -> np.ndarray:
-        # convert tensor back to numpy
-        return data.detach().cpu().numpy()
+#     def inverse(self, data: torch.Tensor) -> np.ndarray:
+#         # convert tensor back to numpy
+#         return data.detach().cpu().numpy()
     
-    def __repr__(self):
-        return 'NumpyToTensor()'
+#     def __repr__(self):
+#         return 'NumpyToTensor()'
     
-class DoubleToFloat(RTMTransform):
-    def __init__(self):
-        super().__init__()
+# class DoubleToFloat(RTMTransform):
+#     def __init__(self):
+#         super().__init__()
 
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        # convert to float32 tensor
-        return data.to(torch.float)
+#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
+#         # convert to float32 tensor
+#         return data.to(torch.float)
     
-    def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        return data.to(torch.double)
+#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
+#         return data.to(torch.double)
     
-    def __repr__(self):
-        return 'DoubleToFloat()'
+#     def __repr__(self):
+#         return 'DoubleToFloat()'
     
-class Normalize(RTMTransform):
-    def __init__(self, mean: torch.Tensor, std: torch.Tensor):
-        super().__init__()
-        self.mean = mean
-        self.std = std
-
-
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        # standardize to zero mean and unit variance
-        normalized = (data - self.mean.to(data.device)) / self.std.to(data.device)
-        return normalized
-
-    
-    def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        # reverse standardization
-        denormalized = data * self.std.to(data.device) + self.mean.to(data.device)
-        return denormalized
-    
-    def __repr__(self):
-        return f'Normalize(mean={self.mean}, std={self.std})'
-
-class LogTransform(RTMTransform):
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        return torch.log(data)
-    
-    def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        return torch.exp(data)
-    
-    def __repr__(self):
-        return 'LogTransform()'
-    
-class FourierTransform(RTMTransform):
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        return torch.fft.fft(data)
-    
-    def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        return torch.fft.ifft(data)
-    
-    def __repr__(self):
-        return 'FourierTransform()'
-    
-class FTransform(RTMTransform):
-    def __init__(self, f: Callable, f_inv: Callable):
-        self.f = f
-        self.f_inf = f_inv
-
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        # apply custom function f to data
-        return self.f(data)
-    
-    def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        # reverse custom function f
-        return self.f_inv(data)
-    
-    def __repr__(self):
-        return f'FTransform(f={self.f}, f_inv={self.f_inv})'
-    
-    
-def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable:
-    mean = stats['mean']
-    std = stats['std']
-
-    if isinstance(mean, np.ndarray):
-        mean = torch.from_numpy(mean.copy())
-    if isinstance(std, np.ndarray):
-        std = torch.from_numpy(std.copy())
-
-    if isinstance(mean, (float, np.floating)):
-        mean = torch.tensor(mean)
-    if isinstance(std, (float, np.floating)):
-        std = torch.tensor(std)
-
-    # if no variation, replace with 1 to avoid division by zero
-    std = torch.where(std==0, torch.ones_like(std), std)
-
-    transform = Normalize(mean, std)
-
-    return transform
+# class Normalize(RTMTransform):
+#     def __init__(self, mean: torch.Tensor, std: torch.Tensor):
+#         super().__init__()
+#         self.mean = mean
+#         self.std = std
 
 
-def load_transforms(dir: str, types=['pixel', 'profile', 'target', 'proxy']):
-    transforms = []
-    for t in types:
-        fname = os.path.join(dir, f'{t}_transform.pt')
-        if os.path.isfile(fname):
-            transf = torch.load(fname)
-            transforms.append(transf)
-        else:
-            transforms.append(None)
-    return transforms
+#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
+#         # standardize to zero mean and unit variance
+#         normalized = (data - self.mean.to(data.device)) / self.std.to(data.device)
+#         return normalized
 
-def save_transforms(transforms, dir: str, types=['pixel', 'profile', 'target', 'proxy']):
-    assert len(transforms) == len(types)
-    for i, t in enumerate(types):
-        fname = os.path.join(dir, f'{t}_transform.pt')
-        torch.save(transforms[i], fname)
+    
+#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
+#         # reverse standardization
+#         denormalized = data * self.std.to(data.device) + self.mean.to(data.device)
+#         return denormalized
+    
+#     def __repr__(self):
+#         return f'Normalize(mean={self.mean}, std={self.std})'
+
+# class LogTransform(RTMTransform):
+#     def __init__(self):
+#         super().__init__()
+
+#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
+#         return torch.log(data)
+    
+#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
+#         return torch.exp(data)
+    
+#     def __repr__(self):
+#         return 'LogTransform()'
+    
+# class FourierTransform(RTMTransform):
+#     def __init__(self):
+#         super().__init__()
+
+#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
+#         return torch.fft.fft(data)
+    
+#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
+#         return torch.fft.ifft(data)
+    
+#     def __repr__(self):
+#         return 'FourierTransform()'
+    
+# class FTransform(RTMTransform):
+#     def __init__(self, f: Callable, f_inv: Callable):
+#         self.f = f
+#         self.f_inf = f_inv
+
+#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
+#         # apply custom function f to data
+#         return self.f(data)
+    
+#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
+#         # reverse custom function f
+#         return self.f_inv(data)
+    
+#     def __repr__(self):
+#         return f'FTransform(f={self.f}, f_inv={self.f_inv})'
+    
+    
+# def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable:
+#     mean = stats['mean']
+#     std = stats['std']
+
+#     if isinstance(mean, np.ndarray):
+#         mean = torch.from_numpy(mean.copy())
+#     if isinstance(std, np.ndarray):
+#         std = torch.from_numpy(std.copy())
+
+#     if isinstance(mean, (float, np.floating)):
+#         mean = torch.tensor(mean)
+#     if isinstance(std, (float, np.floating)):
+#         std = torch.tensor(std)
+
+#     # if no variation, replace with 1 to avoid division by zero
+#     std = torch.where(std==0, torch.ones_like(std), std)
+
+#     transform = Normalize(mean, std)
+
+#     return transform
+
+
+# def load_transforms(dir: str, types=['pixel', 'profile', 'target', 'proxy']):
+#     transforms = []
+#     for t in types:
+#         fname = os.path.join(dir, f'{t}_transform.pt')
+#         if os.path.isfile(fname):
+#             transf = torch.load(fname)
+#             transforms.append(transf)
+#         else:
+#             transforms.append(None)
+#     return transforms
+
+# def save_transforms(transforms, dir: str, types=['pixel', 'profile', 'target', 'proxy']):
+#     assert len(transforms) == len(types)
+#     for i, t in enumerate(types):
+#         fname = os.path.join(dir, f'{t}_transform.pt')
+#         torch.save(transforms[i], fname)
             
 
 

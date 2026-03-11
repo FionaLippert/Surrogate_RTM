@@ -252,6 +252,8 @@ class MLPEncoder(Encoder):
     enc_dims: list of dimensions for encoder layers
     noise_level: std of Gaussian noise added to input during training
     dropout_p: dropout probability
+    bias: learn bias or not?
+    nonlinearity: type of nonlinarity (string)
     """
     def __init__(self,
                  enc_dims: List[int], 
@@ -297,7 +299,6 @@ class MLPEncoder(Encoder):
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         for i, layer in enumerate(self.encoder_layers[:-1]):
             x = layer(x)
-            # if i > 0:
             x = self.nonlinearity(x)
             x = F.dropout(x, p=self.dropout_p, training=self.training)
         # no activation on last layer
@@ -306,7 +307,8 @@ class MLPEncoder(Encoder):
 
     
 class ResNet1DEncoder(Encoder):
-    def __init__(self, input_channels, hidden_dim=64, latent_dim=256, num_blocks=4, stride=1, **kwargs):
+    def __init__(self, input_channels, hidden_dim=64, latent_dim=256, 
+                 num_blocks=4, stride=1, **kwargs):
         super().__init__(**kwargs)
 
         self._latent_dim = latent_dim
@@ -314,7 +316,8 @@ class ResNet1DEncoder(Encoder):
         self.verbose = kwargs.get('verbose', False)
 
         # Initial convolutional layer to reduce the input channels and sequence length
-        self.initial_conv = nn.Conv1d(input_channels, hidden_dim, kernel_size=7, stride=stride, padding=3)
+        self.initial_conv = nn.Conv1d(input_channels, hidden_dim, kernel_size=7, 
+                                      stride=stride, padding=3)
         self.initial_bn = nn.BatchNorm1d(hidden_dim)
 
         # Create a sequence of residual blocks
@@ -322,7 +325,8 @@ class ResNet1DEncoder(Encoder):
         in_channels = hidden_dim
 
         for _ in range(num_blocks):
-            self.res_blocks.append(layers.ResidualBlock1D(in_channels, in_channels * 2, stride=stride))
+            self.res_blocks.append(layers.ResidualBlock1D(in_channels, in_channels * 2, 
+                                                          stride=stride))
             in_channels *= 2
 
         # Global average pooling gets rid of the remaining sequence length dimension
@@ -331,24 +335,15 @@ class ResNet1DEncoder(Encoder):
         self.fc = nn.Linear(in_channels, latent_dim)
 
     def forward(self, x):
-        if self.verbose: print(f'Input shape: {x.shape}')
 
         x = self.initial_conv(x.unsqueeze(1))
-
-        if self.verbose: print(f'Output shape after initial conv: {x.shape}')
-
         x = F.relu(self.initial_bn(x))
-        if self.verbose: print(f'Output shape after initial batch norm: {x.shape}')
 
         for block in self.res_blocks:
             x = block(x)
-        if self.verbose: print(f'Output shape after residual blocks: {x.shape}')
 
         x = self.global_pool(x).squeeze(-1)  # Global average pooling to get latent representation
-        if self.verbose: print(f'Output shape after global pooling: {x.shape}')
-
         latent = self.fc(x)
-        if self.verbose: print(f'Latent shape: {latent.shape}')
 
         return latent
 
@@ -669,22 +664,16 @@ class ResNet1DDecoder(Decoder):
         self.final_conv = nn.Conv1d(hidden_dim, output_channels, kernel_size=7, stride=1, padding=3)
 
     def forward(self, latent):
-        if self.verbose: print(f'Latent state shape: {latent.shape}')
 
         x = self.fc(latent).unsqueeze(-1)  # Shape: [batch_size, hidden_dim, 1]
-        if self.verbose: print(f'Output shape after initial linear layer: {x.shape}')
 
         for block, factor in zip(self.res_blocks, self.scale_factors):
             x = F.interpolate(x, scale_factor=factor, mode='linear', align_corners=False)
             x = block(x)
-        if self.verbose: print(f'Output shape after residual blocks: {x.shape}')
 
         # ensure the output has the correct sequence length
         x = F.interpolate(x, size=self.num_wavelengths, mode='linear', align_corners=False)
-        if self.verbose: print(f'Output shape after final interpolation: {x.shape}')
-
         output = self.final_conv(x).squeeze(1)
-        if self.verbose: print(f'Output shape after final convolution: {output.shape}')
 
         return output
 
@@ -984,36 +973,7 @@ class VAE(DimensionalityReduction):
     def kl_divergence(self, mean: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
         kl = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp(), dim=-1).mean()
         return kl
-    
-    # def gaussian_log_likelihood(self, x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-    #     # if logscale = 0, computes MSE loss
-    #     scale = torch.exp(self.log_scale)
-    #     dist = torch.distributions.Normal(x_hat, scale)
 
-    #     # measure prob of seeing x
-    #     log_pxz = dist.log_prob(x) # also includes constant term, in contast to F.mse_loss
-    #     # return log_pxz.sum(dim=-1)
-    #     return log_pxz.mean(dim=-1)
-    
-    # def kl_divergence_prob(self, 
-    #                        z: torch.Tensor, 
-    #                        mean: torch.Tensor, 
-    #                        log_var: torch.Tensor) -> torch.Tensor:
-    #     # define prior distribution
-    #     p = torch.distributions.Normal(torch.zeros_like(mean), torch.ones_like(log_var))
-
-    #     # define variational distribution
-    #     std = torch.exp(0.5 * log_var)
-    #     q = torch.distributions.Normal(mean, std)
-
-    #     # get log probabilities of sample z
-    #     log_qzx = q.log_prob(z)
-    #     log_pz = p.log_prob(z)
-
-    #     # compute kl
-    #     kl = (log_qzx - log_pz).sum(-1)
-
-    #     return kl
     
     def eval_step(self, batch):
         x = batch[self.quantity]
@@ -1022,17 +982,6 @@ class VAE(DimensionalityReduction):
         mean, log_var = self.encode(x)
         z = self.sample(mean, log_var)
         x_hat = self.decode(z)
-
-        # # log likelihood
-        # ll = self.gaussian_log_likelihood(x_hat, x).mean(0)
-
-        # # kl divergence
-        # kl = self.kl_divergence_prob(z, mean, log_var).mean(0)
-
-        # # elbo and loss
-        # elbo = ll - self.beta * kl
-        # loss = -elbo
-        # rec_loss = -ll
 
         rec_loss = self.rec_loss(x, x_hat)
         kl = self.kl_divergence(mean, log_var)

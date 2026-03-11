@@ -26,57 +26,6 @@ class Embedding(nn.Embedding):
         nn.init.constant_(self.weight[padding_idx], 0)
 
 
-class Linear(nn.Linear):
-    """
-    nn.Linear with custom initialization
-    """
-    def __init__(self, 
-                 in_features: int, 
-                 out_features: int, 
-                 bias: bool = True, 
-                 **kwargs):
-        super().__init__(in_features, 
-                         out_features, 
-                         bias=bias, 
-                         **kwargs)
-        nn.init.xavier_uniform_(self.weight)
-        if bias:
-            nn.init.constant_(self.bias, 0.0)
-
-# class MLP(torch.nn.Module):
-#     def __init__(self, n_in, n_hidden, n_out, **kwargs):
-#         super(MLP, self).__init__()
-
-#         self.dropout_p = kwargs.get('dropout_p', 0)
-#         self.n_layers = kwargs.get('n_fc_layers', 1)
-
-#         self.fc_in = torch.nn.Linear(n_in, n_hidden)
-#         self.fc_hidden = nn.ModuleList([torch.nn.Linear(n_hidden, n_hidden)
-#                                         for _ in range(self.n_layers - 1)])
-#         self.fc_out = torch.nn.Linear(n_hidden, n_out)
-
-#         self.reset_parameters()
-
-#     def reset_parameters(self):
-
-#         self.fc_hidden.apply(init_weights)
-#         init_weights(self.fc_in)
-#         init_weights(self.fc_out)
-
-#     def forward(self, features):
-
-#         x = F.relu(self.fc_in(features))
-#         x = F.dropout(x, p=self.dropout_p, training=self.training)
-
-#         for l in self.fc_hidden:
-#             x = F.relu(l(x))
-#             x = F.dropout(x, p=self.dropout_p, training=self.training)
-
-#         x = self.fc_out(x)
-
-#         return x
-    
-
 class MLP(torch.nn.Module):
     def __init__(self, n_in, n_hidden, n_out, **kwargs):
         super().__init__()
@@ -105,42 +54,29 @@ class MLP(torch.nn.Module):
 
     def forward(self, features):
 
-        # print(f'Min/max input to MLP: {features.min().item()} / {features.max().item()}')
         x = self.fc_in(features)
         if hasattr(self, 'batch_norms'):
                 x = self.batch_norms[0](x)
         x = self.nonlinearity(x)
-        # print(f'Min/max after first layer: {x.min().item()} / {x.max().item()}')
         x = F.dropout(x, p=self.dropout_p, training=self.training)
 
-        # if not self.training:
-        #     x = torch.clamp(x, min=-15.0, max=15.0)
 
         for i, l in enumerate(self.fc_hidden):
             x = l(x)
             if hasattr(self, 'batch_norms'):
                 x = self.batch_norms[i + 1](x)
             x = self.nonlinearity(x)
-            # print(f'Min/max after layer {i+1}: {x.min().item()} / {x.max().item()}')
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
-            # if not self.training:
-            #     x = torch.clamp(x, min=-100.0, max=100.0)
-
         x = self.fc_out(x)
-
-        # if not self.training:
-        #     x = torch.clamp(x, min=-100.0, max=100.0)
 
         return x
     
 
 class Linear(torch.nn.Module):
+    """torch.nn.Linear with custom initialization"""
     def __init__(self, n_in, n_out, **kwargs):
         super().__init__()
-
-        self.dropout_p = kwargs.get('dropout_p', 0)
-        self.n_layers = kwargs.get('n_fc_layers', 1)
 
         self.fc_layer = torch.nn.Linear(n_in, n_out)
 
@@ -156,46 +92,6 @@ class Linear(torch.nn.Module):
 
         return x
     
-
-# class MLP(torch.nn.Module):
-#     """
-#     Simple MLP layer with varying layer widths
-
-#     Args:
-#     hidden_dims: list of hidden dimensions (i.e. layer widths)
-#     dropout_p: dropout probability
-#     """
-#     def __init__(self,
-#                  hidden_dims: List[int],
-#                  dropout_p: float = 0.0,
-#                  nonlinearity: Callable = F.relu,
-#                  **kwargs
-#                  ):
-#         super().__init__()
-
-#         self.fc_layers = torch.nn.ModuleList(
-#             [torch.nn.Linear(hidden_dims[i], hidden_dims[i+1]) for i in range(len(hidden_dims) - 1)]
-#             )
-
-#         self.dropout_p = dropout_p
-#         self.nonlinearity = nonlinearity
-
-#         # initialize weights
-#         self.reset_parameters()
-
-#     def reset_parameters(self):
-#         for layer in self.fc_layers:
-#             init_weights(layer)
-    
-#     def forward(self, z: torch.Tensor) -> torch.Tensor:
-#         for layer in self.fc_layers[:-1]:
-#             z = self.nonlinearity(layer(z))
-#             z = F.dropout(z, p=self.dropout_p, training=self.training)
-#         # no activation on last layer
-#         x = self.fc_layers[-1](z)
-#         return x
-
-
 
 ##################################################
 # Encoder modules
@@ -315,16 +211,6 @@ class PCAEncoder(Encoder):
 
     def fit(self, data):
 
-        # # first, make sure data is 2D array
-        # if data.dim() > 2:
-        #     # reshape into 2D array, keeping first dimension (samples)
-        #     # self.merge_dims = data.dim() - 1
-        #     # self.register_buffer('merge_dims', torch.tensor(data.shape[1:]))
-        #     self.merge_dims = torch.tensor(data.shape[1:])
-        #     data = data.reshape(data.shape[0], -1)
-        # # else:
-        # #     self.merge_dims = None
-
         if self.n_feature_dims > 1:
             # merge feature dims into one
             data = data.reshape(data.shape[0], -1)
@@ -339,8 +225,6 @@ class PCAEncoder(Encoder):
             # keep PCA transform as is
             self.components = components
             self.mean = mean
-            # self.register_buffer('components', components) # shape (n_components, features)
-            # self.register_buffer('mean', mean) # shape (features,)
         else:
             # alternatively, allow to adjust transformation during training
             self.components = torch.nn.Parameter(components, requires_grad=True)
@@ -361,15 +245,11 @@ class PCAEncoder(Encoder):
                 # no batch dimension
                 x = x.reshape(-1)
 
-        # print(f'PCA encode input shape: {x.shape}')
-        # print(f'PCA components shape: {self.components.shape}')
-        # print(f'bias shape: {(- self.mean @ self.components.T).shape}')
-
         # apply PCA encoding
         z = F.linear(x, self.components, - self.mean @ self.components.T)
 
-        # print(f'PCA encode output shape: {z.shape}')
         return z
+        
     
 
 ##################################################
@@ -480,8 +360,6 @@ class PCADecoder(Decoder):
             # keep PCA transform as is
             self.components = components
             self.mean = mean
-            # self.register_buffer('components', components) # shape (n_components, features)
-            # self.register_buffer('mean', mean) # shape (features,)
         else:
             # alternatively, allow to adjust transformation during training
             self.components = torch.nn.Parameter(components, requires_grad=True)
@@ -558,19 +436,15 @@ class FourierPositionalEncoding(nn.Module):
 ##################################################
 
 class ResidualBlock1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, nonlinearity='relu', dropout_p=0.0):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, nonlinearity='relu', **kwargs):
         super().__init__()
 
         self.padding = (kernel_size - 1) // 2  # To maintain the same sequence length after the convolution
-        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=0) #padding)
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=0)
         self.bn1 = nn.BatchNorm1d(out_channels)
-        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=0) #padding)
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=0)
         self.bn2 = nn.BatchNorm1d(out_channels)
-        # self.relu = nn.ReLU()
         self.nonlinearity = getattr(F, nonlinearity)
-
-        # TODO: identify correct position to place dropout within the residual block
-        # self.droupout = nn.Dropout(p=dropout_p)
         
         if stride > 1 or in_channels != out_channels:
             # reduce channels and/or sequence length

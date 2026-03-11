@@ -17,7 +17,7 @@ from rtm.rtm_transforms import RTMTransformCollection, RTMTransform
 
 
 class RTDataset(Dataset):
-    """Synthetic measurements generated with RemoTAP forward model"""
+    """Synthetic measurements generated with physical forward model"""
     def __init__(self, 
                  data_dir: str,
                  prefix: str,
@@ -26,14 +26,9 @@ class RTDataset(Dataset):
                  target_quantity: str = 'radiance',
                  predict_difference: bool = False,
                  predict_ratio: bool = False,
-                #  pixel_transform: transforms.RTMTransform = None,
-                #  profile_transform: transforms.RTMTransform = None,
-                #  target_transform: transforms.RTMTransform = None,
-                #  proxy_transform: transforms.RTMTransform = None,
                  seed: int = 0,
                  train: bool = True,
-                 test_size: float = 0.2, # TODO: explicitly define train/val/test split
-                #  split_sizes: Dict[str, float] = {'train': 0.7, 'val': 0.1, 'test': 0.2},
+                 test_size: float = 0.2,
                  radiance_thr: float = None,
                  include_jacobian: bool = False,
                  torch_dtype: torch.dtype = torch.float64,
@@ -50,12 +45,6 @@ class RTDataset(Dataset):
         self.predict_ratio = predict_ratio
         self.include_jacobian = include_jacobian
         self.torch_dtype = torch_dtype
-
-        # transformations
-        # self.pixel_transform = pixel_transform
-        # self.profile_transform = profile_transform
-        # self.target_transform = target_transform
-        # self.proxy_transform = proxy_transform
 
         # collect all relevant data and identify dimensions
         self.pixel_data = self._collect_pixel_data(data_dir, prefix)
@@ -91,17 +80,14 @@ class RTDataset(Dataset):
             print(f'Filtered out {p_filtered} pixels with continuum above {self.radiance_thr}')
         else:
             self.indices = np.arange(self.targets.shape[0])
-        
 
         # define train/test split
         self.train = train
         train_indices, test_indices = self.get_data_split(test_size)
-        print(f'split data into {1-test_size} training / {test_size} test set')
+        print(f'Applied data split: {1-test_size:.1%} training / {test_size:.1%} testing')
         self.train_indices = self.indices[train_indices]
         self.test_indices = self.indices[test_indices]
         self.indices = self.train_indices if self.train else self.test_indices
-        print(f'selected {len(self.indices)} indices')
-
 
         # prepare final data
         if self.pixel_data is not None: 
@@ -154,79 +140,31 @@ class RTDataset(Dataset):
                 raise ValueError('Proxy spectra are required to predict ratios')
             else:
                 self.targets = self.targets / self.proxy
-
-
-    # def add_transforms(self, 
-    #                    pixel_transform=None, 
-    #                    profile_transform=None, 
-    #                    target_transform=None,
-    #                    proxy_transform=None):
-    #     # add new transforms to existing transforms
-    #     if pixel_transform:
-    #         self.pixel_transform = transforms.RTMCompose([self.pixel_transform, pixel_transform]) \
-    #             if self.pixel_transform else pixel_transform
-    #     if profile_transform:
-    #         self.profile_transform = transforms.RTMCompose([self.profile_transform, profile_transform]) \
-    #             if self.profile_transform else profile_transform
-    #     if target_transform:
-    #         self.target_transform = transforms.RTMCompose([self.target_transform, target_transform]) \
-    #             if self.target_transform else target_transform
-    #     if proxy_transform:
-    #         self.proxy_transform = transforms.RTMCompose([self.proxy_transform, proxy_transform]) \
-    #             if self.proxy_transform else proxy_transform
-            
-    # def get_transforms(self):
-    #     return self.pixel_transform, self.profile_transform, self.target_transform, self.proxy_transform
-    
-    # def set_transforms(self, 
-    #                    pixel_transform=None, 
-    #                    profile_transform=None, 
-    #                    target_transform=None,
-    #                    proxy_transform=None):
-    #     # overwrite existing transforms
-    #     if pixel_transform is not None:
-    #         self.pixel_transform = pixel_transform
-    #     if profile_transform is not None:
-    #         self.profile_transform = profile_transform
-    #     if target_transform is not None:
-    #         self.target_transform = target_transform
-    #     if proxy_transform is not None:
-    #         self.proxy_transform = proxy_transform
-            
-    # def add_normalization(self, 
-    #                       indices: List[int] = None, 
-    #                       **kwargs):
-    #     # add normalization to existing transforms
-    #     self.add_transforms(*self.normalization(indices, **kwargs))
     
     def __len__(self):
         return len(self.indices)
 
     def __getitem__(self, idx: int):
 
-        # get pixel data and apply transform if available
+        # get pixel data
         if self.pixel_data is not None:
             x_pixels = self.pixel_data[idx]
-            # if self.pixel_transform:
-            #     x_pixels = self.pixel_transform(x_pixels)
         else:
             x_pixels = None
 
-        # get profile data and apply transform if available
+        # get profile data
         if self.profile_data is not None:
             x_profiles = self.profile_data[idx]
-            # if self.profile_transform:
-            #     x_profiles = self.profile_transform(x_profiles)
         else:
             x_profiles = None
 
-        # get target data and apply transform if available
+        # get target data
         y = self.targets[idx]
-        # if self.target_transform:
-        #     y = self.target_transform(y)
 
+        # get instrument noise
         noise = self.noise[idx]
 
+        # combine data for this batch
         data_dict = {
             'inputs': x_pixels,
             'profile_inputs': x_profiles,
@@ -234,13 +172,12 @@ class RTDataset(Dataset):
             'noise': noise
         }
 
-        # get proxy data and apply transform if available
+        # add proxy data if applicable
         if self.proxy is not None:
             proxy = self.proxy[idx]
-            # if self.proxy_transform:
-            #     proxy = self.proxy_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
+        # add jacobians if applicable
         if self.target_jacobians is not None:
             jac = self.target_jacobians[idx]
             data_dict['target_jacobians'] = jac
@@ -254,6 +191,7 @@ class RTDataset(Dataset):
                 data_dict['gas_priors'] = self.gas_priors[idx]
                 data_dict['gas_indices'] = self.gas_indices
 
+        # add proxy jacobian if applicable
         if self.proxy_jacobians is not None:
             proxy_jacobian = self.proxy_jacobians[idx]
             data_dict['proxy_jacobians'] = proxy_jacobian
@@ -579,10 +517,8 @@ class RTDataset(Dataset):
                               per_wavelength: bool = True
                               ):
         targets = self.targets[indices]
-        print(f'target shape: {targets.shape}')
         if transform is not None:
             targets = transform(targets)
-            print(f'target shape after transform: {targets.shape}')
 
         if isinstance(targets, torch.Tensor):
             targets = targets.numpy()
@@ -655,11 +591,8 @@ class RTDataset(Dataset):
     def get_data_split(self, test_size: float = 0.2):
 
         n_total = len(self)
-        print(f'Total number of data points: {n_total}')
         n_test = int(test_size * n_total)
         n_train = n_total - n_test
-
-        print(f'Train size: {n_train}, Test size: {n_test}')
 
         if n_train == 0:
             print('Warning: No training data available. Using unshuffled data for testing.')
@@ -670,14 +603,15 @@ class RTDataset(Dataset):
         # split indices into train and test sets
         train_indices = idx[:n_train]
         test_indices = idx[n_train:]
-
-        # train_set, test_set = random_split(self, [n_train, n_test], 
-                            #   generator=torch.Generator().manual_seed(self.seed))
         
         return train_indices, test_indices
     
 
 class FlatRTDataset(RTDataset):
+    """
+    A flattened version of the RTDataset class, where all profile features 
+    are concatenated to the pixel feature vector.
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -698,15 +632,10 @@ class FlatRTDataset(RTDataset):
 
         if self.pixel_data is not None:
             x = self.pixel_data[idx]
-            # if self.pixel_transform:
-                # x = self.pixel_transform(x)
         else:
             x = None
 
         y = self.targets[idx]
-        # if self.target_transform:
-            # y = self.target_transform(y)
-
 
         data_dict = {
             'inputs': x,
@@ -715,8 +644,6 @@ class FlatRTDataset(RTDataset):
 
         if self.proxy is not None:
             proxy = self.proxy[idx]
-            # if self.proxy_transform:
-                # proxy = self.proxy_transform(proxy)
             data_dict['proxy_targets'] = proxy
 
         if hasattr(self, 'target_jacobians') and self.target_jacobians is not None:

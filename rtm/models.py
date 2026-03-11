@@ -197,20 +197,6 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         self.lr_milestones = kwargs.get('lr_milestones', None)
         self.lr_scheduler_interval = kwargs.get('lr_scheduler_interval', 'epoch')
 
-    
-    # def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
-
-    #     # prepare inputs
-    #     if self.input_transform is not None:
-    #         inputs = self.input_transform(inputs)
-
-    #     # prepare proxy
-    #     if self.proxy_quantity in kwargs and self.proxy_transform is not None:
-    #         kwargs[self.proxy_quantity] = self.proxy_transform(kwargs[self.proxy_quantity])
-
-    #     return self.forward_model(inputs, **kwargs)
-
-
     def compute_loss(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         loss = 0
         for loss_fct in self.loss_terms:
@@ -234,8 +220,6 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         if target_jacobian is None:
             raise ValueError('Target jacobian required for jacobian regularization')
 
-        # TODO: first apply transformations to jacobians if applicable
-
         # compute jacobian errors
         errors = nn_jacobian - target_jacobian
 
@@ -248,7 +232,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         # weight each input dimension separately
         weighted_squared_errors = squared_errors * self.jacobian_weights
         # average over input dimensions, weighted by jacobian_weights
-        weighted_mse = torch.sum(weighted_squared_errors, dim=-1) # / torch.sum(self.jacobian_weights)
+        weighted_mse = torch.sum(weighted_squared_errors, dim=-1)
         # average over output dimensions and samples
         jac_loss = torch.mean(weighted_mse)
 
@@ -256,8 +240,6 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
     def compute_subspace_loss(self, nn_jacobian: torch.Tensor, 
                               dy_target: torch.Tensor,
-                            #   target_U: torch.Tensor, 
-                            #   target_Vt: torch.Tensor, 
                               k_max: int, 
                               continuum: Union[float, torch.Tensor] = 1.0,
                               ) -> torch.Tensor:
@@ -342,7 +324,6 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         # Compute the squared Frobenius norm of the difference
         projection_loss = torch.linalg.matrix_norm(S_k - S_k_nn, ord='fro', dim=(-2, -1)) #**2
-        # projection_loss = (torch.diagonal(S_k, dim1=-2, dim2=-1) - torch.diagonal(S_k_nn, dim1=-2, dim2=-1)).pow(2)
 
         # Normalize the loss
         projection_loss = projection_loss / continuum #**2
@@ -449,25 +430,17 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         loss = self.eval_step(batch, split='train')
-        # self.log('train/loss', loss, on_step=True, on_epoch=True, 
-        #          prog_bar=True, logger=True, sync_dist=True)
-        # self.log('train/log_loss', torch.log(loss), on_step=True, 
-        #          on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
         return loss
             
     def validation_step(self, batch, batch_idx):
         loss = self.eval_step(batch, split='val')
-        # self.log('val/loss', loss, on_epoch=True, logger=True, sync_dist=True)
-        # self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
 
 
     def configure_optimizers(self):
 
         parameter_groups = self.forward_model.get_parameter_groups(self.lr) # list of different parameter groups
-        # params = [{"params": self.parameters(), "lr": self.lr}]
         optimizer = torch.optim.Adam(parameter_groups, weight_decay=self.l2_reg, betas=self.betas)
-
 
         for i, group in enumerate(parameter_groups):
             print(f"Group {i} LR:", group["lr"])
@@ -515,343 +488,339 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         if unexpected:
             print(f"Warning: Unexpected keys when loading state_dict: {unexpected}")
 
-        # # load additional objects from checkpoint
-        # self.target_transform = checkpoint['target_transform']
-        # self.proxy_transform = checkpoint['proxy_transform']
-
         # make sure everything is on the same device
         self.to(map_location)
 
 
 
 
-class SurrogateRTM(pl.LightningModule):
-    def __init__(self, 
-                 input_quantity: str = 'inputs',
-                 target_quantity: str = 'targets',
-                 proxy_quantity: str = 'proxy_targets',
-                 transforms: rtm_transforms.RTMTransformCollection = None,
-                #  input_transform: rtm_transforms.RTMTransform = None,
-                #  target_transform: rtm_transforms.RTMTransform = None,
-                #  proxy_transform: rtm_transforms.RTMTransform = None,
-                 eval_scale: torch.Tensor = None, 
-                 **kwargs):
+# class SurrogateRTM(pl.LightningModule):
+#     def __init__(self, 
+#                  input_quantity: str = 'inputs',
+#                  target_quantity: str = 'targets',
+#                  proxy_quantity: str = 'proxy_targets',
+#                  transforms: rtm_transforms.RTMTransformCollection = None,
+#                 #  input_transform: rtm_transforms.RTMTransform = None,
+#                 #  target_transform: rtm_transforms.RTMTransform = None,
+#                 #  proxy_transform: rtm_transforms.RTMTransform = None,
+#                  eval_scale: torch.Tensor = None, 
+#                  **kwargs):
 
-        super().__init__()
+#         super().__init__()
 
-        self.input_quantity = input_quantity
-        self.target_quantity = target_quantity
-        self.proxy_quantity = proxy_quantity
+#         self.input_quantity = input_quantity
+#         self.target_quantity = target_quantity
+#         self.proxy_quantity = proxy_quantity
 
-        self.transforms = transforms
+#         self.transforms = transforms
 
-        # self.input_transform = input_transform
-        # self.target_transform = target_transform
-        # self.proxy_transform = proxy_transform
+#         # self.input_transform = input_transform
+#         # self.target_transform = target_transform
+#         # self.proxy_transform = proxy_transform
         
-        self.eval_scale = eval_scale
+#         self.eval_scale = eval_scale
 
-        self.save_hyperparameters(ignore=['forward_model', 
-                                          'input_dim_reduction', 
-                                          'output_dim_reduction',
-                                          'transforms'])    
+#         self.save_hyperparameters(ignore=['forward_model', 
+#                                           'input_dim_reduction', 
+#                                           'output_dim_reduction',
+#                                           'transforms'])    
 
-    @property
-    def input_transform(self) -> rtm_transforms.RTMTransform:
-        return getattr(self.transforms, 'pixel_transform', None)
+#     @property
+#     def input_transform(self) -> rtm_transforms.RTMTransform:
+#         return getattr(self.transforms, 'pixel_transform', None)
     
-    @input_transform.setter
-    def input_transform(self, input_transform: rtm_transforms.RTMTransform):
-        if self.transforms is not None:
-            self.transforms.set_transforms({'pixel_transform': input_transform})
-        else:
-            raise Warning('Trying to set input_transform for a model without transforms')
+#     @input_transform.setter
+#     def input_transform(self, input_transform: rtm_transforms.RTMTransform):
+#         if self.transforms is not None:
+#             self.transforms.set_transforms({'pixel_transform': input_transform})
+#         else:
+#             raise Warning('Trying to set input_transform for a model without transforms')
 
-    @property
-    def target_transform(self) -> rtm_transforms.RTMTransform:
-        return getattr(self.transforms, 'target_transform', None)
+#     @property
+#     def target_transform(self) -> rtm_transforms.RTMTransform:
+#         return getattr(self.transforms, 'target_transform', None)
     
-    @target_transform.setter
-    def target_transform(self, target_transform: rtm_transforms.RTMTransform):
-        if self.transforms is not None:
-            self.transforms.set_transforms({'target_transform': target_transform})
-        else:
-            raise Warning('Trying to set target_transform for a model without transforms')
+#     @target_transform.setter
+#     def target_transform(self, target_transform: rtm_transforms.RTMTransform):
+#         if self.transforms is not None:
+#             self.transforms.set_transforms({'target_transform': target_transform})
+#         else:
+#             raise Warning('Trying to set target_transform for a model without transforms')
 
-    @property
-    def proxy_transform(self) -> rtm_transforms.RTMTransform:
-        return getattr(self.transforms, 'proxy_transform', None)
+#     @property
+#     def proxy_transform(self) -> rtm_transforms.RTMTransform:
+#         return getattr(self.transforms, 'proxy_transform', None)
     
-    @proxy_transform.setter
-    def proxy_transform(self, proxy_transform: rtm_transforms.RTMTransform):
-        if self.transforms is not None:
-            self.transforms.set_transforms({'proxy_transform': proxy_transform})
-        else:
-            raise Warning('Trying to set proxy_transform for a model without transforms')
+#     @proxy_transform.setter
+#     def proxy_transform(self, proxy_transform: rtm_transforms.RTMTransform):
+#         if self.transforms is not None:
+#             self.transforms.set_transforms({'proxy_transform': proxy_transform})
+#         else:
+#             raise Warning('Trying to set proxy_transform for a model without transforms')
 
-    def forward(self, **input_kwargs) -> torch.Tensor:
-        """runs RTM forward model prediction"""
-        raise NotImplementedError
+#     def forward(self, **input_kwargs) -> torch.Tensor:
+#         """runs RTM forward model prediction"""
+#         raise NotImplementedError
     
-    def training_step(self, batch, batch_idx):
-        """training step for neural network models"""
-        raise NotImplementedError
+#     def training_step(self, batch, batch_idx):
+#         """training step for neural network models"""
+#         raise NotImplementedError
 
-    def validation_step(self, batch, batch_idx):
-        """validation step for neural network models"""
-        raise NotImplementedError
+#     def validation_step(self, batch, batch_idx):
+#         """validation step for neural network models"""
+#         raise NotImplementedError
     
-    def prepare_outputs(self, 
-                        outputs: torch.Tensor, 
-                        targets: torch.Tensor
-                        ) -> Tuple[np.ndarray, np.ndarray]:
+#     def prepare_outputs(self, 
+#                         outputs: torch.Tensor, 
+#                         targets: torch.Tensor
+#                         ) -> Tuple[np.ndarray, np.ndarray]:
         
-        outputs = outputs.detach()
-        targets = targets.detach()
+#         outputs = outputs.detach()
+#         targets = targets.detach()
 
-        outputs = outputs.cpu().numpy()
-        targets = targets.cpu().numpy()
+#         outputs = outputs.cpu().numpy()
+#         targets = targets.cpu().numpy()
 
-        return outputs, targets
+#         return outputs, targets
 
-    def test_step(self, batch, batch_idx):
-        """evaluate reconstruction performance"""
-        targets = batch[self.target_quantity]
-        # if self.target_transform is not None:
-        #     targets = self.target_transform(targets)
+#     def test_step(self, batch, batch_idx):
+#         """evaluate reconstruction performance"""
+#         targets = batch[self.target_quantity]
+#         # if self.target_transform is not None:
+#         #     targets = self.target_transform(targets)
 
-        outputs = self.forward(**batch)
+#         outputs = self.forward(**batch)
 
-        # outputs = self.forward(**batch)
-        # if self.target_transform:
-        #     # undo normalization and transforms
-        #     outputs = self.target_transform.inverse(outputs)
+#         # outputs = self.forward(**batch)
+#         # if self.target_transform:
+#         #     # undo normalization and transforms
+#         #     outputs = self.target_transform.inverse(outputs)
 
-        outputs, targets = self.prepare_outputs(outputs, targets)
+#         outputs, targets = self.prepare_outputs(outputs, targets)
 
-        self.outputs.append(outputs)
-        self.targets.append(targets)
+#         self.outputs.append(outputs)
+#         self.targets.append(targets)
     
-    def on_test_epoch_start(self) -> None:
-        """initialize lists to store predictions and targets"""
-        self.outputs = []
-        self.targets = []
+#     def on_test_epoch_start(self) -> None:
+#         """initialize lists to store predictions and targets"""
+#         self.outputs = []
+#         self.targets = []
     
-    def on_test_epoch_end(self) -> None:
+#     def on_test_epoch_end(self) -> None:
 
-        # process all predictions and targets from the test set
-        outputs = np.concatenate(self.outputs, axis=0)
-        targets = np.concatenate(self.targets, axis=0)
+#         # process all predictions and targets from the test set
+#         outputs = np.concatenate(self.outputs, axis=0)
+#         targets = np.concatenate(self.targets, axis=0)
        
-        # compute evaluation metrics, average across input/output dimension
-        rmse = utils.rmse(outputs, targets, axis=0).mean()
-        nrmse = utils.nrmse(outputs, targets, z=self.eval_scale, axis=0).mean()
-        mape = utils.mape(outputs, targets, axis=0).mean()
-        mape_continuum = utils.mape_continuum(outputs, targets, axis=0).mean()
-        smape = utils.smape(outputs, targets, axis=0).mean()
-        rmse_continuum = utils.rmse_continuum(outputs, targets, axis=0).mean()
-        rel_bias = utils.relative_bias(outputs, targets, axis=0).mean()
-        r2 = utils.r2_score(outputs, targets, axis=0).mean()
+#         # compute evaluation metrics, average across input/output dimension
+#         rmse = utils.rmse(outputs, targets, axis=0).mean()
+#         nrmse = utils.nrmse(outputs, targets, z=self.eval_scale, axis=0).mean()
+#         mape = utils.mape(outputs, targets, axis=0).mean()
+#         mape_continuum = utils.mape_continuum(outputs, targets, axis=0).mean()
+#         smape = utils.smape(outputs, targets, axis=0).mean()
+#         rmse_continuum = utils.rmse_continuum(outputs, targets, axis=0).mean()
+#         rel_bias = utils.relative_bias(outputs, targets, axis=0).mean()
+#         r2 = utils.r2_score(outputs, targets, axis=0).mean()
 
-        # compute R2 on log-transformed data
-        # ensure that outputs are positive
-        outputs = np.maximum(outputs, np.finfo(outputs.dtype).eps)
-        r2_log = utils.r2_score(np.log(outputs), np.log(targets), axis=0).mean()
+#         # compute R2 on log-transformed data
+#         # ensure that outputs are positive
+#         outputs = np.maximum(outputs, np.finfo(outputs.dtype).eps)
+#         r2_log = utils.r2_score(np.log(outputs), np.log(targets), axis=0).mean()
 
-        self.log_dict({'test/RMSE': rmse,
-                       'test/NRMSE': nrmse,
-                       'test/MAPE': mape,
-                       'test/MAPE_continuum': mape_continuum,
-                       'test/RMSE_continuum': rmse_continuum,
-                       'test/SMAPE': smape,
-                       'test/rel_bias': rel_bias,
-                       'test/R2': r2,
-                       'test/R2_log': r2_log,
-                       },
-                       sync_dist=True)
+#         self.log_dict({'test/RMSE': rmse,
+#                        'test/NRMSE': nrmse,
+#                        'test/MAPE': mape,
+#                        'test/MAPE_continuum': mape_continuum,
+#                        'test/RMSE_continuum': rmse_continuum,
+#                        'test/SMAPE': smape,
+#                        'test/rel_bias': rel_bias,
+#                        'test/R2': r2,
+#                        'test/R2_log': r2_log,
+#                        },
+#                        sync_dist=True)
 
-    def predict_step(self, batch, batch_idx):
-        """reconstruct input and transform back to physical space"""
-        targets = batch[self.target_quantity]
-        # if self.target_transform is not None:
-        #     targets = self.target_transform(targets)
+#     def predict_step(self, batch, batch_idx):
+#         """reconstruct input and transform back to physical space"""
+#         targets = batch[self.target_quantity]
+#         # if self.target_transform is not None:
+#         #     targets = self.target_transform(targets)
 
-        # outputs = self.forward(**batch)
-        # if self.target_transform:
-        #     # undo normalization and transforms
-        #     outputs = self.target_transform.inverse(outputs)
+#         # outputs = self.forward(**batch)
+#         # if self.target_transform:
+#         #     # undo normalization and transforms
+#         #     outputs = self.target_transform.inverse(outputs)
 
-        outputs = self.forward(**batch)
-        outputs, targets = self.prepare_outputs(outputs, targets)
+#         outputs = self.forward(**batch)
+#         outputs, targets = self.prepare_outputs(outputs, targets)
 
-        return outputs, targets
+#         return outputs, targets
     
-    def save_hydra_config(self, config: Dict):
-        self.hydra_config = config
+#     def save_hydra_config(self, config: Dict):
+#         self.hydra_config = config
 
 
     
-class NNSurrogateRTM(SurrogateRTM):
-    def __init__(self, 
-                 forward_model: torch.nn.Module, 
-                 lr: float = 0.01,
-                 **kwargs):
-        super().__init__(**kwargs)
+# class NNSurrogateRTM(SurrogateRTM):
+#     def __init__(self, 
+#                  forward_model: torch.nn.Module, 
+#                  lr: float = 0.01,
+#                  **kwargs):
+#         super().__init__(**kwargs)
 
-        # define forward model
-        self.forward_model = forward_model
+#         # define forward model
+#         self.forward_model = forward_model
         
-        self.lr = lr
-        self.l2_reg = kwargs.get('l2_reg', 0)
-        self.betas = kwargs.get('betas', (0.9, 0.999))
-        self.loss_scale = kwargs.get('loss_scale', 1.0)
+#         self.lr = lr
+#         self.l2_reg = kwargs.get('l2_reg', 0)
+#         self.betas = kwargs.get('betas', (0.9, 0.999))
+#         self.loss_scale = kwargs.get('loss_scale', 1.0)
 
-        # list of loss terms making up the overall loss
-        self.loss_terms = kwargs.get('loss_terms', [torch.nn.MSELoss()])
+#         # list of loss terms making up the overall loss
+#         self.loss_terms = kwargs.get('loss_terms', [torch.nn.MSELoss()])
 
-        # learning rate scheduling
-        self.lr_schedulers = kwargs.get('lr_schedulers', None)
-        self.lr_milestones = kwargs.get('lr_milestones', None)
-        self.lr_scheduler_interval = kwargs.get('lr_scheduler_interval', 'epoch')
+#         # learning rate scheduling
+#         self.lr_schedulers = kwargs.get('lr_schedulers', None)
+#         self.lr_milestones = kwargs.get('lr_milestones', None)
+#         self.lr_scheduler_interval = kwargs.get('lr_scheduler_interval', 'epoch')
 
 
-    def prepare_inputs(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
-        # prepare inputs
-        if self.input_transform is not None:
-            inputs = self.input_transform(inputs)
+#     def prepare_inputs(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
+#         # prepare inputs
+#         if self.input_transform is not None:
+#             inputs = self.input_transform(inputs)
 
-        # prepare proxy
-        if self.proxy_quantity in kwargs and self.proxy_transform is not None:
-            kwargs[self.proxy_quantity] = self.proxy_transform(kwargs[self.proxy_quantity])
+#         # prepare proxy
+#         if self.proxy_quantity in kwargs and self.proxy_transform is not None:
+#             kwargs[self.proxy_quantity] = self.proxy_transform(kwargs[self.proxy_quantity])
 
-        return inputs, kwargs
+#         return inputs, kwargs
     
 
-    def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
-        # normalize and transform inputs if applicable
-        inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
+#     def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
+#         # normalize and transform inputs if applicable
+#         inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
         
-        # make prediction
-        outputs = self.forward_model(inputs, **kwargs_prep)
+#         # make prediction
+#         outputs = self.forward_model(inputs, **kwargs_prep)
 
-        # for final prediction, translate back to physical quantities
-        if not train:
-            if self.target_transform is not None:
-                outputs = self.target_transform.inverse(outputs)
+#         # for final prediction, translate back to physical quantities
+#         if not train:
+#             if self.target_transform is not None:
+#                 outputs = self.target_transform.inverse(outputs)
         
-        return outputs
+#         return outputs
 
 
-    def compute_loss(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        loss = 0
-        for loss_fct in self.loss_terms:
-            loss = loss + loss_fct(outputs, targets)
+#     def compute_loss(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+#         loss = 0
+#         for loss_fct in self.loss_terms:
+#             loss = loss + loss_fct(outputs, targets)
 
-        # if using SGD without regularization, this is equivalent to scaling the lr
-        loss = loss * self.loss_scale
+#         # if using SGD without regularization, this is equivalent to scaling the lr
+#         loss = loss * self.loss_scale
 
-        return loss
+#         return loss
     
-    def eval_step(self, batch) -> torch.Tensor:
-        # prepare targets
-        targets = batch[self.target_quantity]
-        if self.target_transform is not None:
-            print('Transforming targets...')
-            targets = self.target_transform(targets)
+#     def eval_step(self, batch) -> torch.Tensor:
+#         # prepare targets
+#         targets = batch[self.target_quantity]
+#         if self.target_transform is not None:
+#             print('Transforming targets...')
+#             targets = self.target_transform(targets)
 
-        # make prediction
-        outputs = self.forward(**batch, train=True)
+#         # make prediction
+#         outputs = self.forward(**batch, train=True)
 
-        # compute loss function
-        loss = self.compute_loss(outputs, targets)
+#         # compute loss function
+#         loss = self.compute_loss(outputs, targets)
 
-        return loss
+#         return loss
 
-    def training_step(self, batch, batch_idx) -> torch.Tensor:
-        loss = self.eval_step(batch)
-        self.log('train/loss', loss, on_step=True, on_epoch=True, 
-                 prog_bar=True, logger=True, sync_dist=True)
-        self.log('train/log_loss', torch.log(loss), on_step=True, 
-                 on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+#     def training_step(self, batch, batch_idx) -> torch.Tensor:
+#         loss = self.eval_step(batch)
+#         self.log('train/loss', loss, on_step=True, on_epoch=True, 
+#                  prog_bar=True, logger=True, sync_dist=True)
+#         self.log('train/log_loss', torch.log(loss), on_step=True, 
+#                  on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
-        return loss
+#         return loss
             
-    def validation_step(self, batch, batch_idx):
-        loss = self.eval_step(batch)
-        self.log('val/loss', loss, on_epoch=True, on_step=False, logger=True, sync_dist=True)
-        self.log('val/log_loss', torch.log(loss), on_epoch=True, on_step=False, logger=True, sync_dist=True)
+#     def validation_step(self, batch, batch_idx):
+#         loss = self.eval_step(batch)
+#         self.log('val/loss', loss, on_epoch=True, on_step=False, logger=True, sync_dist=True)
+#         self.log('val/log_loss', torch.log(loss), on_epoch=True, on_step=False, logger=True, sync_dist=True)
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg, betas=self.betas)
+#     def configure_optimizers(self):
+#         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg, betas=self.betas)
 
-        if self.lr_schedulers is not None and self.lr_milestones is not None:
-            scheduler = SequentialLR(optimizer, 
-                                     [s_partial(optimizer) for s_partial in self.lr_schedulers], 
-                                     milestones=self.lr_milestones)
-        else:
-            # constant learning rate
-            scheduler = ConstantLR(optimizer, factor=1.0, total_iters=1e8)
+#         if self.lr_schedulers is not None and self.lr_milestones is not None:
+#             scheduler = SequentialLR(optimizer, 
+#                                      [s_partial(optimizer) for s_partial in self.lr_schedulers], 
+#                                      milestones=self.lr_milestones)
+#         else:
+#             # constant learning rate
+#             scheduler = ConstantLR(optimizer, factor=1.0, total_iters=1e8)
 
-        lr_scheduler_config = {
-            'scheduler': scheduler,
-            'interval': self.lr_scheduler_interval
-        }
+#         lr_scheduler_config = {
+#             'scheduler': scheduler,
+#             'interval': self.lr_scheduler_interval
+#         }
 
-        return {"optimizer": optimizer,
-                "lr_scheduler": lr_scheduler_config}
+#         return {"optimizer": optimizer,
+#                 "lr_scheduler": lr_scheduler_config}
     
 
-    def on_save_checkpoint(self, checkpoint):
-        # save additional objects to checkpoint 
-        if hasattr(self, 'hydra_config'):
-            checkpoint['hydra_config'] = self.hydra_config
+#     def on_save_checkpoint(self, checkpoint):
+#         # save additional objects to checkpoint 
+#         if hasattr(self, 'hydra_config'):
+#             checkpoint['hydra_config'] = self.hydra_config
 
     
-    def on_load_checkpoint(self, checkpoint):
-        print(f'Loading model state on device {self.device}...')
-        self.load_model_state(checkpoint, map_location=self.device)
+#     def on_load_checkpoint(self, checkpoint):
+#         print(f'Loading model state on device {self.device}...')
+#         self.load_model_state(checkpoint, map_location=self.device)
         
         
-    def load_model_state(self, checkpoint, map_location=None):
+#     def load_model_state(self, checkpoint, map_location=None):
 
-        # if transforms are part of checkpoint, make sure model has correct transforms setup
-        if 'transforms' in checkpoint:
-            self.transforms = instantiate(checkpoint['hydra_config']['transforms'])
+#         # if transforms are part of checkpoint, make sure model has correct transforms setup
+#         if 'transforms' in checkpoint:
+#             self.transforms = instantiate(checkpoint['hydra_config']['transforms'])
 
-        # load standard pytorch state_dict
-        self.load_state_dict(checkpoint['state_dict'])
+#         # load standard pytorch state_dict
+#         self.load_state_dict(checkpoint['state_dict'])
 
-        # # load additional objects from checkpoint
-        # self.target_transform = checkpoint['target_transform']
-        # self.proxy_transform = checkpoint['proxy_transform']
+#         # # load additional objects from checkpoint
+#         # self.target_transform = checkpoint['target_transform']
+#         # self.proxy_transform = checkpoint['proxy_transform']
 
-        # make sure everything is on the same device
-        self.to(map_location)
+#         # make sure everything is on the same device
+#         self.to(map_location)
 
 
-class NNSurrogateRTMDiff(NNSurrogateRTM):
-    """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+# class NNSurrogateRTMDiff(NNSurrogateRTM):
+#     """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
+#     def __init__(self, **kwargs):
+#         super().__init__(**kwargs)
     
 
-    def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
-        # normalize and transform inputs if applicable
-        inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
+#     def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
+#         # normalize and transform inputs if applicable
+#         inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
         
-        # make prediction
-        outputs = self.forward_model(inputs, **kwargs_prep)
+#         # make prediction
+#         outputs = self.forward_model(inputs, **kwargs_prep)
 
-        # for final prediction, translate back to physical quantities
-        if not train:
-            if self.target_transform is not None:
-                outputs = self.target_transform.inverse(outputs)
+#         # for final prediction, translate back to physical quantities
+#         if not train:
+#             if self.target_transform is not None:
+#                 outputs = self.target_transform.inverse(outputs)
 
-            # go from difference to total radiance
-            proxy = kwargs[self.proxy_quantity]
-            outputs = proxy + outputs
+#             # go from difference to total radiance
+#             proxy = kwargs[self.proxy_quantity]
+#             outputs = proxy + outputs
         
-        return outputs
+#         return outputs
 
 
     # def test_step(self, batch, batch_idx):
@@ -886,28 +855,28 @@ class NNSurrogateRTMDiff(NNSurrogateRTM):
     #     return outputs, targets
     
     
-class NNSurrogateRTMRatio(NNSurrogateRTM):
-    """Surrogate model that predicts the ratio between RTM and proxy (non-scattering RTM)"""
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+# class NNSurrogateRTMRatio(NNSurrogateRTM):
+#     """Surrogate model that predicts the ratio between RTM and proxy (non-scattering RTM)"""
+#     def __init__(self, **kwargs):
+#         super().__init__(**kwargs)
 
-    def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
-        # normalize and transform inputs if applicable
-        inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
+#     def forward(self, inputs: torch.Tensor, train=False, **kwargs) -> torch.Tensor:
+#         # normalize and transform inputs if applicable
+#         inputs, kwargs_prep = self.prepare_inputs(inputs, **kwargs)
         
-        # make prediction
-        outputs = self.forward_model(inputs **kwargs_prep)
+#         # make prediction
+#         outputs = self.forward_model(inputs **kwargs_prep)
 
-        # for final prediction, translate back to physical quantities
-        if not train:
-            if self.target_transform is not None:
-                outputs = self.target_transform.inverse(outputs)
+#         # for final prediction, translate back to physical quantities
+#         if not train:
+#             if self.target_transform is not None:
+#                 outputs = self.target_transform.inverse(outputs)
 
-            # go from difference to total radiance
-            proxy = kwargs[self.proxy_quantity]
-            outputs = proxy * outputs
+#             # go from difference to total radiance
+#             proxy = kwargs[self.proxy_quantity]
+#             outputs = proxy * outputs
         
-        return outputs
+#         return outputs
 
     # def test_step(self, batch, batch_idx):
     #     """evaluate reconstruction performance"""
@@ -940,90 +909,66 @@ class NNSurrogateRTMRatio(NNSurrogateRTM):
 
     #     return outputs, targets
 
-class ForwardModel(torch.nn.Module):
-    def __init__(self, 
-                 forward_module: torch.nn.Module, 
-                 transforms: Optional[rtm_transforms.RTMTransformCollection] = None
-                 ):
-        super().__init__()
+# class ForwardModel(torch.nn.Module):
+#     def __init__(self, 
+#                  forward_module: torch.nn.Module, 
+#                  transforms: Optional[rtm_transforms.RTMTransformCollection] = None
+#                  ):
+#         super().__init__()
 
-        self.forward_module = forward_module
-        self.transforms = transforms
+#         self.forward_module = forward_module
+#         self.transforms = transforms
 
-    @property
-    def input_transform(self) -> rtm_transforms.RTMTransform:
-        return getattr(self.transforms, 'pixel_transform', None)
+#     @property
+#     def input_transform(self) -> rtm_transforms.RTMTransform:
+#         return getattr(self.transforms, 'pixel_transform', None)
     
-    @input_transform.setter
-    def input_transform(self, input_transform: rtm_transforms.RTMTransform):
-        if self.transforms is not None:
-            self.transforms.set_transforms({'pixel_transform': input_transform})
-        else:
-            raise Warning('Trying to set input_transform for a model without transforms')
+#     @input_transform.setter
+#     def input_transform(self, input_transform: rtm_transforms.RTMTransform):
+#         if self.transforms is not None:
+#             self.transforms.set_transforms({'pixel_transform': input_transform})
+#         else:
+#             raise Warning('Trying to set input_transform for a model without transforms')
 
-    @property
-    def target_transform(self) -> rtm_transforms.RTMTransform:
-        return getattr(self.transforms, 'target_transform', None)
+#     @property
+#     def target_transform(self) -> rtm_transforms.RTMTransform:
+#         return getattr(self.transforms, 'target_transform', None)
     
-    @target_transform.setter
-    def target_transform(self, target_transform: rtm_transforms.RTMTransform):
-        if self.transforms is not None:
-            self.transforms.set_transforms({'target_transform': target_transform})
-        else:
-            raise Warning('Trying to set target_transform for a model without transforms')
+#     @target_transform.setter
+#     def target_transform(self, target_transform: rtm_transforms.RTMTransform):
+#         if self.transforms is not None:
+#             self.transforms.set_transforms({'target_transform': target_transform})
+#         else:
+#             raise Warning('Trying to set target_transform for a model without transforms')
 
-    @property
-    def proxy_transform(self) -> rtm_transforms.RTMTransform:
-        return getattr(self.transforms, 'proxy_transform', None)
+#     @property
+#     def proxy_transform(self) -> rtm_transforms.RTMTransform:
+#         return getattr(self.transforms, 'proxy_transform', None)
     
-    @proxy_transform.setter
-    def proxy_transform(self, proxy_transform: rtm_transforms.RTMTransform):
-        if self.transforms is not None:
-            self.transforms.set_transforms({'proxy_transform': proxy_transform})
-        else:
-            raise Warning('Trying to set proxy_transform for a model without transforms')
+#     @proxy_transform.setter
+#     def proxy_transform(self, proxy_transform: rtm_transforms.RTMTransform):
+#         if self.transforms is not None:
+#             self.transforms.set_transforms({'proxy_transform': proxy_transform})
+#         else:
+#             raise Warning('Trying to set proxy_transform for a model without transforms')
         
-    def prepare_inputs(self, 
-                       inputs: torch.Tensor, 
-                       proxy_targets: torch.Tensor = None,
-                       ) -> Tuple[torch.Tensor]:
-        # prepare inputs
-        if self.input_transform is not None:
-            inputs = self.input_transform(inputs)
+#     def prepare_inputs(self, 
+#                        inputs: torch.Tensor, 
+#                        proxy_targets: torch.Tensor = None,
+#                        ) -> Tuple[torch.Tensor]:
+#         # prepare inputs
+#         if self.input_transform is not None:
+#             inputs = self.input_transform(inputs)
 
-        # prepare proxy
-        if proxy_targets is not None and self.proxy_transform is not None:
-            proxy_targets = self.proxy_transform(proxy_targets)
+#         # prepare proxy
+#         if proxy_targets is not None and self.proxy_transform is not None:
+#             proxy_targets = self.proxy_transform(proxy_targets)
 
-        return inputs, proxy_targets
+#         return inputs, proxy_targets
 
-    def get_parameter_groups(self, lr):
-        return [{"params": self.parameters(), "lr": lr}]
+#     def get_parameter_groups(self, lr):
+#         return [{"params": self.parameters(), "lr": lr}]
 
-
-    # def forward(self, 
-    #             inputs: torch.Tensor, 
-    #             proxy_targets: torch.Tensor = None,
-    #             train: bool = False,
-    #             ) -> torch.Tensor:
-
-    #     # prepare inputs
-    #     if self.input_transform is not None:
-    #         inputs = self.input_transform(inputs)
-
-    #     # TODO: also prepare proxy is applicable
-
-    #     # make prediction
-    #     outputs = self.forward(inputs, **kwargs)
-
-    #     # prepare outputs
-    #     if self.target_transform is not None:
-    #         outputs = self.target_transform.inverse(outputs)
-
-    #     return outputs
-    
-    # def forward(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
-    #     return self.forward_module(inputs, **kwargs)
 
 class NNForwardModel(torch.nn.Module):
     """
@@ -1093,21 +1038,11 @@ class NNForwardModel(torch.nn.Module):
             raise Warning('Trying to set input_transform for a model without transforms')
 
     def prepare_inputs(self, 
-                       inputs: torch.Tensor, 
-                    #    proxy_targets: Optional[torch.Tensor] = None,
-                    #    profile_inputs: Optional[torch.Tensor] = None,
+                       inputs: torch.Tensor,
                        ) -> torch.Tensor:
         # prepare inputs
         if self.input_transform is not None:
             inputs = self.input_transform(inputs)
-
-        # # prepare proxy
-        # if proxy_targets is not None and self.proxy_transform is not None:
-        #     proxy_targets = self.proxy_transform(proxy_targets)
-
-        # # prepare profiles
-        # if profile_inputs is not None and self.profile_transform is not None:
-        #     profile_inputs = self.profile_transform(profile_inputs)
 
         return inputs
     
@@ -1152,17 +1087,9 @@ class NNForwardModel(torch.nn.Module):
         if not train:
             # undo normalization and transforms if applicable
             if self.target_transform is not None:
-
                 outputs = self.target_transform.inverse(outputs)
-                # for all but diff models, outputs should now be positive
-                # if not, set to smallest float32 value
-                # if self.proxy_operation != 'difference':
-                #     # outputs = torch.clamp(outputs, min=0.01, max=10.0) #np.finfo(np.float32).eps)
-                #     outputs = outputs * 0.0 + 1.0
 
             if combine_with_proxy and proxy_targets is not None:
-                # outputs = torch.where(torch.isfinite(outputs), outputs, torch.ones_like(outputs))
-                # outputs = torch.clamp(outputs, min=0.0, max=10.0)
                 outputs = self.combine_with_proxy(outputs, proxy_targets)
 
         return outputs
@@ -1268,20 +1195,14 @@ class NNForwardModel(torch.nn.Module):
         the provided batch
         """
 
-        # If applicable, scale gas dimensions to get derivatives w.r.t. scaling factors 
-        # instead of total columns.
-        # Note that the provided proxy_jacobian should already include this scaling
-        # for gas_idx in self.gas_scaling_indices:
-        #     jac = jac.clone() # to prevent issues with slicing of autograd output
-        #     jac[:, :, gas_idx] = jac[:, :, gas_idx] * inputs[:, gas_idx].unsqueeze(1)
-
         if gas_indices is not None:
             n_samples = jac.shape[0]
             batch_idx = torch.arange(n_samples) # shape (n_samples,)
             for i in range(gas_indices.shape[-1]):
                 gas_idx = gas_indices[:, i] # shape (n_samples,)
                 jac = jac.clone() # to prevent issues with slicing of autograd output
-                # jac[:, :, gas_idx] = jac[:, :, gas_idx] * gas_priors[:, i].unsqueeze(1)
+                # scale gas dimensions to get derivatives w.r.t. scaling factors instead of total columns
+                # note that the provided proxy_jacobian should already include this scaling
                 jac[batch_idx, :, gas_idx] *= gas_priors[:, i].view(n_samples, 1)
 
         return jac
@@ -1311,7 +1232,6 @@ class NNForwardModel(torch.nn.Module):
                                               normalized_inputs=False,
                                               combine_with_proxy=False)
             # apply chain rule to combine jacobians
-            # jac = correction_factor * proxy_jacobian + proxy_targets * jac_correction
             # correction_factor has shape (batch_size, n_outputs)
             # proxy_jacobian has shape (batch_size, n_outputs, n_features)
             # jac has shape (batch_size, n_outputs, n_features)
@@ -1366,7 +1286,6 @@ class NNForwardModel(torch.nn.Module):
 
         # initialize jacobian
         jac = torch.zeros(batch_size, n_outputs, n_features, dtype=inputs.dtype, device=inputs.device)
-        # jac = jac.type_as(inputs, device=inputs.device)
 
         if feature_indices is None:
             feature_indices = range(n_features)
@@ -1484,24 +1403,14 @@ class LatentNNForwardModel(NNForwardModel):
             inputs = torch.cat([inputs, profile_transf], dim=-1)
 
         if self.encoder is not None:
-            # inputs = torch.clamp(inputs, min=-1.0, max=1.0)
             inputs = self.encoder.encode(inputs)
-            # print(f'Min/max after input encoding: {inputs.min().item()} / {inputs.max().item()}')
-            
 
         # Run core part of the NN forward model
-        # inputs = torch.clamp(inputs, min=-1.0, max=1.0)
         outputs = self.core_nn(inputs)
-        # print(f'Min/max after core NN: {outputs.min().item()} / {outputs.max().item()}')
 
         if self.decoder is not None:
-            # outputs = torch.clamp(outputs, min=-1.0, max=1.0)
             outputs = self.decoder.decode(outputs)
-            # print(f'Min/max after output decoding: {outputs.min().item()} / {outputs.max().item()}')
 
-        # outputs = proxy_targets * 0.0 + outputs.mean() # dummy line for FTorch testing
-
-        # outputs = torch.clamp(outputs, min=-0.1, max=0.1)
         # undo any transforms and normalization, 
         # and combine with proxy targets if applicable
         outputs = self.prepare_outputs(outputs, proxy_targets, train, combine_with_proxy)
@@ -1569,10 +1478,6 @@ class SequenceNNForwardModel(NNForwardModel):
         proxy_transf = self.prepare_proxy(proxy_targets)
         profile_transf = self.prepare_profiles(profile_inputs)
 
-        # inputs, transformed_kwargs = self.prepare_inputs(inputs, 
-        #                                                  proxy_targets=proxy_targets, 
-        #                                                  profile_inputs=profile_inputs)
-
         if self.encoder is not None:
             inputs = self.encoder.encode(inputs)
 
@@ -1593,7 +1498,6 @@ class SequenceNNForwardModel(NNForwardModel):
             # proxy targets have shape [batch_size, n_wavelengths]
             # expand inputs and add them as additional channels to proxy spectra
             proxy = proxy_transf.unsqueeze(-1)
-            # proxy = proxy_targets.unsqueeze(-1)
 
             if self.proxy_module:
                 proxy = self.proxy_module(proxy)
@@ -1615,468 +1519,445 @@ class SequenceNNForwardModel(NNForwardModel):
 
         # undo any normalization and transforms,
         # and combine with proxy targets if applicable
-        # proxy_targets = kwargs.get('proxy_targets', None)
         outputs = self.prepare_outputs(outputs, proxy_targets, train, combine_with_proxy)
-
-        # if compute_jac:
-        #     # compute jacobian of the forward model
-        #     jac_f = torch.func.jacrev(forward_nn, argnums=0)(test_inputs, test_proxy)
 
         if single_input:
             outputs = outputs.squeeze(0)
 
         return outputs
-    
-    # def compute_jac(self, 
-    #                 inputs: torch.Tensor,
-    #                 proxy_targets: Optional[torch.Tensor] = None,
-    #                 profile_inputs: Optional[torch.Tensor] = None,
-    #                 ) -> torch.Tensor:
-    #     # compute jacobian of the forward model
-
 
 
         
   
 
-class LatentNNSurrogateRTM(NNSurrogateRTM):
-    def __init__(self, 
-                 input_dim_reduction: Union[DimensionalityReduction, Encoder] = None, 
-                 output_dim_reduction: Union[DimensionalityReduction, Decoder] = None,
-                 proxy_module: Optional[torch.nn.Module] = None,
-                 nonlinearity: Optional[str] = None, 
-                 **kwargs):
-        super().__init__(**kwargs)
+# class LatentNNSurrogateRTM(NNSurrogateRTM):
+#     def __init__(self, 
+#                  input_dim_reduction: Union[DimensionalityReduction, Encoder] = None, 
+#                  output_dim_reduction: Union[DimensionalityReduction, Decoder] = None,
+#                  proxy_module: Optional[torch.nn.Module] = None,
+#                  nonlinearity: Optional[str] = None, 
+#                  **kwargs):
+#         super().__init__(**kwargs)
 
-        # model components
-        self.input_dim_reduction = input_dim_reduction
-        self.output_dim_reduction = output_dim_reduction
-        self.proxy_module = proxy_module
+#         # model components
+#         self.input_dim_reduction = input_dim_reduction
+#         self.output_dim_reduction = output_dim_reduction
+#         self.proxy_module = proxy_module
 
-        self.nonlinearity = getattr(F, nonlinearity) if nonlinearity else None
+#         self.nonlinearity = getattr(F, nonlinearity) if nonlinearity else None
 
-        # # TODO: add option to freeze all but last layer? (for end-to-end fine-tuning)
-        # if kwargs.get('pretrained_dim_reduction', False):
-        #     # only learn surrogate model parameters
-        #     utils.freeze_weights(self.input_dim_reduction)
-        #     utils.freeze_weights(self.output_dim_reduction)
+#         # # TODO: add option to freeze all but last layer? (for end-to-end fine-tuning)
+#         # if kwargs.get('pretrained_dim_reduction', False):
+#         #     # only learn surrogate model parameters
+#         #     utils.freeze_weights(self.input_dim_reduction)
+#         #     utils.freeze_weights(self.output_dim_reduction)
 
-        # self.latent_loss = kwargs.get('latent_loss', False)
+#         # self.latent_loss = kwargs.get('latent_loss', False)
 
-    @property
-    def target_transform(self) -> rtm_transforms.RTMTransform:
-        return self._target_transform
+#     @property
+#     def target_transform(self) -> rtm_transforms.RTMTransform:
+#         return self._target_transform
     
-    @target_transform.setter
-    def target_transform(self, target_transform: rtm_transforms.RTMTransform):
-        self._target_transform = target_transform
-        if hasattr(self.output_dim_reduction, 'target_transform'):
-            self.output_dim_reduction.target_transform = target_transform
+#     @target_transform.setter
+#     def target_transform(self, target_transform: rtm_transforms.RTMTransform):
+#         self._target_transform = target_transform
+#         if hasattr(self.output_dim_reduction, 'target_transform'):
+#             self.output_dim_reduction.target_transform = target_transform
     
-    def forward(self, inputs, **kwargs) -> torch.Tensor:
+#     def forward(self, inputs, **kwargs) -> torch.Tensor:
 
-        if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
-            inputs = self.input_dim_reduction.encode(inputs)
+#         if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+#             inputs = self.input_dim_reduction.encode(inputs)
 
-            # if neural network encoder, apply non-linearity before passing on to forward model
-            if isinstance(self.input_dim_reduction, Encoder) and self.nonlinearity:
-                inputs = self.nonlinearity(inputs)
+#             # if neural network encoder, apply non-linearity before passing on to forward model
+#             if isinstance(self.input_dim_reduction, Encoder) and self.nonlinearity:
+#                 inputs = self.nonlinearity(inputs)
 
-        if self.proxy_module:
-            # extract information from proxy spectra and append to other inputs
-            proxy = self.proxy_module(kwargs['proxy_targets'])
-            inputs = torch.cat([inputs, proxy], dim=-1)
+#         if self.proxy_module:
+#             # extract information from proxy spectra and append to other inputs
+#             proxy = self.proxy_module(kwargs['proxy_targets'])
+#             inputs = torch.cat([inputs, proxy], dim=-1)
 
-        outputs = self.forward_model(inputs)
+#         outputs = self.forward_model(inputs)
 
-        # if neural network decoder, apply non-linearity before passing on to forward model
-        if isinstance(self.output_dim_reduction, Decoder) and self.nonlinearity:
-            outputs = self.nonlinearity(outputs)
+#         # if neural network decoder, apply non-linearity before passing on to forward model
+#         if isinstance(self.output_dim_reduction, Decoder) and self.nonlinearity:
+#             outputs = self.nonlinearity(outputs)
 
-        if isinstance(self.output_dim_reduction, (DimensionalityReduction, Decoder)):
-            outputs = self.output_dim_reduction.decode(outputs)
+#         if isinstance(self.output_dim_reduction, (DimensionalityReduction, Decoder)):
+#             outputs = self.output_dim_reduction.decode(outputs)
 
-        return outputs
+#         return outputs
 
     
-    # def validation_step(self, batch, batch_idx):
-    #     return super().validation_step(batch, batch_idx)
+#     # def validation_step(self, batch, batch_idx):
+#     #     return super().validation_step(batch, batch_idx)
     
-    def on_save_checkpoint(self, checkpoint):
-        # save additional objects to checkpoint 
-        if isinstance(self.input_dim_reduction, PCA):
-            checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
-        if isinstance(self.output_dim_reduction, PCA):
-            checkpoint['output_dim_reduction'] = self.output_dim_reduction.pca_dict()
+#     def on_save_checkpoint(self, checkpoint):
+#         # save additional objects to checkpoint 
+#         if isinstance(self.input_dim_reduction, PCA):
+#             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
+#         if isinstance(self.output_dim_reduction, PCA):
+#             checkpoint['output_dim_reduction'] = self.output_dim_reduction.pca_dict()
 
-        super().on_save_checkpoint(checkpoint)
+#         super().on_save_checkpoint(checkpoint)
         
         
-    def load_model_state(self, checkpoint, map_location=None):
-        # load PCA parameters
-        if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
-        if isinstance(self.output_dim_reduction, PCA):
-            self.output_dim_reduction.load_pca_dict(checkpoint['output_dim_reduction'], map_location)
+#     def load_model_state(self, checkpoint, map_location=None):
+#         # load PCA parameters
+#         if isinstance(self.input_dim_reduction, PCA):
+#             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
+#         if isinstance(self.output_dim_reduction, PCA):
+#             self.output_dim_reduction.load_pca_dict(checkpoint['output_dim_reduction'], map_location)
 
-        super().load_model_state(checkpoint, map_location=map_location)
+#         super().load_model_state(checkpoint, map_location=map_location)
 
-    def _apply(self, convert):
-        if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction._apply(convert)
-        if isinstance(self.output_dim_reduction, PCA):
-            self.output_dim_reduction._apply(convert)
+#     def _apply(self, convert):
+#         if isinstance(self.input_dim_reduction, PCA):
+#             self.input_dim_reduction._apply(convert)
+#         if isinstance(self.output_dim_reduction, PCA):
+#             self.output_dim_reduction._apply(convert)
         
-        return super()._apply(convert)
+#         return super()._apply(convert)
         
     
-class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
-    """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+# class LatentNNSurrogateRTMDiff(LatentNNSurrogateRTM):
+#     """Surrogate model that predicts the difference between RTM and proxy (non-scattering RTM)"""
+#     def __init__(self, **kwargs):
+#         super().__init__(**kwargs)
 
-    # @property
-    # def proxy_transform(self) -> utils.RTMTransform:
-    #     return self._proxy_transform
+#     # @property
+#     # def proxy_transform(self) -> utils.RTMTransform:
+#     #     return self._proxy_transform
     
-    # @proxy_transform.setter
-    # def proxy_transform(self, proxy_transform: utils.RTMTransform):
-    #     self._proxy_transform = proxy_transform
+#     # @proxy_transform.setter
+#     # def proxy_transform(self, proxy_transform: utils.RTMTransform):
+#     #     self._proxy_transform = proxy_transform
 
-    def prepare_outputs(self, 
-                        outputs: torch.Tensor,
-                        targets: torch.Tensor, 
-                        proxy: torch.Tensor, 
-                        ) -> Tuple[np.ndarray, np.ndarray]:
+#     def prepare_outputs(self, 
+#                         outputs: torch.Tensor,
+#                         targets: torch.Tensor, 
+#                         proxy: torch.Tensor, 
+#                         ) -> Tuple[np.ndarray, np.ndarray]:
 
-        outputs = outputs.detach()
-        targets = targets.detach()
-        proxy = proxy.detach()
+#         outputs = outputs.detach()
+#         targets = targets.detach()
+#         proxy = proxy.detach()
 
-        if self.target_transform:
-            # undo normalization and transforms
-            outputs = self.target_transform.inverse(outputs)
-            targets = self.target_transform.inverse(targets)
+#         if self.target_transform:
+#             # undo normalization and transforms
+#             outputs = self.target_transform.inverse(outputs)
+#             targets = self.target_transform.inverse(targets)
 
-        if self.proxy_transform:
-            proxy = self.proxy_transform.inverse(proxy)
+#         if self.proxy_transform:
+#             proxy = self.proxy_transform.inverse(proxy)
 
-        # compute actual spectra
-        outputs = proxy + outputs
-        targets = proxy + targets
+#         # compute actual spectra
+#         outputs = proxy + outputs
+#         targets = proxy + targets
 
-        outputs = outputs.numpy()
-        targets = targets.numpy()
+#         outputs = outputs.numpy()
+#         targets = targets.numpy()
 
-        return outputs, targets
+#         return outputs, targets
 
-    def test_step(self, batch, batch_idx):
-        """evaluate reconstruction performance"""
-        targets = batch[self.target_quantity]
-        proxy = batch[self.proxy_quantity]
-        outputs = self.forward(**batch)
+#     def test_step(self, batch, batch_idx):
+#         """evaluate reconstruction performance"""
+#         targets = batch[self.target_quantity]
+#         proxy = batch[self.proxy_quantity]
+#         outputs = self.forward(**batch)
 
-        outputs, targets = self.prepare_outputs(outputs, targets, proxy)
+#         outputs, targets = self.prepare_outputs(outputs, targets, proxy)
 
-        self.outputs.append(outputs)
-        self.targets.append(targets)
+#         self.outputs.append(outputs)
+#         self.targets.append(targets)
 
-    def predict_step(self, batch, batch_idx):
-        """make prediction"""
-        targets = batch[self.target_quantity]
-        proxy = batch[self.proxy_quantity]
-        outputs = self.forward(**batch)
+#     def predict_step(self, batch, batch_idx):
+#         """make prediction"""
+#         targets = batch[self.target_quantity]
+#         proxy = batch[self.proxy_quantity]
+#         outputs = self.forward(**batch)
 
-        outputs, targets = self.prepare_outputs(outputs, targets, proxy)
+#         outputs, targets = self.prepare_outputs(outputs, targets, proxy)
 
-        return outputs, targets
+#         return outputs, targets
     
 
-class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
-    def __init__(self, 
-                 output_dim: int,
-                 input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
-                 proxy_module: Optional[torch.nn.Module] = None, 
-                 pos_encoding: Optional[torch.nn.Module] = None,
-                 input_processing: Optional[torch.nn.Module] = None,
-                 use_proxy_input: bool = True,
-                 **kwargs):
-        super().__init__(**kwargs)
+# class SequenceNNSurrogateRTMDiff(NNSurrogateRTMDiff):
+#     def __init__(self, 
+#                  output_dim: int,
+#                  input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
+#                  proxy_module: Optional[torch.nn.Module] = None, 
+#                  pos_encoding: Optional[torch.nn.Module] = None,
+#                  input_processing: Optional[torch.nn.Module] = None,
+#                  use_proxy_input: bool = True,
+#                  **kwargs):
+#         super().__init__(**kwargs)
 
-        self.input_dim_reduction = input_dim_reduction
+#         self.input_dim_reduction = input_dim_reduction
 
-        # note that the output dim of proxy_module and pos_encoding need to match
-        self.proxy_module = proxy_module
-        self.pos_encoding = pos_encoding
-        self.input_processing = input_processing
+#         # note that the output dim of proxy_module and pos_encoding need to match
+#         self.proxy_module = proxy_module
+#         self.pos_encoding = pos_encoding
+#         self.input_processing = input_processing
 
-        self.use_proxy_input = use_proxy_input
-        self.n_wavelengths = output_dim
+#         self.use_proxy_input = use_proxy_input
+#         self.n_wavelengths = output_dim
 
 
-    # def forward(self, inputs, **kwargs) -> torch.Tensor:
+#     # def forward(self, inputs, **kwargs) -> torch.Tensor:
 
-    #     if self.use_proxy_input:
-    #         # proxy targets have shape [batch_size, n_wavelengths]
-    #         # expand inputs and add them as additional channels to proxy spectra
-    #         proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+#     #     if self.use_proxy_input:
+#     #         # proxy targets have shape [batch_size, n_wavelengths]
+#     #         # expand inputs and add them as additional channels to proxy spectra
+#     #         proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
 
-    #         if self.proxy_module:
-    #             proxy = self.proxy_module(proxy)
+#     #         if self.proxy_module:
+#     #             proxy = self.proxy_module(proxy)
 
-    #         # if self.pos_encoding:
-    #             # pos encoding requires shape [batch_size, n_wavelengths, n_features]
-    #             # proxy = self.pos_encoding(proxy)
+#     #         # if self.pos_encoding:
+#     #             # pos encoding requires shape [batch_size, n_wavelengths, n_features]
+#     #             # proxy = self.pos_encoding(proxy)
 
-    #     if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
-    #         inputs = self.input_dim_reduction.encode(inputs)
+#     #     if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+#     #         inputs = self.input_dim_reduction.encode(inputs)
 
-    #     # inputs have shape [batch_size, n_features]
-    #     # expand across wavelengths
-    #     inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
+#     #     # inputs have shape [batch_size, n_features]
+#     #     # expand across wavelengths
+#     #     inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
 
-    #     if self.pos_encoding:
-    #         # add positional information to inputs
-    #         inputs = self.pos_encoding(inputs)
+#     #     if self.pos_encoding:
+#     #         # add positional information to inputs
+#     #         inputs = self.pos_encoding(inputs)
 
-    #     if self.use_proxy_input:
-    #         inputs = torch.cat([inputs, proxy], dim=-1)
+#     #     if self.use_proxy_input:
+#     #         inputs = torch.cat([inputs, proxy], dim=-1)
 
-    #     # forward model works on a sequence of shape (batch_size, n_wavelengths, n_channels)
-    #     outputs = self.forward_model(inputs).reshape(inputs.size(0), self.n_wavelengths)
+#     #     # forward model works on a sequence of shape (batch_size, n_wavelengths, n_channels)
+#     #     outputs = self.forward_model(inputs).reshape(inputs.size(0), self.n_wavelengths)
 
-    #     return outputs
+#     #     return outputs
 
-    def forward(self, inputs, **kwargs) -> torch.Tensor:
+#     def forward(self, inputs, **kwargs) -> torch.Tensor:
 
-        if self.use_proxy_input:
-            # proxy targets have shape [batch_size, n_wavelengths]
-            # expand inputs and add them as additional channels to proxy spectra
-            proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+#         if self.use_proxy_input:
+#             # proxy targets have shape [batch_size, n_wavelengths]
+#             # expand inputs and add them as additional channels to proxy spectra
+#             proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
 
-            if self.proxy_module:
-                proxy = self.proxy_module(proxy)
+#             if self.proxy_module:
+#                 proxy = self.proxy_module(proxy)
 
-        if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
-            inputs = self.input_dim_reduction.encode(inputs)
+#         if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+#             inputs = self.input_dim_reduction.encode(inputs)
 
-        # inputs have shape [batch_size, n_features]
-        # expand across wavelengths
-        inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
+#         # inputs have shape [batch_size, n_features]
+#         # expand across wavelengths
+#         inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
 
-        if self.use_proxy_input:
-            inputs = torch.cat([inputs, proxy], dim=-1)
+#         if self.use_proxy_input:
+#             inputs = torch.cat([inputs, proxy], dim=-1)
 
-        if self.input_processing:
-            inputs = self.input_processing(inputs)
+#         if self.input_processing:
+#             inputs = self.input_processing(inputs)
 
-        if self.pos_encoding:
-            # add positional information to inputs
-            inputs = self.pos_encoding(inputs)
+#         if self.pos_encoding:
+#             # add positional information to inputs
+#             inputs = self.pos_encoding(inputs)
 
-        outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
+#         outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
 
-        return outputs
+#         return outputs
     
     
-    def on_save_checkpoint(self, checkpoint):
-        # save additional objects to checkpoint 
-        if isinstance(self.input_dim_reduction, PCA):
-            checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
-        super().on_save_checkpoint(checkpoint)
+#     def on_save_checkpoint(self, checkpoint):
+#         # save additional objects to checkpoint 
+#         if isinstance(self.input_dim_reduction, PCA):
+#             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
+#         super().on_save_checkpoint(checkpoint)
         
-    def load_model_state(self, checkpoint, map_location=None):
+#     def load_model_state(self, checkpoint, map_location=None):
 
-        if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
+#         if isinstance(self.input_dim_reduction, PCA):
+#             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
             
-        super().load_model_state(checkpoint, map_location=map_location)
+#         super().load_model_state(checkpoint, map_location=map_location)
 
-    def _apply(self, convert):
-        if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction._apply(convert)
+#     def _apply(self, convert):
+#         if isinstance(self.input_dim_reduction, PCA):
+#             self.input_dim_reduction._apply(convert)
         
-        return super()._apply(convert)
+#         return super()._apply(convert)
     
 
-class SequenceNNSurrogateRTMDiff_v2(NNSurrogateRTM):
-    def __init__(self, 
-                 output_dim: int,
-                 input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
-                 proxy_module: Optional[torch.nn.Module] = None, 
-                 pos_encoding: Optional[torch.nn.Module] = None,
-                 input_processing: Optional[torch.nn.Module] = None,
-                 use_proxy_input: bool = True,
-                 **kwargs):
-        super().__init__(**kwargs)
+# class SequenceNNSurrogateRTMDiff_v2(NNSurrogateRTM):
+#     def __init__(self, 
+#                  output_dim: int,
+#                  input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
+#                  proxy_module: Optional[torch.nn.Module] = None, 
+#                  pos_encoding: Optional[torch.nn.Module] = None,
+#                  input_processing: Optional[torch.nn.Module] = None,
+#                  use_proxy_input: bool = True,
+#                  **kwargs):
+#         super().__init__(**kwargs)
 
-        self.input_dim_reduction = input_dim_reduction
+#         self.input_dim_reduction = input_dim_reduction
 
-        # note that the output dim of proxy_module and pos_encoding need to match
-        self.proxy_module = proxy_module
-        self.pos_encoding = pos_encoding
-        self.input_processing = input_processing
+#         # note that the output dim of proxy_module and pos_encoding need to match
+#         self.proxy_module = proxy_module
+#         self.pos_encoding = pos_encoding
+#         self.input_processing = input_processing
 
-        self.use_proxy_input = use_proxy_input
-        self.n_wavelengths = output_dim
+#         self.use_proxy_input = use_proxy_input
+#         self.n_wavelengths = output_dim
 
 
 
-    def forward(self, inputs, **kwargs) -> torch.Tensor:
+#     def forward(self, inputs, **kwargs) -> torch.Tensor:
 
-        proxy = kwargs[self.proxy_quantity]
+#         proxy = kwargs[self.proxy_quantity]
 
-        if self.use_proxy_input:
-            # proxy targets have shape [batch_size, n_wavelengths]
-            # expand inputs and add them as additional channels to proxy spectra
-            proxy_input = proxy.unsqueeze(-1)
+#         if self.use_proxy_input:
+#             # proxy targets have shape [batch_size, n_wavelengths]
+#             # expand inputs and add them as additional channels to proxy spectra
+#             proxy_input = proxy.unsqueeze(-1)
 
-            if self.proxy_module:
-                proxy_input = self.proxy_module(proxy_input)
+#             if self.proxy_module:
+#                 proxy_input = self.proxy_module(proxy_input)
 
-        if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
-            inputs = self.input_dim_reduction.encode(inputs)
+#         if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+#             inputs = self.input_dim_reduction.encode(inputs)
 
-        # inputs have shape [batch_size, n_features]
-        # expand across wavelengths
-        inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
+#         # inputs have shape [batch_size, n_features]
+#         # expand across wavelengths
+#         inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
 
-        if self.use_proxy_input:
-            inputs = torch.cat([inputs, proxy_input], dim=-1)
+#         if self.use_proxy_input:
+#             inputs = torch.cat([inputs, proxy_input], dim=-1)
 
-        if self.input_processing:
-            inputs = self.input_processing(inputs)
+#         if self.input_processing:
+#             inputs = self.input_processing(inputs)
 
-        if self.pos_encoding:
-            # add positional information to inputs
-            inputs = self.pos_encoding(inputs)
+#         if self.pos_encoding:
+#             # add positional information to inputs
+#             inputs = self.pos_encoding(inputs)
 
-        outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
+#         outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
 
-        # train on (transformed) total radiance prediction
-        # IMPORTANT: make sure no log-transforms are used and proxy transform is coupled to target stats
-        outputs = outputs + proxy
+#         # train on (transformed) total radiance prediction
+#         # IMPORTANT: make sure no log-transforms are used and proxy transform is coupled to target stats
+#         outputs = outputs + proxy
 
-        return outputs
+#         return outputs
     
     
-    def on_save_checkpoint(self, checkpoint):
-        # save additional objects to checkpoint 
-        if isinstance(self.input_dim_reduction, PCA):
-            checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
-        super().on_save_checkpoint(checkpoint)
+#     def on_save_checkpoint(self, checkpoint):
+#         # save additional objects to checkpoint 
+#         if isinstance(self.input_dim_reduction, PCA):
+#             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
+#         super().on_save_checkpoint(checkpoint)
         
-    def load_model_state(self, checkpoint, map_location=None):
+#     def load_model_state(self, checkpoint, map_location=None):
 
-        if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
+#         if isinstance(self.input_dim_reduction, PCA):
+#             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
             
-        super().load_model_state(checkpoint, map_location=map_location)
+#         super().load_model_state(checkpoint, map_location=map_location)
 
-    def _apply(self, convert):
-        if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction._apply(convert)
+#     def _apply(self, convert):
+#         if isinstance(self.input_dim_reduction, PCA):
+#             self.input_dim_reduction._apply(convert)
         
-        return super()._apply(convert)
+#         return super()._apply(convert)
     
 
-class SequenceNNSurrogateRTM(NNSurrogateRTM):
-    def __init__(self, 
-                 output_dim: int,
-                 input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
-                 pos_encoding: Optional[torch.nn.Module] = None,
-                 proxy_module: Optional[torch.nn.Module] = None,
-                 profile_module: Optional[torch.nn.Module] = None,
-                 input_processing: Optional[torch.nn.Module] = None,
-                 use_proxy_input: bool = False,
-                 use_profile_input: bool = False,
-                 **kwargs):
-        super().__init__(**kwargs)
+# class SequenceNNSurrogateRTM(NNSurrogateRTM):
+#     def __init__(self, 
+#                  output_dim: int,
+#                  input_dim_reduction: Optional[Union[DimensionalityReduction, Encoder]] = None,
+#                  pos_encoding: Optional[torch.nn.Module] = None,
+#                  proxy_module: Optional[torch.nn.Module] = None,
+#                  profile_module: Optional[torch.nn.Module] = None,
+#                  input_processing: Optional[torch.nn.Module] = None,
+#                  use_proxy_input: bool = False,
+#                  use_profile_input: bool = False,
+#                  **kwargs):
+#         super().__init__(**kwargs)
 
-        self.n_wavelengths = output_dim
-        self.input_dim_reduction = input_dim_reduction
-        self.pos_encoding = pos_encoding
-        self.input_processing = input_processing
+#         self.n_wavelengths = output_dim
+#         self.input_dim_reduction = input_dim_reduction
+#         self.pos_encoding = pos_encoding
+#         self.input_processing = input_processing
 
-        self.proxy_module = proxy_module
-        self.use_proxy_input = use_proxy_input
+#         self.proxy_module = proxy_module
+#         self.use_proxy_input = use_proxy_input
 
-        self.profile_module = profile_module
-        self.use_profile_input = use_profile_input
-
-
-    def forward(self, inputs, **kwargs) -> torch.Tensor:
-
-        if self.use_proxy_input:
-            # proxy targets have shape [batch_size, n_wavelengths]
-            # expand inputs and add them as additional channels to proxy spectra
-            proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
-
-            if self.proxy_module:
-                proxy = self.proxy_module(proxy)
-
-        if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
-            inputs = self.input_dim_reduction.encode(inputs)
-
-        if self.use_profile_input:
-            # profile inputs have shape [batch_size, n_layers, n_vars]
-            profile_input = kwargs['profile_inputs']
-
-            if self.profile_module:
-                profile_input = self.profile_module(profile_input)
-                inputs = torch.cat([inputs, profile_input], dim=1)
-
-        # inputs have shape [batch_size, n_features]
-        # expand across wavelengths
-        inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
-
-        if self.use_proxy_input:
-            inputs = torch.cat([inputs, proxy], dim=-1)
+#         self.profile_module = profile_module
+#         self.use_profile_input = use_profile_input
 
 
-        if self.input_processing:
-            inputs = self.input_processing(inputs)
+#     def forward(self, inputs, **kwargs) -> torch.Tensor:
 
-        if self.pos_encoding:
-            # add positional information to inputs
-            inputs = self.pos_encoding(inputs)
+#         if self.use_proxy_input:
+#             # proxy targets have shape [batch_size, n_wavelengths]
+#             # expand inputs and add them as additional channels to proxy spectra
+#             proxy = kwargs[self.proxy_quantity].unsqueeze(-1)
+
+#             if self.proxy_module:
+#                 proxy = self.proxy_module(proxy)
+
+#         if isinstance(self.input_dim_reduction, (DimensionalityReduction, Encoder)):
+#             inputs = self.input_dim_reduction.encode(inputs)
+
+#         if self.use_profile_input:
+#             # profile inputs have shape [batch_size, n_layers, n_vars]
+#             profile_input = kwargs['profile_inputs']
+
+#             if self.profile_module:
+#                 profile_input = self.profile_module(profile_input)
+#                 inputs = torch.cat([inputs, profile_input], dim=1)
+
+#         # inputs have shape [batch_size, n_features]
+#         # expand across wavelengths
+#         inputs = inputs.unsqueeze(1).expand(-1, self.n_wavelengths, -1)
+
+#         if self.use_proxy_input:
+#             inputs = torch.cat([inputs, proxy], dim=-1)
+
+
+#         if self.input_processing:
+#             inputs = self.input_processing(inputs)
+
+#         if self.pos_encoding:
+#             # add positional information to inputs
+#             inputs = self.pos_encoding(inputs)
 
         
-        outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
+#         outputs = self.forward_model(inputs).reshape(-1, self.n_wavelengths)
 
-        return outputs
+#         return outputs
 
     
     
-    def on_save_checkpoint(self, checkpoint):
-        # save additional objects to checkpoint 
-        if isinstance(self.input_dim_reduction, PCA):
-            checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
-        super().on_save_checkpoint(checkpoint)
+#     def on_save_checkpoint(self, checkpoint):
+#         # save additional objects to checkpoint 
+#         if isinstance(self.input_dim_reduction, PCA):
+#             checkpoint['input_dim_reduction'] = self.input_dim_reduction.pca_dict()
+#         super().on_save_checkpoint(checkpoint)
         
-    def load_model_state(self, checkpoint, map_location=None):
+#     def load_model_state(self, checkpoint, map_location=None):
 
-        if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
+#         if isinstance(self.input_dim_reduction, PCA):
+#             self.input_dim_reduction.load_pca_dict(checkpoint['input_dim_reduction'], map_location)
             
-        super().load_model_state(checkpoint, map_location=map_location)
+#         super().load_model_state(checkpoint, map_location=map_location)
 
-    def _apply(self, convert):
-        if isinstance(self.input_dim_reduction, PCA):
-            self.input_dim_reduction._apply(convert)
+#     def _apply(self, convert):
+#         if isinstance(self.input_dim_reduction, PCA):
+#             self.input_dim_reduction._apply(convert)
         
-        return super()._apply(convert)
+#         return super()._apply(convert)
 
-
-
-class NonScatteringRTM(SurrogateRTM):
-    def __init__(self, proxy_quantity='proxy_targets', **kwargs):
-        super().__init__(**kwargs)
-
-        self.proxy_quantity = proxy_quantity
-
-    def forward(self, **input_kwargs) -> torch.Tensor:
-        return input_kwargs[self.proxy_quantity]
 
 
 
@@ -2162,13 +2043,6 @@ class ResNet1D(torch.nn.Module):
                                  dropout_p=self.dropout_p,
                                  n_fc_layers=n_output_layers)
 
-    #     self.reset_parameters()
-
-    # def reset_parameters(self):
-
-    #     self.fc_hidden.apply(init_weights)
-    #     init_weights(self.fc_in)
-    #     init_weights(self.fc_out)
 
     def forward(self, x):
         # x has shape (batch_size, seq_length, n_channels)
@@ -2204,13 +2078,6 @@ class ResNet1D_v2(torch.nn.Module):
         ])
         self.fc_out = torch.nn.Linear(n_channels[-1], n_out)
 
-    #     self.reset_parameters()
-
-    # def reset_parameters(self):
-
-    #     self.fc_hidden.apply(init_weights)
-    #     init_weights(self.fc_in)
-    #     init_weights(self.fc_out)
 
     def forward(self, x):
         # x has shape (batch_size, seq_length, n_channels)

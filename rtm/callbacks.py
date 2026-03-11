@@ -1,5 +1,4 @@
-from pytorch_lightning.callbacks import Callback, EarlyStopping
-import torch
+from pytorch_lightning.callbacks import Callback
 
 class GradNormCallback(Callback):
 
