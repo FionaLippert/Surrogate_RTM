@@ -40,18 +40,6 @@ torch.autograd.set_detect_anomaly(True) # detect nans
 torch.set_flush_denormal(True) # detect tiny numbers
 
 
-##################################################################
-## Notes on computing gradients w.r.t. inputs for retrievals
-#
-# inputs.requires_grad = True
-# optimizer.zero_grad()
-# output = model(data)
-# output.backward()
-# grad = inputs.grad
-##################################################################
-
-
-
 # main entry point
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
@@ -89,8 +77,6 @@ def run(cfg: DictConfig):
 
     # optional: load pretrained model weights
     if cfg.task.get('model_path', None) is not None:
-        # path_to_model = wandb.use_model(cfg.task.model_path)
-        # model.load_state_dict(torch.load(path_to_model))
         checkpoint = torch.load(cfg.task.model_path)
         print('Loading model state from checkpoint...')
         model.load_model_state(checkpoint)
@@ -99,20 +85,13 @@ def run(cfg: DictConfig):
         trained = True
 
     if 'train' in cfg.task.name:
-        # transforms = train(trainer, model, cfg)
         train(trainer, model, cfg, pretrained=trained)
         trained = True
     else:
         trained = False
-        # transforms = None
 
-    # # optional: load transforms explicitly
-    # if cfg.task.get('normalization_path', None) is not None:
-    #     print(f'Loading transforms from {cfg.task.normalization_path}...')
-    #     transforms = utils.load_transforms(cfg.task.normalization_path)
 
     if 'eval' in cfg.task.name:
-        # eval(trainer, model, cfg, transforms, trained=trained)
         eval(trainer, model, cfg, trained=trained)
 
     
@@ -214,10 +193,6 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
         targets = train_data['targets']
         if model.forward_model.target_transform is not None:
             targets = model.forward_model.target_transform(targets)
-        # if getattr(model, 'latent_loss', False) and model.output_dim_reduction is not None:
-        #     targets = model.output_dim_reduction.encode(targets.to(device))
-        # model.loss_scale = targets.std().item()
-        # print(f'loss scale = {model.loss_scale}')
 
     # train model
     trainer.validate(model, val_loader)
@@ -225,7 +200,6 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
 
 
 def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
-        #  transforms: Optional[List[utils.RTMTransform]] = None, 
          trained: bool = False):
     
     if cfg.verbose:
@@ -251,7 +225,6 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
             print(f'Measuring model runtime on {num_cpus} CPUs')
     else:
         num_workers = cfg.dataloader.num_workers
-        # test_trainer = trainer
         logger = instantiate(cfg.logger)
         test_trainer = instantiate(cfg.trainer, 
                             logger=logger, 
@@ -285,11 +258,6 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
                                   batch_size=1, shuffle=False)
 
         print(f'Using {len(val_indices)} data points for validation/prediction')
-
-    # # set transform if untrained model
-    # if not trained:
-    #     model.target_transform = dataset.target_transform
-    #     model.proxy_transform = dataset.proxy_transform
 
     # evaluate model
     # kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}

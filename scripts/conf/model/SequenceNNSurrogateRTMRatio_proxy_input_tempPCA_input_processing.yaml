@@ -86,28 +86,6 @@ jacobian_proj_loss_scale: 0.0 # scale for SVD projection-based jacobian loss ter
 jacobian_subspace_loss_scale: 0.0 # scale for SVD subspace-based jacobian loss term
 
 
-# forward_model:
-#   _target_: rtm.models.Transformer
-#   num_layers: 2
-#   d_model: ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
-#   d_out: 1
-#   nhead: 1
-#   dim_feedforward: ${multiply_values:${model.forward_model.d_model},2} #32
-#   dropout_p: ${model.dropout_p}
-
-# forward_model:
-#   _target_: rtm.models.ResNet1D
-#   n_channels: 
-#     - ${add_values:${model.input_latent_dim},${model.proxy_module.n_out}}
-#     - 256
-#     - 128
-#     - 64
-#     - 32
-#   n_out: 1
-#   kernel_size: 3
-#   stride: 1
-#   dropout_p: ${model.dropout_p}
-
 
 lr: 1e-3
 l2_reg: 0.0 # 4e-5
@@ -123,26 +101,15 @@ lr_schedulers:
           _partial_: true
           start_factor: ${model.lr_start_factor}
           end_factor: 1.0
-          total_iters: ${model.lr_warmup_steps} #5000  # 10 # number of steps
+          total_iters: ${model.lr_warmup_steps} # number of steps
         - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
           _partial_: true
-          # T_max: 65000 #75000 #145000 #${trainer.max_epochs}
-          # T_max: ${eval:'${trainer.max_epochs} * 1300'}
           T_max: ${model.lr_cosine_steps}
           eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
         - _target_: torch.optim.lr_scheduler.ConstantLR
           _partial_: true
           factor: ${model.lr_decay}
           total_iters: 1e6
-        # - _target_: torch.optim.lr_scheduler.LambdaLR
-        #   _partial_: true
-        #   lr_lambda: 
-        #     _target_: rtm.utils.LRDampenedCosine
-        #     lr_min: ${model.lr_decay}
-        #     lr_max: 1.0
-        #     T_max: 50000
-        #     gamma: 0.99
-        #     gamma_interval: 1000
 lr_milestones:
        - ${model.lr_warmup_steps}
        - ${eval:'${model.lr_warmup_steps} + ${model.lr_cosine_steps}'}

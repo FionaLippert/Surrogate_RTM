@@ -227,7 +227,8 @@ def profile_data_to_csv(data: Dict[str, np.ndarray],
                         prefix: str,
                         valid_pixels: np.ndarray = None):
     # save profile data to csv file
-    # saved in long format, i.e. data is flattened and layer/pixel info is included in layerID and pixelID columns
+    # saved in long format, i.e. data is flattened and layer/pixel info 
+    # is included in layerID and pixelID columns
     df_profiles = pd.DataFrame()
 
     shape = None

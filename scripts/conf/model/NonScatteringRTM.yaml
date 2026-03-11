@@ -1,5 +1,0 @@
-# @package model
-name: NonScatteringRTM
-_target_: rtm.models.NonScatteringRTM
-
-proxy_quantity: proxy_targets

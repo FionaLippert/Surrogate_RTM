@@ -25,7 +25,6 @@ def reconstruction_error(pca, data, log_mean, log_std, z='targets'):
     norm_data, _, _ = transform_targets(data, log_mean, log_std)
 
     # apply PCA
-    # pca.fit(norm_data)
     outputs = pca.inverse_transform(pca.transform(norm_data))
     outputs = inverse_transform_targets(outputs, log_mean, log_std)
 
@@ -43,7 +42,6 @@ def reconstruction_bias(pca, data, log_mean, log_std, z='targets'):
     norm_data, _, _ = transform_targets(data, log_mean, log_std)
 
     # apply PCA
-    # pca.fit(norm_data)
     outputs = pca.inverse_transform(pca.transform(norm_data))
     outputs = inverse_transform_targets(outputs, log_mean, log_std)
 
