@@ -2155,7 +2155,7 @@ class ResNet1D(torch.nn.Module):
         ])
         n_channels_final = max(n_channels // 2**(n_layers//decrease_channels), 2) \
                             if decrease_channels > 0 else n_channels
-        self.fc_out = torch.nn.Linear(n_channels_final, n_out)
+        # self.fc_out = torch.nn.Linear(n_channels_final, n_out)
 
         self.fc_out = layers.MLP(n_channels_final, n_channels_final, n_out,
                                  nonlinearity=nonlinearity, 
