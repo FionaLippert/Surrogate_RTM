@@ -100,19 +100,22 @@ lr: 1e-3
 l2_reg: 0.0 # 4e-5
 # betas: [0.9, 0.0] 
 betas: [0.9, 0.999]
-lr_decay: 0.001
+lr_decay: 0.01
 lr_start_factor: 1e-5
 lr_scheduler_interval: step
+lr_warmup_steps: ${eval:'${trainer.max_epochs} * ${task.train_frac} * 100'}
+lr_cosine_steps: ${eval:'${trainer.max_epochs} * ${task.train_frac} * 1500'}
 lr_schedulers:
         - _target_: torch.optim.lr_scheduler.LinearLR
           _partial_: true
           start_factor: ${model.lr_start_factor}
           end_factor: 1.0
-          total_iters: 5000  # 10 # number of intervals (steps or epochs)
+          total_iters: ${model.lr_warmup_steps} #5000  # 10 # number of steps
         - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
           _partial_: true
           # T_max: 65000 #75000 #145000 #${trainer.max_epochs}
-          T_max: ${eval:'${trainer.max_epochs} * 1300'}
+          # T_max: ${eval:'${trainer.max_epochs} * 1300'}
+          T_max: ${model.lr_cosine_steps}
           eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
         - _target_: torch.optim.lr_scheduler.ConstantLR
           _partial_: true
@@ -128,6 +131,5 @@ lr_schedulers:
         #     gamma: 0.99
         #     gamma_interval: 1000
 lr_milestones:
-       - 5000 # 10
-      #  - 70000 #80000 #150000
-       - ${eval:'(${trainer.max_epochs} * 1300) + 5000'}
+       - ${model.lr_warmup_steps}
+       - ${eval:'${model.lr_warmup_steps} + ${model.lr_cosine_steps}'}

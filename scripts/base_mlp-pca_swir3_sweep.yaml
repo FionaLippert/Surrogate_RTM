@@ -11,7 +11,7 @@ command:
   - model.nonlinearity=silu
   - model.dropout_p=0.001
   - model.forward_model.decoder.fixed_components=true
-  - transforms=log_targets_log_proxy_log_albedo_log_reff_era5 # or no log_reff?
+  - transforms=log_targets_log_proxy_log_albedo_era5 # or no log_reff?
   - task.train_frac=1.0
   - trainer.max_epochs=75
   - model.lr=1e-3
@@ -21,7 +21,7 @@ command:
   - task.save_predictions=false
   - task.load_best_model=false # use latest
   - task.measure_cpu_time=false
-  - logger.project=spectrometer_only_swir3_era5_sweep_final
+  - logger.project=spectrometer_only_swir3_era5_sweep_hp_search
   - logger.group=default
 method: grid
 metric:
@@ -30,7 +30,7 @@ metric:
 parameters:
   # random seed
   seed:
-    values: [1]
+    values: [0]
     # values: [0, 1, 2]
   # hidden (and PCA) dimension
   model.hidden_dim:

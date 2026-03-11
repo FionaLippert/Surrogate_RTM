@@ -299,7 +299,7 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
 
     # also save individual predictions
     # predictions = trainer.predict(model, test_loader, **kwargs)
-    predictions = trainer.predict(model, predict_loader)
+    predictions = test_trainer.predict(model, predict_loader)
     outputs, targets = map(list, zip(*predictions))
     outputs = np.concatenate(outputs, 0)
     targets = np.concatenate(targets, 0)
