@@ -10,11 +10,12 @@ from typing import Union, List, Dict, Tuple, Callable
 
 from rtm import utils, layers
 from rtm.utils import init_weights
+from rtm.rtm_transforms import RTMTransform
 
 class DimensionalityReduction(pl.LightningModule):
     def __init__(self, 
                  target_quantity: str = 'targets',
-                 target_transform: utils.RTMTransform = None, 
+                 target_transform: RTMTransform = None, 
                  eval_scale: torch.Tensor = None,
                  **kwargs):
         super().__init__()
@@ -29,11 +30,11 @@ class DimensionalityReduction(pl.LightningModule):
         self._input_dim = None
 
     @property
-    def target_transform(self) -> utils.RTMTransform:
+    def target_transform(self) -> RTMTransform:
         return self._target_transform
     
     @target_transform.setter
-    def target_transform(self, target_transform: utils.RTMTransform) -> None:
+    def target_transform(self, target_transform: RTMTransform) -> None:
         self._target_transform = target_transform
 
     @property
