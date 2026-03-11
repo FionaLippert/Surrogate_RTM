@@ -115,7 +115,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     
     # get training data
     dataset, train_indices, val_indices = data_utils.load_train_dataset(
-        cfg.dataset, data_path=cfg.data_path, run=wandb.run)
+        cfg.dataset, data_path=cfg.data_path) #, run=wandb.run)
     
     # possibly select smaller subset of the training data
     if cfg.task.get('train_frac', 1.0) < 1.0:
@@ -249,7 +249,7 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
     else:
         # get validation data
         dataset, train_indices, val_indices = data_utils.load_train_dataset(
-            cfg.dataset, data_path=cfg.data_path, run=wandb.run)
+            cfg.dataset, data_path=cfg.data_path)#, run=wandb.run)
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
