@@ -543,6 +543,15 @@ def get_device(accelerator: str = 'gpu', **kwargs):
         return torch.device('cuda')
     else:
         return torch.device('cpu')
+
+def get_lr_scale(module: torch.nn.Module):
+    """Get learning rate scaling factor for NN module"""
+    if hasattr(module, 'lr_scale'):
+        print(module.lr_scale)
+        return module.lr_scale
+    else:
+        # if lr_scale is not set for module, use default learning rate
+        return 1.0
     
 
 ##################################################

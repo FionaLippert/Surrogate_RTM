@@ -250,6 +250,9 @@ class MLPEncoder(Encoder):
 
         self.dropout_p = dropout_p
 
+        nonlinearity = kwargs.get('nonlinearity', 'relu')
+        self.nonlinearity = getattr(F, nonlinearity)
+
         # initialize weights
         self.reset_parameters()
 
@@ -269,7 +272,7 @@ class MLPEncoder(Encoder):
     
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         for layer in self.encoder_layers[:-1]:
-            x = F.relu(layer(x))
+            x = self.nonlinearity(layer(x))
             x = F.dropout(x, p=self.dropout_p, training=self.training)
         # no activation on last layer
         x = self.encoder_layers[-1](x)
@@ -462,6 +465,9 @@ class PCADecoder(Decoder):
             # alternatively, allow to adjust transformation during training
             self.components = torch.nn.Parameter(components, requires_grad=True)
             self.mean = torch.nn.Parameter(mean, requires_grad=True)
+            
+            # scaling factor to allow lower lr for trainable PCA parameters
+            self.lr_scale = kwargs.get('lr_scale', 1.0)
 
 
     def fit(self, data):

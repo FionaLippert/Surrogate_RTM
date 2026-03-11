@@ -461,9 +461,18 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         # self.log('val/loss', loss, on_epoch=True, logger=True, sync_dist=True)
         # self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg, betas=self.betas)
 
+    def configure_optimizers(self):
+
+        parameter_groups = self.forward_model.get_parameter_groups(self.lr) # list of different parameter groups
+        # params = [{"params": self.parameters(), "lr": self.lr}]
+        optimizer = torch.optim.Adam(parameter_groups, weight_decay=self.l2_reg, betas=self.betas)
+
+
+        for i, group in enumerate(parameter_groups):
+            print(f"Group {i} LR:", group["lr"])
+            
+        # schedulers will be applied to the learning rates of all parameter groups
         if self.lr_schedulers is not None and self.lr_milestones is not None:
             scheduler = SequentialLR(optimizer, 
                                      [s_partial(optimizer) for s_partial in self.lr_schedulers], 
@@ -769,8 +778,8 @@ class NNSurrogateRTM(SurrogateRTM):
             
     def validation_step(self, batch, batch_idx):
         loss = self.eval_step(batch)
-        self.log('val/loss', loss, on_epoch=True, logger=True, sync_dist=True)
-        self.log('val/log_loss', torch.log(loss), on_epoch=True, logger=True, sync_dist=True)
+        self.log('val/loss', loss, on_epoch=True, on_step=False, logger=True, sync_dist=True)
+        self.log('val/log_loss', torch.log(loss), on_epoch=True, on_step=False, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.l2_reg, betas=self.betas)
@@ -987,6 +996,9 @@ class ForwardModel(torch.nn.Module):
             proxy_targets = self.proxy_transform(proxy_targets)
 
         return inputs, proxy_targets
+
+    def get_parameter_groups(self, lr):
+        return [{"params": self.parameters(), "lr": lr}]
 
 
     # def forward(self, 
@@ -1397,6 +1409,9 @@ class NNForwardModel(torch.nn.Module):
         # jac has shape (batch_size, n_outputs, n_features)
         return jac
 
+    def get_parameter_groups(self, lr):
+        return [{"params": self.parameters(), "lr": lr}]
+
     
 
 class LatentNNForwardModel(NNForwardModel):
@@ -1492,6 +1507,10 @@ class LatentNNForwardModel(NNForwardModel):
         outputs = self.prepare_outputs(outputs, proxy_targets, train, combine_with_proxy)
 
         return outputs
+
+    def get_parameter_groups(self, lr):
+        return [{"params": module.parameters(), "lr": lr * utils.get_lr_scale(module)} 
+                for module in self.children()]
     
 
 
@@ -2118,18 +2137,30 @@ class ResNet1D(torch.nn.Module):
         self.is_sequence_model = True
 
         nonlinearity = kwargs.get('nonlinearity', 'relu')
-        decrease_channels = kwargs.get('decrease_channels', False)
+
+        # number of layers after which the number of channels is halfed
+        decrease_channels = kwargs.get('decrease_channels', 0)
+
+        n_output_layers = kwargs.get('n_output_layers', 1)
 
         self.layers = nn.ModuleList([
-            layers.ResidualBlock1D(max(n_channels // 2**i, 2) if decrease_channels else n_channels,
-                                   max(n_channels // 2**(i+1), 2) if decrease_channels else n_channels, 
+            layers.ResidualBlock1D(max(n_channels // 2**(i//decrease_channels), 2) 
+                                   if decrease_channels else n_channels,
+                                   max(n_channels // 2**((i+1)//decrease_channels), 2) 
+                                   if decrease_channels else n_channels, 
                                    kernel_size=kernel_size, stride=stride,
                                    nonlinearity=nonlinearity, 
                                    dropout_p=self.dropout_p)
                                    for i in range(n_layers)
         ])
-        n_channels_final = max(n_channels // 2**n_layers, 2) if decrease_channels else n_channels
+        n_channels_final = max(n_channels // 2**(n_layers//decrease_channels), 2) \
+                            if decrease_channels > 0 else n_channels
         self.fc_out = torch.nn.Linear(n_channels_final, n_out)
+
+        self.fc_out = layers.MLP(n_channels_final, n_channels_final, n_out,
+                                 nonlinearity=nonlinearity, 
+                                 dropout_p=self.dropout_p,
+                                 n_fc_layers=n_output_layers)
 
     #     self.reset_parameters()
 
