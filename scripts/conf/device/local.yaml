@@ -6,3 +6,4 @@ retrieval_root: /nfs/Sentinel5/users/${oc.env:USER}/OPERA/retrievals
 output_dir: ${device.root}/output
 accelerator: gpu
 devices: 1
+torchscript_accelerator: cpu

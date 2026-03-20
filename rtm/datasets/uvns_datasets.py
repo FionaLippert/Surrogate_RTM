@@ -532,8 +532,6 @@ class RTDataset(Dataset):
             'max': targets.max(**kwargs),
         }
 
-        print('mean shape:', stats['mean'].shape)
-
         return stats
     
     def get_proxy_statistics(self, 

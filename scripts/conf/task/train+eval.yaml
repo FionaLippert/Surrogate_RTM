@@ -1,8 +1,8 @@
 # @package task
 name: train+eval
 
-# fraction of the training set to be used for training
-train_frac: 1.0
+# fraction of the dataset to be used for training/validation/testing
+data_frac: 1.0
 
 # save predictions?
 save_predictions: false
@@ -15,3 +15,12 @@ load_best_model: false
 
 # measure model runtime on CPU?
 measure_cpu_time: false
+
+# for debugging: detect numerical anomalies during training
+detect_anomalies: false
+
+# TorchScript settings for tracing NN forward model
+trace_model: true
+trace_with_gpu: false # if true, trace model on GPU (if available) instead of CPU
+trace_with_proxy_input: true # if true, traced model requires non-scattering proxy as input (even if not used)
+trace_with_profile_input: true # if true, traced model requires profile input (even if not used) 

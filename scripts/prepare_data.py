@@ -30,7 +30,7 @@ OmegaConf.register_new_resolver("multiply_values", multiply_values)
 OmegaConf.register_new_resolver("eval", eval)
 
 # main entry point to script
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(config_path="conf", config_name="config", version_base="1.1")
 def run(cfg: DictConfig):
 
     # for reproducibility

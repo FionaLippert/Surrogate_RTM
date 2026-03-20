@@ -5,3 +5,4 @@ job_type: ${task.name}
 group: default
 save_dir: ${join_paths:${result_path},logs}
 log_model: true # all: after every epoch, true: at the end of training, false: never
+offline: false # if true, run in offline mode (i.e. don't log to wandb server, only locally)
