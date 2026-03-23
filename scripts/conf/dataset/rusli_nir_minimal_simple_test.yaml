@@ -12,6 +12,8 @@ data_dir: ${device.data_root}/small_test_random_ensemble_500_restricted/NIR_prep
 # prefix: syn_meas_S5_OPERA_spectrometer_and_polarimeter_selected_wl_3instr
 prefix: syn_meas_s5_random_ensemble_1e6_1
 
+band: nir
+
 # define output quantity
 target_quantity: radiance
 predict_difference: false

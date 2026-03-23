@@ -1,8 +1,8 @@
 # main config file
 defaults:
   - _self_
-  - dataset: synthetic_remotap_swir1_spectrometer_only_LHS_matched_retrieval_era5_paper
-  - model: MLP_PCA_tempPCA_constant_latent_dim
+  - dataset: synthetic_remotap_swir1_spectrometer_only_OPERA-S5
+  - model: Base_emulator
   - transforms: log_targets_log_proxy_log_albedo_era5
   - task: train+eval
   - device: local

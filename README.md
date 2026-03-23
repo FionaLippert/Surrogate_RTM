@@ -38,6 +38,10 @@ This code base makes use of [hydra](https://hydra.cc/) to create a hierarchical 
 
 You can, for example, easily switch between models, by simply adding `model=<model_name>` to your command line (where `<model_name>` is one of the config file names provided in `scripts/conf/model`) when running the `train_eval.py` script. Similarly, you can switch between model training and evaluation, by choosing `task=train`, `task=train+eval`, or `task=eval`.
 
+### Weights&Biases
+
+This code base makes use of [W&B](https://docs.wandb.ai/) to log the training and evaluation of the NN emulators. To get started with W&B, follow the quickstart tutorial [here](https://docs.wandb.ai/models/quickstart). To switch off online synchronization, use `logger.offline=true`.
+
 ### Code structure
 
 The code base is structured as follows:
@@ -79,8 +83,25 @@ python train_eval.py dataset=<dataset_name> model=<model_name> transforms=<trans
 
 ## Hyperparameter tuning
 
-- PCA dimension
-- Model architecture
+### PCA dimension
+
+To determine a suitable number of principal components `P` to compress radiance spectra into a lower dimensional space, switch to `scripts` and run
+```
+python find_pca_dimension.py task=pca_eval dataset=<dataset_name> task.step_size=10
+```
+This repeatedly fits and evaluates a PCA with `P` increasing from 1 to the maximum number of measurement channels, in steps of 10. The corresponding reconstruction errors and explained variances will be written to a `.csv` file in directory `output/results/<project_name>/<group_name>/pca_reconstruction_errors` where `<project_name>` and `<group_name>` can be set by changing `logger.project` and `logger.group` respectively.
+
+### Model architecture
+
+To find a good configuration for the neural network architecture (e.g. number and width of layers), you can choose or modify a W&B sweep configuration file in `scripts/sweeps`. This defines the hyperparameters to change and the corresponding values to consider. To run a grid search over this space using W&B, initialize the sweep by running
+```
+wandb sweep <path/to/sweep_config.yml>
+```
+and then start the sweep by running
+```
+wandb agent <SWEEPID>
+```
+where <SWEEPID> is the value returned after initialization. The W&B agent will train a new network for each hyperparameter combination and evaluate it on the validation set. The ideal hyperparameter setting should have both a low RMSE and reasonable spectral bias.
 
 
 

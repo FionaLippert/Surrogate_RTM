@@ -1,6 +1,6 @@
 # @package logger
 _target_: pytorch_lightning.loggers.WandbLogger
-project: radiative-transfer
+project: s5_nn_forward_model
 job_type: ${task.name}
 group: default
 save_dir: ${join_paths:${result_path},logs}
