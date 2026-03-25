@@ -70,8 +70,8 @@ lr_start_factor: 1e-5
 lr_scheduler_interval: step
 lr_warmup_scale: 100
 lr_cosine_scale: 1500
-lr_warmup_steps: ${eval:'${trainer.max_epochs} * ${task.train_frac} * ${model.lr_warmup_scale}'}
-lr_cosine_steps: ${eval:'${trainer.max_epochs} * ${task.train_frac} * ${model.lr_cosine_scale}'}
+lr_warmup_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * ${model.lr_warmup_scale}'}
+lr_cosine_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * ${model.lr_cosine_scale}'}
 lr_schedulers:
         - _target_: torch.optim.lr_scheduler.LinearLR
           _partial_: true

@@ -1,8 +1,9 @@
 # main config file
 defaults:
-  - dataset: synthetic_remotap
-  - model: LatentNNSurrogateRTM
-  - transforms: log_targets_log_proxy
+  - _self_
+  - dataset: synthetic_remotap_swir1_spectrometer_only_OPERA-S5
+  - model: Base_emulator
+  - transforms: log_targets_log_proxy_log_albedo_era5
   - task: train+eval
   - device: local
   - logger: wandb

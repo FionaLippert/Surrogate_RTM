@@ -15,7 +15,7 @@ from torch.utils.data import SubsetRandomSampler, Subset
 from operator import mul
 from functools import reduce
 
-from rtm import data_utils, utils, dimensionality_reduction, layers
+from rtm import data_utils, torchscript_utils, utils, dimensionality_reduction, layers
 
 def join_paths(*paths):
     return osp.join(*[str(p) for p in paths])
@@ -23,8 +23,6 @@ def multiply_values(*values):
     return reduce(mul, values)
 def add_values(*values):
     return sum(values)
-# def count(values):
-#     return len(values)
 
 OmegaConf.register_new_resolver("join_paths", join_paths)
 OmegaConf.register_new_resolver("add_values", add_values)
@@ -35,13 +33,8 @@ OmegaConf.register_new_resolver("len", len)
 # run with CUDA_LAUNCH_BLOCKING=1
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
-# for debugging
-torch.autograd.set_detect_anomaly(True) # detect nans
-torch.set_flush_denormal(True) # detect tiny numbers
-
-
 # main entry point
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(config_path="conf", config_name="config", version_base="1.1")
 def run(cfg: DictConfig):
 
     # for reproducibility
@@ -49,6 +42,11 @@ def run(cfg: DictConfig):
 
     print('GPU available?', torch.cuda.is_available())
     print("CPU cores reserved by Slurm:", os.environ.get("SLURM_CPUS_PER_TASK"))
+
+    # for debugging
+    if cfg.task.get('detect_anomalies', False):
+        torch.autograd.set_detect_anomaly(True) # detect nans
+        torch.set_flush_denormal(True) # detect tiny numbers
 
     # setup logging
     os.makedirs(cfg.result_path, exist_ok=True)
@@ -71,7 +69,6 @@ def run(cfg: DictConfig):
             break
 
     # setup model
-    print(cfg.model)
     model = instantiate(cfg.model)
     trained = False
 
@@ -92,7 +89,11 @@ def run(cfg: DictConfig):
 
 
     if 'eval' in cfg.task.name:
-        eval(trainer, model, cfg, trained=trained)
+        if not trained:
+            # skip evaluation if the model has not been trained or loaded with pretrained weights
+            print('Model has not been trained or loaded with pretrained weights. Skipping evaluation.')
+        else:
+            eval(trainer, model, cfg)
 
     
     if isinstance(trainer.logger, WandbLogger):
@@ -115,16 +116,19 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     
     # get training data
     dataset, train_indices, val_indices = data_utils.load_train_dataset(
-        cfg.dataset, data_path=cfg.data_path) #, run=wandb.run)
+        cfg.dataset, data_path=cfg.data_path)
     
-    # possibly select smaller subset of the training data
-    if cfg.task.get('train_frac', 1.0) < 1.0:
-        n_subset = int(cfg.task.train_frac * len(train_indices))
+    # possibly select smaller subset of the training/validation data
+    if cfg.task.get('data_frac', 1.0) < 1.0:
+        # subsample training data
+        n_subset = int(cfg.task.data_frac * len(train_indices))
         train_indices = np.random.choice(train_indices, n_subset, replace=False)
+        # subsample validation data
+        n_subset = int(cfg.task.data_frac * len(val_indices))
+        val_indices = np.random.choice(val_indices, n_subset, replace=False)
 
     # get transforms
     if not pretrained:
-        print('input/output dtype: ', dataset.torch_dtype)
         transforms = data_utils.prepare_transforms(cfg.transforms, 
                                                 dataset, 
                                                 train_indices, 
@@ -174,9 +178,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
 
         if isinstance(getattr(model.forward_model, 'profile_module', None), layers.PCAEncoder):
             print('Fitting profile PCA...')
-            print(f'profile_inputs shape = {train_data['profile_inputs'].shape}')
             profiles = model.forward_model.profile_transform(train_data['profile_inputs'])
-            print(f'transformed profiles shape = {profiles.shape}')
             model.forward_model.profile_module.fit(profiles)
             exp_var = 100 * model.forward_model.profile_module.explained_variance_ratio()
             print(f'Explained profile variance (%): {exp_var:.4f}')
@@ -198,9 +200,33 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
     trainer.validate(model, val_loader)
     trainer.fit(model, train_loader, val_loader)
 
+    # trace model and save as TorchScript (for CPU usage in Fortran)
+    # first, prepare dummy inputs used for tracing
+    input_vars = ['inputs']
+    if cfg.task.trace_with_proxy_input:
+        input_vars.append('proxy_targets')
+    if cfg.task.trace_with_profile_input:
+        input_vars.append('profile_inputs')
+    dummy_input = {k: v for k, v in dataset[0].items() if k in input_vars}
 
-def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
-         trained: bool = False):
+    # if applicable, trace the model with TorchScript and save it
+    if cfg.task.get('trace_model', False):
+        fp = osp.join(cfg.output_path, f'{cfg.model.name}_{cfg.dataset.name}.pt')
+        torchscript_utils.trace_model_and_save(
+            model.forward_model,
+            dummy_input,
+            filepath=fp,
+            device_type=('cuda' if cfg.task.trace_with_gpu else 'cpu'),
+            )
+        # also save corresponding wavelengths for reference
+        fp = osp.join(cfg.output_path, f'{cfg.model.name}_{cfg.dataset.name}_wavelengths.dat')
+        np.savetxt(fp, dataset.wavelengths, delimiter=' ')
+
+        if cfg.verbose:
+            print(f'Traced model saved to {fp}')
+
+
+def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
     
     if cfg.verbose:
         print('####### Start model evaluation ########')
@@ -237,7 +263,8 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         dataset = data_utils.load_test_dataset(cfg.dataset, 
                                                 data_path=cfg.data_path, 
                                                 # transforms=transforms,
-                                                run=wandb.run)
+                                                # run=wandb.run
+                                                )
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, dataset, batch_size=1, 
@@ -248,8 +275,15 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         print(f'Using {len(dataset)} data points for final testing')
     else:
         # get validation data
-        dataset, train_indices, val_indices = data_utils.load_train_dataset(
-            cfg.dataset, data_path=cfg.data_path)#, run=wandb.run)
+        dataset, _, val_indices = data_utils.load_train_dataset(
+            cfg.dataset, data_path=cfg.data_path)
+
+        # possibly select smaller subset of the validation data
+        if cfg.task.get('data_frac', 1.0) < 1.0:
+            # subsample validation data
+            n_subset = int(cfg.task.get('data_frac', 1.0) * len(val_indices))
+            val_indices = np.random.choice(val_indices, n_subset, replace=False)
+            print(len(val_indices))
 
         # setup data loader
         test_loader = instantiate(cfg.dataloader, Subset(dataset, val_indices), 
@@ -260,13 +294,9 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
         print(f'Using {len(val_indices)} data points for validation/prediction')
 
     # evaluate model
-    # kwargs = {'ckpt_path': 'best'} if cfg.task.load_best_model and trained else {}
-    # trainer.test(model, test_loader, **kwargs)
-    # 'best' doesn't work if trainer is constructed again
     test_trainer.test(model, test_loader)
 
     # also save individual predictions
-    # predictions = trainer.predict(model, test_loader, **kwargs)
     predictions = test_trainer.predict(model, predict_loader)
     outputs, targets = map(list, zip(*predictions))
     outputs = np.concatenate(outputs, 0)
@@ -291,7 +321,6 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig,
     outputs = np.maximum(outputs, np.finfo(outputs.dtype).eps)
     eval_metrics['R2_log'] = utils.r2_score(np.log(outputs), np.log(targets), axis=0)
     
-
     # save to csv
     eval_metrics = pd.DataFrame(eval_metrics)
     fp = osp.join(cfg.output_path, 'eval_metrics.csv')

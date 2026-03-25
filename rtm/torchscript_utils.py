@@ -87,9 +87,10 @@ def trace_model_and_save(
         model: torch.nn.Module, 
         dummy_input: Union[torch.Tensor, Tuple[torch.Tensor], Dict[str, torch.Tensor]],
         filepath: str,
+        check_tolerance: Optional[float] = 1e-5,
         device_type='cpu'):
     
-    traced_model = trace_model(model, dummy_input, device_type)
+    traced_model = trace_model(model, dummy_input, check_tolerance, device_type)
 
     # save scripted model
     traced_model.save(filepath)

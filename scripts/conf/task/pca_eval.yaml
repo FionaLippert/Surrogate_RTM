@@ -1,0 +1,11 @@
+# @package task
+name: pca_eval
+
+# fraction of the dataset to be used for PCA fitting and evaluation
+data_frac: 1.0
+
+# which normalization to use when computing PCA reconstruction error
+normalization: continuum # 'continuum' or 'targets'
+
+# step size for iterating through PCA dimensions
+step_size: 10

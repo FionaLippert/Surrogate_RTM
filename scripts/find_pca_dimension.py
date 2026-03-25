@@ -4,9 +4,29 @@ import matplotlib.pyplot as plt
 import wandb
 import torch
 import os
+import os.path as osp
+from functools import reduce
 import omegaconf
 import pandas as pd
+from omegaconf import DictConfig, OmegaConf
+import hydra
+from hydra.utils import instantiate
+from operator import mul
+from functools import reduce
 from rtm import data_utils
+
+def join_paths(*paths):
+    return osp.join(*[str(p) for p in paths])
+def multiply_values(*values):
+    return reduce(mul, values)
+def add_values(*values):
+    return sum(values)
+
+OmegaConf.register_new_resolver("join_paths", join_paths)
+OmegaConf.register_new_resolver("add_values", add_values)
+OmegaConf.register_new_resolver("multiply_values", multiply_values)
+OmegaConf.register_new_resolver("eval", eval)
+OmegaConf.register_new_resolver("len", len)
 
 def transform_targets(data, log_mean=None, log_std=None):
     log_data = np.log(data)
@@ -54,93 +74,58 @@ def reconstruction_bias(pca, data, log_mean, log_std, z='targets'):
 
     return rel_bias
 
+# main entry point
+@hydra.main(config_path="conf", config_name="config", version_base="1.1")
+def run(cfg: DictConfig):
 
-if __name__ == '__main__':
-
-    # normalization = 'targets'
-    normalization = 'continuum'
-    # dataset_type = f'ratio_spectrometer_only_z={normalization}_train_val'
-    # dataset_type = f'grasp_spectrometer_only_z={normalization}_train_val'
-    # dataset_type = f'ratio_spectrometer_only_matched_retrieval_era5_z={normalization}_train_val'
-    # dataset_type = f'spectrometer_only_matched_retrieval_era5_paper_z={normalization}_train_val'
-    dataset_type = f'ratio_spectrometer_only_matched_retrieval_era5_paper_z={normalization}_train_val'
-    train_frac = 1.0
-
-    # data_dict = {
-    #     r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_ratio_spectrometer_only_LHS',
-    #     r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_ratio_spectrometer_only_LHS',
-    #     r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_ratio_spectrometer_only_LHS',
-    # }
-    # data_dict = {
-    #     r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_spectrometer_only_LHS_matched_retrieval_era5',
-    #     r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_spectrometer_only_LHS_matched_retrieval_era5',
-    #     r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_spectrometer_only_LHS_matched_retrieval_era5',
-    # }
-    data_dict = {
-        r'NIR ($N_{\lambda}=211$)': 'synthetic_remotap_nir_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper',
-        r'SWIR1 ($N_{\lambda}=851$)': 'synthetic_remotap_swir1_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper',
-        r'SWIR3 ($N_{\lambda}=801)$': 'synthetic_remotap_swir3_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper',
-    }
-    
-    data_path = '/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/output/datasets'
-    figure_path = '/nfs/Sentinel5/users/fional/gitlab/surrogate_rtm/output/figures'
+    figure_path = os.path.join(cfg.result_path, 'pca_reconstruction_errors')
     os.makedirs(figure_path, exist_ok=True)
 
-    fig, ax = plt.subplots(figsize=(6,3))
+    # load training/validation data
+    dataset, train_indices, val_indices = data_utils.load_train_dataset(
+        cfg.dataset, data_path=cfg.data_path)
+    
+    # get subset of training/validation data
+    n_subset = int(cfg.task.data_frac * len(train_indices))
+    train_indices = np.random.choice(train_indices, n_subset, replace=False)
+    train_targets = dataset.targets.numpy()[train_indices]
+    val_targets = dataset.targets.numpy()[val_indices]
 
+    # fit PCA and compute reconstruction error for different numbers of components
+    errors = []
+    n_max = train_targets.shape[1]
+    n_range = np.arange(0, n_max, cfg.task.step_size)
+    n_range[0] = 1 # we need at least one component
     df = {'band': [], 'n_components': [], 'rel_rmse': [], 'rel_bias': [], 'explained_var': []}
+    for n in n_range:
+        pca = PCA(n_components=n)
 
-    for band, dataset_name in data_dict.items():
-        print(f'Processing {band} band...')
+        # transform training data and fit PCA
+        norm_data, log_mean, log_std = transform_targets(train_targets)
+        pca.fit(norm_data)
 
-        train_path = os.path.join(data_path, f'{dataset_name}_train_val')
-        train_dataset = torch.load(os.path.join(train_path, 'train_dataset.pt'), weights_only=False)
-        train_indices = torch.load(os.path.join(train_path, 'train_indices.pt'), weights_only=False)
-        val_indices = torch.load(os.path.join(train_path, 'val_indices.pt'), weights_only=False)
+        # get explained variance
+        explained_var = np.sum(pca.explained_variance_ratio_) * 100
 
-        n_subset = int(train_frac * len(train_indices))
-        train_indices = np.random.choice(train_indices, n_subset, replace=False)
+        # evaluate reconstruction error on validation set
+        err = reconstruction_error(pca, val_targets, log_mean, log_std, z=cfg.task.normalization)
+        bias = reconstruction_bias(pca, val_targets, log_mean, log_std, z=cfg.task.normalization)
+        print(f'  n_components={n}, rel_rmse={err:.8f}%, explained_var={explained_var:.8f}%')
+        df['band'].append(cfg.dataset.band)
+        df['n_components'].append(n)
+        df['rel_rmse'].append(err)
+        df['rel_bias'].append(bias)
+        df['explained_var'].append(explained_var)
 
-        # targets = test_dataset.targets.numpy()
-        train_targets = train_dataset.targets.numpy()[train_indices]
-        val_targets = train_dataset.targets.numpy()[val_indices]
-
-        errors = []
-        # n_max = 20 # maximum number of PCA components to test
-        n_max = train_targets.shape[1]
-        n_range = np.arange(0, n_max, 10)
-        n_range[0] = 1 # we need at least one component
-        for n in n_range:
-            pca = PCA(n_components=n)
-
-            # transform training data and fit PCA
-            norm_data, log_mean, log_std = transform_targets(train_targets)
-            pca.fit(norm_data)
-
-            # get explained variance
-            explained_var = np.sum(pca.explained_variance_ratio_) * 100
-
-            # evaluate reconstruction error on validation set
-            err = reconstruction_error(pca, val_targets, log_mean, log_std, z=normalization)
-            bias = reconstruction_bias(pca, val_targets, log_mean, log_std, z=normalization)
-            print(f'  n_components={n}, rel_rmse={err:.4f}%, explained_var={explained_var:.4f}%')
-            df['band'].append(band)
-            df['n_components'].append(n)
-            df['rel_rmse'].append(err)
-            df['rel_bias'].append(bias)
-            df['explained_var'].append(explained_var)
-
-            errors.append(reconstruction_error(pca, val_targets, log_mean, log_std))
-
-        ax.plot(n_range, errors, label=band)
-
-    ax.set_yscale('log')
-    ax.set_xlabel('number of PCA components')
-    ax.set_ylabel('relative RMSE [%]')
-    ax.legend()
-    ax.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.5)
-
-    fig.savefig(os.path.join(figure_path, f'{dataset_type}_pca_reconstruction_error.png'), dpi=300, bbox_inches='tight')
+        errors.append(reconstruction_error(pca, val_targets, log_mean, log_std))
 
     df = pd.DataFrame(df)
-    df.to_csv(os.path.join(figure_path, f'{dataset_type}_pca_reconstruction_error.csv'), index=False)
+    info = f'data_frac={cfg.task.data_frac}_normalization={cfg.task.normalization}'
+    fname = f'{cfg.dataset.name}_pca_reconstruction_error_{info}.csv'
+    df.to_csv(os.path.join(figure_path, fname), index=False)
+
+    print(f'Saved PCA reconstruction error data to {os.path.join(figure_path, fname)}')
+
+
+if __name__ == '__main__':
+    run()
