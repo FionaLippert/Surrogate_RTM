@@ -17,14 +17,14 @@ command:
   - trainer.max_epochs=75
   - model.lr=1e-3
   - dataloader.batch_size=256
-  - task.train_frac=1.0
+  - task.data_frac=1.0
   - task=train+eval
   - task.final_eval=true
   - task.save_predictions=false
   - task.load_best_model=false # use latest
   - task.measure_cpu_time=false
   - logger.project=spectrometer_only_nir_era5_sweep_final_ablations
-  - logger.group=default
+  - logger.group=hidden_dim
 method: grid
 metric:
   name: test/RMSE_continuum
