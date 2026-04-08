@@ -1,7 +1,7 @@
 # @package task
 name: eval
 
-# fraction of the dataset to be used for training/validation/testing
+# fraction of the dataset to be used for training/validation
 data_frac: 1.0
 
 # save predictions?

@@ -12,6 +12,7 @@ profile_dim: ${dataset.profile_dim} # atmospheric profile features
 profile_latent_dim: 2 # number of PCs to use to encode temperature profile
 hidden_dim: 128
 n_layers: 3
+decrease_channels: last_layer
 
 dropout_p: 0.0
 
@@ -28,7 +29,7 @@ forward_model:
     _target_: rtm.models.ResNet1D
     n_channels: ${model.hidden_dim}
     n_layers: ${model.n_layers}
-    decrease_channels: 1
+    decrease_channels: ${model.decrease_channels}
     n_out: 1
     n_output_layers: 1
     nonlinearity: ${model.nonlinearity}
@@ -68,6 +69,9 @@ forward_model:
     _target_: rtm.dimensionality_reduction.MLPEncoder
     enc_dims: 
       - ${add_values:${model.input_dim},1,${model.profile_latent_dim}}
+      # - ${eval:'${model.hidden_dim} // 2'}
+      # - ${eval:'${model.hidden_dim} // 2'}
+      - ${model.hidden_dim}
       - ${model.hidden_dim}
     noise_level: 0.0
     dropout_p: ${model.dropout_p}

@@ -6,13 +6,15 @@ command:
   - ${program}
   - ${args_no_hyphens}
   - device=snellius
-  - dataset=synthetic_remotap_nir_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper
+  - dataset=synthetic_remotap_nir_spectrometer_only_LHS_matched_retrieval_era5_paper
+  - dataset.normalization.per_wavelength=false
   - model=SequenceNNSurrogateRTMRatio_proxy_input_tempPCA_input_processing
   - model.nonlinearity=silu
   - model.dropout_p=0.001
   - transforms=log_targets_log_proxy_log_albedo_era5
-  - task.train_frac=1.0
-  - trainer.max_epochs=75
+  - task.data_frac=1.0
+  # - trainer.max_epochs=75
+  - trainer.max_epochs=150
   - model.lr=1e-3
   - dataloader.batch_size=256
   - task=train+eval
@@ -20,7 +22,7 @@ command:
   - task.save_predictions=false
   - task.load_best_model=false # use latest
   - task.measure_cpu_time=false
-  - logger.project=spectrometer_only_nir_era5_sweep
+  - logger.project=spectrometer_only_nir_era5_sweep_hp_search
   - logger.group=default
 method: grid
 metric:
@@ -30,14 +32,13 @@ parameters:
   # random seed
   seed:
     values: [0]
-    # values: [0, 1, 2]
   model.hidden_dim:
-    values: [16, 32, 64, 128, 256]
-  model.forward_model.sequence_module.n_layers:
-    values: [2, 3, 4, 5, 6]
-  model.forward_model.sequence_module.n_output_layers:
-    values: [1, 2, 3]
+    # values: [16, 32, 64, 128, 256]
+    values: [128]
+  model.n_layers:
+    # values: [2, 3, 4, 5, 6]
+    # values: [0, 1]
+    values: [2, 4, 6]
   model.decrease_channels:
-    values: [0, 1, 2]
-  
-  
+    # values: [0, 1, 2]
+    values: [0]

@@ -70,6 +70,7 @@ forward_model:
     enc_dims: 
       - ${add_values:${model.input_dim},1,${model.profile_latent_dim}}
       # - ${eval:'${model.hidden_dim} // 2'}
+      # - ${eval:'${model.hidden_dim} // 2'}
       - ${model.hidden_dim}
       - ${model.hidden_dim}
     noise_level: 0.0

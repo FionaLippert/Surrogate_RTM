@@ -2021,6 +2021,8 @@ class ResNet1D(torch.nn.Module):
 
         # number of layers after which the number of channels is halfed
         decrease_channels = kwargs.get('decrease_channels', 0)
+        if decrease_channels == "last_layer":
+            decrease_channels = n_layers
 
         n_output_layers = kwargs.get('n_output_layers', 1)
 

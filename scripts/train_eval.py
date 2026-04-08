@@ -119,12 +119,13 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
         cfg.dataset, data_path=cfg.data_path)
     
     # possibly select smaller subset of the training/validation data
-    if cfg.task.get('data_frac', 1.0) < 1.0:
+    data_frac = cfg.task.get('data_frac', 1.0)
+    if data_frac < 1.0:
         # subsample training data
-        n_subset = int(cfg.task.data_frac * len(train_indices))
+        n_subset = int(data_frac * len(train_indices))
         train_indices = np.random.choice(train_indices, n_subset, replace=False)
         # subsample validation data
-        n_subset = int(cfg.task.data_frac * len(val_indices))
+        n_subset = int(data_frac * len(val_indices))
         val_indices = np.random.choice(val_indices, n_subset, replace=False)
 
     # get transforms
@@ -211,19 +212,19 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
 
     # if applicable, trace the model with TorchScript and save it
     if cfg.task.get('trace_model', False):
-        fp = osp.join(cfg.output_path, f'{cfg.model.name}_{cfg.dataset.name}.pt')
+        fp_model = osp.join(cfg.output_path, f'{cfg.model.name}_{cfg.dataset.name}.pt')
         torchscript_utils.trace_model_and_save(
             model.forward_model,
             dummy_input,
-            filepath=fp,
+            filepath=fp_model,
             device_type=('cuda' if cfg.task.trace_with_gpu else 'cpu'),
             )
         # also save corresponding wavelengths for reference
-        fp = osp.join(cfg.output_path, f'{cfg.model.name}_{cfg.dataset.name}_wavelengths.dat')
-        np.savetxt(fp, dataset.wavelengths, delimiter=' ')
+        fp_wl = osp.join(cfg.output_path, f'{cfg.model.name}_{cfg.dataset.name}_wavelengths.dat')
+        np.savetxt(fp_wl, dataset.wavelengths, delimiter=' ')
 
         if cfg.verbose:
-            print(f'Traced model saved to {fp}')
+            print(f'Traced model saved to {fp_model}')
 
 
 def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
@@ -279,9 +280,10 @@ def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
             cfg.dataset, data_path=cfg.data_path)
 
         # possibly select smaller subset of the validation data
-        if cfg.task.get('data_frac', 1.0) < 1.0:
+        data_frac = cfg.task.get('data_frac', 1.0)
+        if data_frac < 1.0:
             # subsample validation data
-            n_subset = int(cfg.task.get('data_frac', 1.0) * len(val_indices))
+            n_subset = int(data_frac * len(val_indices))
             val_indices = np.random.choice(val_indices, n_subset, replace=False)
             print(len(val_indices))
 
