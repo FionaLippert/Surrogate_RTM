@@ -2,6 +2,8 @@
 name: SequenceNNSurrogateRTMRatio_proxy_input_tempPCA_input_processing
 _target_: rtm.models.NNSurrogateRTMWrapper
 
+use_variance_loss_weights: false
+
 input_dim: ${dataset.input_dim} # all features
 output_dim: ${dataset.output_dim} # all wavelengths
 profile_dim: ${dataset.profile_dim} # atmospheric profile features
@@ -11,16 +13,17 @@ profile_dim: ${dataset.profile_dim} # atmospheric profile features
 # proxy_latent_dim: 32
 profile_latent_dim: 2 # number of PCs to use to encode temperature profile
 hidden_dim: 128
-n_layers: 3
+n_layers: 1 # 3
 decrease_channels: 1
 
 dropout_p: 0.0
 
-nonlinearity: relu
+nonlinearity: silu # relu
 
 loss_terms:
   - _target_: rtm.loss.WeightedMSE
     weight: 1.0
+  # - _target_: rtm.loss.SpectrallyWeightedMSE
 
 forward_model:
   _target_: rtm.models.SequenceNNForwardModel

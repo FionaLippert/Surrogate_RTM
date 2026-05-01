@@ -1,5 +1,5 @@
 program: train_eval.py
-name: hybrid_mlp-pca_swir3_sweep_train_frac
+name: hybrid_cnn_swir3_sweep_data_frac
 command:
   - ${env}
   - ${interpreter}
@@ -7,13 +7,14 @@ command:
   - ${args_no_hyphens}
   - device=snellius
   - dataset=synthetic_remotap_swir3_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper
-  - model=MLP_PCA_Ratio_tempPCA_constant_latent_dim
+  - dataset.normalization.per_wavelength=false
+  - model=SequenceNNSurrogateRTMRatio_proxy_input_tempPCA_input_processing
+  - model.n_layers=2
+  - model.hidden_dim=128
+  - model.forward_model.sequence_module.kernel_size=5
+  - model.decrease_channels=last_layer
   - model.nonlinearity=silu
   - model.dropout_p=0.001
-  - model.hidden_dim=128
-  - model.forward_model.core_nn.n_fc_layers=3
-  - model.output_latent_dim=140
-  - model.forward_model.decoder.fixed_components=true
   - transforms=log_targets_log_proxy_log_albedo_era5
   - trainer.max_epochs=75
   - model.lr=1e-3
@@ -24,7 +25,7 @@ command:
   - task.load_best_model=false # use latest
   - task.measure_cpu_time=false
   - logger.project=spectrometer_only_swir3_era5_sweep_final_ablations
-  - logger.group=default
+  - logger.group=data_frac
 method: grid
 metric:
   name: test/RMSE_continuum
@@ -33,8 +34,8 @@ parameters:
   # random seed
   seed:
     values: [0]
-  # hidden dimension
-  task.train_frac:
-    # values: [0.1, 1.0]
-    values: [0.001, 0.01]
-
+    # values: [1, 2]
+  task.data_frac:
+    # values: [0.0002, 0.001, 0.01, 0.1, 1.0]
+    values: [0.000215, 0.000464, 0.00215, 0.00464, 0.0215, 0.0464, 0.215, 0.464]
+    # values: [0.0002]

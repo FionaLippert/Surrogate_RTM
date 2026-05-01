@@ -498,6 +498,17 @@ def relative_bias(outputs: np.ndarray,
         z = targets
     return 100 * np.mean((outputs - targets) / z, **kwargs)
 
+def relative_rmse(outputs: np.ndarray, 
+                  targets: np.ndarray, 
+                  z: np.ndarray = None,
+                  **kwargs) -> np.ndarray:
+    # root-mean-squared error w.r.t some reference z
+    if z is None:
+        z = targets
+    mse = np.mean(((outputs - targets) / z) ** 2, **kwargs)
+    rmse = 100 * np.sqrt(mse)
+    return rmse
+
 def r2_score(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
     # coefficient of determination [%]
     ss_res = np.sum((targets - outputs) ** 2, **kwargs)

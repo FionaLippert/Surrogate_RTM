@@ -1,0 +1,41 @@
+program: train_eval.py
+name: hybrid_cnn_swir1_sweep_data_frac
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - device=snellius
+  - dataset=synthetic_remotap_swir1_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper
+  - dataset.normalization.per_wavelength=false
+  - model=SequenceNNSurrogateRTMRatio_proxy_input_tempPCA_input_processing
+  - model.n_layers=2
+  - model.hidden_dim=128
+  - model.forward_model.sequence_module.kernel_size=5
+  - model.decrease_channels=last_layer
+  - model.nonlinearity=silu
+  - model.dropout_p=0.001
+  - transforms=log_targets_log_proxy_log_albedo_era5
+  - trainer.max_epochs=75
+  - model.lr=1e-3
+  - dataloader.batch_size=256
+  - task=train+eval
+  - task.final_eval=true
+  - task.save_predictions=false
+  - task.load_best_model=false # use latest
+  - task.measure_cpu_time=false
+  - logger.project=spectrometer_only_swir1_era5_sweep_final_ablations
+  - logger.group=data_frac
+method: grid
+metric:
+  name: test/RMSE_continuum
+  goal: minimize
+parameters:
+  # random seed
+  seed:
+    values: [0]
+    # values: [1, 2]
+  task.data_frac:
+    # values: [0.0002, 0.001, 0.01, 0.1, 1.0]
+    values: [0.000215, 0.000464, 0.00215, 0.00464, 0.0215, 0.0464, 0.215, 0.464]
+    # values: [0.0002]

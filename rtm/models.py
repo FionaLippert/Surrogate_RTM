@@ -64,6 +64,7 @@ class SurrogateRTMWrapper(pl.LightningModule):
         inputs = batch['inputs']
         proxy_targets = batch.get('proxy_targets', None)
         profile_inputs = batch.get('profile_inputs', None)
+        measurement_noise = batch.get('noise', None)
 
         start_time = time.perf_counter()
 
@@ -100,7 +101,8 @@ class SurrogateRTMWrapper(pl.LightningModule):
        
         # compute evaluation metrics, average across input/output dimension
         rmse = utils.rmse(outputs, targets, axis=0).mean()
-        nrmse = utils.nrmse(outputs, targets, z=self.eval_scale, axis=0).mean()
+        # nrmse = utils.nrmse(outputs, targets, z=self.eval_scale, axis=0).mean()
+        nrmse = utils.nrmse(outputs, targets, axis=0).mean()
         mape = utils.mape(outputs, targets, axis=0).mean()
         mape_continuum = utils.mape_continuum(outputs, targets, axis=0).mean()
         smape = utils.smape(outputs, targets, axis=0).mean()
@@ -109,6 +111,7 @@ class SurrogateRTMWrapper(pl.LightningModule):
         rel_bias_continuum = utils.relative_bias(outputs, targets, axis=0, 
                                                  z=targets.max(1, keepdims=True)).mean()
         r2 = utils.r2_score(outputs, targets, axis=0).mean()
+
 
         # compute R2 on log-transformed data
         # ensure that outputs are positive
@@ -170,6 +173,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         self.l2_reg = kwargs.get('l2_reg', 0)
         self.betas = kwargs.get('betas', (0.9, 0.999))
         self.loss_scale = kwargs.get('loss_scale', 1.0)
+        self.use_variance_loss_weights = kwargs.get('use_variance_loss_weights', False)
 
         # list of loss terms making up the overall loss
         self.loss_terms = kwargs.get('loss_terms', [torch.nn.MSELoss()])
@@ -197,10 +201,16 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         self.lr_milestones = kwargs.get('lr_milestones', None)
         self.lr_scheduler_interval = kwargs.get('lr_scheduler_interval', 'epoch')
 
-    def compute_loss(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def compute_loss(self, outputs: torch.Tensor, 
+                     targets: torch.Tensor,
+                     weights: torch.Tensor = None,
+                     ) -> torch.Tensor:
         loss = 0
         for loss_fct in self.loss_terms:
-            loss = loss + loss_fct(outputs, targets)
+            if weights is None:
+                loss = loss + loss_fct(outputs, targets)
+            else:
+                loss = loss + loss_fct(outputs, targets, weights)
 
         return loss
     
@@ -339,6 +349,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         inputs = batch['inputs']
         proxy_targets = batch.get('proxy_targets', None)
         profile_inputs = batch.get('profile_inputs', None)
+        # measurement_noise = batch.get('noise', None)
 
         # make prediction (without transforming back to physical quantities)
         outputs = self.forward(inputs,
@@ -348,7 +359,13 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
 
         # compute loss function
         targets = self.forward_model.transform_targets(batch['targets'])
-        loss = self.compute_loss(outputs, targets)
+
+        if self.use_variance_loss_weights:
+            weights = 1 / targets.std(dim=0)**2
+            weights = weights.size(0) * weights / weights.sum() # weights sum to number of wavelength channels
+            loss = self.compute_loss(outputs, targets, weights)
+        else:
+            loss = self.compute_loss(outputs, targets)
 
         # log loss and log-loss
         self.log_loss(loss, 'loss', split)

@@ -455,6 +455,7 @@ class ResidualBlock1D(nn.Module):
     def forward(self, x):
         shortcut = self.shortcut(x)
 
+        # use "replicate" padding to avoid artifacts at the boundaries of the spectrum
         x_padded = F.pad(x, (self.padding, self.padding), mode='replicate')
         out = self.conv1(x_padded)
         out = self.bn1(out)

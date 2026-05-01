@@ -11,7 +11,7 @@ class WeightedMAE(torch.nn.Module):
         # weight applied to scale loss
         self.weight = weight
 
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         loss = torch.mean(torch.abs((outputs - targets)))
 
         return self.weight * loss
@@ -23,7 +23,7 @@ class WeightedMSE(torch.nn.Module):
         # weight applied to scale loss
         self.weight = weight
 
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         loss = torch.mean(torch.square((outputs - targets)))
 
         return self.weight * loss
@@ -34,7 +34,7 @@ class RelativeMSE(torch.nn.Module):
 
         self.eps = eps
 
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         loss = torch.mean(torch.square((outputs - targets) / (targets + self.eps)))
 
         return loss
@@ -47,7 +47,7 @@ class ContinuumWeightedMAE(torch.nn.Module):
         self.weight = weight
         self.log_transformed = log_transformed
 
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         # MAE scaled by continuum of each individual spectrum (i.e. max across wavelengths)
         continuum = targets.max(1, keepdims=True).values
 
@@ -70,7 +70,7 @@ class ContinuumWeightedMSE(torch.nn.Module):
         self.weight = weight
         self.log_transformed = log_transformed
 
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         # MSE scaled by continuum of each individual spectrum (i.e. max across wavelengths)
         continuum = targets.max(1, keepdims=True).values
 
@@ -84,6 +84,22 @@ class ContinuumWeightedMSE(torch.nn.Module):
         loss = torch.mean(torch.square(residuals))
 
         return self.weight * loss
+
+class SpectrallyWeightedMSE(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, outputs: torch.Tensor, 
+                targets: torch.Tensor, 
+                weights: torch.Tensor,
+                *args, **kwargs) -> torch.Tensor:
+        # MSE scaled by custom weigth for each spectral channel
+
+        residuals = residuals * weights.view(1, -1)
+
+        loss = torch.mean(torch.square(residuals))
+
+        return loss
         
 
 class TotalRadianceMAE(torch.nn.Module):
@@ -93,7 +109,7 @@ class TotalRadianceMAE(torch.nn.Module):
         # weight applied to scale loss
         self.weight = weight
 
-    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         # encourage that total predicted radiance matches total target radiance
         continuum = targets.max(1, keepdims=False).values
         output_total_radiance = torch.trapz(outputs, dim=1) / continuum

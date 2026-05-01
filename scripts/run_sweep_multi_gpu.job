@@ -7,7 +7,7 @@
 #SBATCH --mem=240G
 #SBATCH --gpus=2
 #SBATCH --job-name=sweep
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=slurm_output_%A_%a.out
 
 
