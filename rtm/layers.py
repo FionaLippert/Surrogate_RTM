@@ -1,11 +1,9 @@
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.decomposition import PCA
 from typing import Union, List, Dict, Tuple, Callable, Optional
 
-from rtm import utils
 from rtm.utils import init_weights
 
 
@@ -27,6 +25,9 @@ class Embedding(nn.Embedding):
 
 
 class MLP(torch.nn.Module):
+    """
+    Simple multi-layer perceptron
+    """
     def __init__(self, n_in, n_hidden, n_out, **kwargs):
         super().__init__()
 
@@ -74,7 +75,9 @@ class MLP(torch.nn.Module):
     
 
 class Linear(torch.nn.Module):
-    """torch.nn.Linear with custom initialization"""
+    """
+    torch.nn.Linear with custom initialization
+    """
     def __init__(self, n_in, n_out, **kwargs):
         super().__init__()
 
@@ -373,11 +376,15 @@ class PCADecoder(Decoder):
         return x
 
 
-##################################################
-# Positional Encoding for Transformer-based models
-##################################################
-
 class PositionalEncoding(nn.Module):
+    """
+    Positional encoding for Transformer or CNN-based models.
+
+    Args:
+        d_model: Dimension of the model (number of features).
+        num_wavelengths: Number of wavelengths (or sequence length).
+        dropout: Dropout probability.
+    """
     def __init__(self, d_model, num_wavelengths, dropout=0.0):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
@@ -397,11 +404,16 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x + self.pos_encoding)
     
 
-##################################################
-# More general Fourier Positional Encoding
-##################################################
-
 class FourierPositionalEncoding(nn.Module):
+    """
+    More general Fourier-based positional encoding.
+
+    Args:
+        d_model: Dimension of the model (number of features).
+        lambda_min: Minimum wavelength (in the same units as the input).
+        lambda_max: Maximum wavelength (in the same units as the input).
+        dropout: Dropout probability.
+    """
     def __init__(self, d_model, lambda_min=1.0, lambda_max=1000.0, dropout=0.0):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
@@ -429,13 +441,18 @@ class FourierPositionalEncoding(nn.Module):
         encoding = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)  # [B, N, d_model]
         return self.dropout(x + encoding)
 
-    
-
-##################################################
-# 1D Residual Block for ResNet-based models
-##################################################
 
 class ResidualBlock1D(nn.Module):
+    """
+    1D residual block for ResNet-style architectures.
+
+    Args:
+        in_channels: Number of input channels.
+        out_channels: Number of output channels.
+        kernel_size: Size of the convolutional kernel.
+        stride: Stride of the convolution.
+        nonlinearity: Non-linear activation function to use (default: 'relu').
+    """
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, nonlinearity='relu', **kwargs):
         super().__init__()
 

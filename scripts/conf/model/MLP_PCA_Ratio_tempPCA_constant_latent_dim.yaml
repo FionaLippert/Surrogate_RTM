@@ -11,9 +11,9 @@ input_latent_dim: ${model.hidden_dim}
 output_latent_dim: ${model.hidden_dim}
 profile_latent_dim: 2 # number of PCs to use to encode temperature profile
 
-dropout_p: 0.0
+dropout_p: 0.001
 
-nonlinearity: relu
+nonlinearity: silu
 
 loss_terms:
   - _target_: rtm.loss.WeightedMSE
@@ -28,7 +28,7 @@ forward_model:
     n_in: ${model.input_latent_dim}
     n_out: ${model.output_latent_dim}
     n_hidden: ${model.hidden_dim}
-    n_fc_layers: 5
+    n_fc_layers: 3
     dropout_p: ${model.dropout_p}
     nonlinearity: ${model.nonlinearity}
   profile_module:

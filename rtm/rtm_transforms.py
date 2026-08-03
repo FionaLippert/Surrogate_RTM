@@ -4,22 +4,34 @@ from typing import Union, List, Dict, Callable, Optional
 import os
 
 class RTMTransform(torch.nn.Module):
+    """
+    Base class for RTM transforms. All transforms should inherit from 
+    this class and implement the forward, inverse, and derivative methods.
+    This allows for easy composition of transforms and their inverses, as well as
+    computation of derivatives for use in optimization and sensitivity analysis.
+    """
     def __init__(self):
         super().__init__()
 
     def forward(self, data: torch.Tensor, **kwargs) -> torch.Tensor:
-        # apply some transformation to data
+        """Apply some transformation to data"""
         raise NotImplementedError
     
     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-        # reverse the transformation
+        """Compute the inverse transformation"""
         raise NotImplementedError
     
     def derivative(self, data: torch.Tensor, **kwargs) -> torch.Tensor:
-        # compute the derivative of the transformation
+        """Compute the derivative of the transformation"""
         raise NotImplementedError
     
 class RTMCompose(RTMTransform):
+    """
+    Compose multiple RTM transforms into a single transform. 
+    The transforms are applied in the order they are provided.
+    Args:
+        transforms: List of RTMTransform instances to be composed.
+    """
     def __init__(self, transforms: List[RTMTransform]):
         super().__init__()
 
@@ -56,6 +68,11 @@ class RTMCompose(RTMTransform):
     
     
 class RTMTransformCollection(torch.nn.Module):
+    """
+    A collection of RTM transforms, each associated with a name.
+    This allows for managing multiple transforms that may be applied to different
+    parts of the data (e.g., pixel, profile, target, proxy).
+    """
     def __init__(self, transforms: Dict[str, RTMTransform], **kwargs):
         super().__init__()
 
@@ -111,6 +128,10 @@ class RTMTransformCollection(torch.nn.Module):
         }
     
 class NullTransform(RTMTransform):
+    """
+    A dummy transform that does nothing. This can be used as a 
+    placeholder or default transform.
+    """
     def __init__(self):
         super().__init__()
 
@@ -132,6 +153,9 @@ class NullTransform(RTMTransform):
         return 'NullTransform()'
 
 class DoubleToFloat(RTMTransform):
+    """
+    A transform that converts double precision tensors to single precision (float32).
+    """
     def __init__(self):
         super().__init__()
 
@@ -152,6 +176,14 @@ class DoubleToFloat(RTMTransform):
         return 'DoubleToFloat()'
     
 class Normalize(RTMTransform):
+    """
+    Normalization transform that standardizes data to have zero mean and unit variance.
+
+    Args:
+        mean: The mean to use for normalization.
+        std: The standard deviation to use for normalization.
+        shape: The shape of the mean and std tensors. If not provided, defaults to 1.
+    """
     def __init__(self, mean: Optional[torch.Tensor] = None, 
                  std: Optional[torch.Tensor] = None, 
                  shape: Optional[Union[int, List[int]]] = 1):
@@ -208,6 +240,9 @@ class Normalize(RTMTransform):
         return f'Normalize(mean={self.mean}, std={self.std})'
 
 class LogTransform(RTMTransform):
+    """
+    A transform that applies the natural logarithm to the data.
+    """
     def __init__(self):
         super().__init__()
 
@@ -244,6 +279,14 @@ class LogTransform(RTMTransform):
         return 'LogTransform()'
     
 class LogTransformSelectedFeatures(RTMTransform):
+    """
+    A transform that applies the natural logarithm to selected features of the data.
+    
+    Args:
+        feature_indices: Indices of the features to which the log transform will be applied.
+        n_features: Total number of features in the data.
+        feature_dim: The dimension of the features in the data. Default is 1.
+    """
     def __init__(self, 
                  feature_indices: List[int], 
                  n_features: int,
@@ -328,6 +371,12 @@ class LogTransformSelectedFeatures(RTMTransform):
                f'feature_dim={self.feature_dim})'
 
 class PowerTransform(RTMTransform):
+    """
+    A transform that raises the data to a specified power.
+
+    Args:
+        exponent: The power to which the data will be raised.
+    """
     def __init__(self, exponent: float):
         super().__init__()
 
@@ -355,6 +404,15 @@ class PowerTransform(RTMTransform):
     
 def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]], 
                   dtype: torch.dtype = torch.float64) -> Callable:
+    """
+    Creates a normalization transform based on the provided statistics.
+
+    Args:
+        stats: A dictionary containing 'mean' and 'std' for normalization.
+        dtype: The desired data type for the mean and std tensors.
+    Returns:
+        A Normalize transform initialized with the provided mean and std.
+    """
     mean = stats['mean']
     std = stats['std']
 
@@ -380,6 +438,10 @@ def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]],
 
 
 def load_transforms(dir: str, types=['pixel', 'profile', 'target', 'proxy']):
+    """
+    Loads previously saved transforms from disk. If a transform file does not exist, 
+    it returns None for that transform.
+    """
     transforms = []
     for t in types:
         fname = os.path.join(dir, f'{t}_transform.pt')
@@ -391,6 +453,9 @@ def load_transforms(dir: str, types=['pixel', 'profile', 'target', 'proxy']):
     return transforms
 
 def save_transforms(transforms, dir: str, types=['pixel', 'profile', 'target', 'proxy']):
+    """
+    Saves transforms to disk. Each transform is saved with a filename corresponding to its type.
+    """
     assert len(transforms) == len(types)
     for i, t in enumerate(types):
         fname = os.path.join(dir, f'{t}_transform.pt')
@@ -398,10 +463,10 @@ def save_transforms(transforms, dir: str, types=['pixel', 'profile', 'target', '
     
 
 def numpy_to_tensor(data: np.ndarray, dtype=torch.float64) -> torch.Tensor:
-    # convert numpy array to Pytorch tensor
+    """Convert numpy array to Pytorch tensor"""
     return torch.from_numpy(data).to(dtype)
 
 def tensor_to_numpy(data: torch.Tensor) -> np.ndarray:
-    # convert Pytorch tensor to numpy array
+    """Convert Pytorch tensor to numpy array"""
     return data.detach().cpu().numpy()
     

@@ -8,16 +8,42 @@ from typing import List, Dict, Tuple
 from rtm import utils
 from rtm.constants import constants
 
-def save_netcdf_file(data: xr.Dataset, save_path: str):
+def save_netcdf_file(
+        data: xr.Dataset, 
+        save_path: str):
+    """
+    Save xarray Dataset to netCDF file, removing existing file if it exists.
+    """
     if os.path.isfile(save_path):
         # remove existing file
         os.remove(save_path)
     data.to_netcdf(save_path, format='NETCDF4')
-    data.close()
 
+def save_csv_file(
+        df: pd.DataFrame, 
+        save_path: str):
+    """
+    Save pandas DataFrame to CSV file, removing existing file if it exists.
+    """
+    if os.path.isfile(save_path):
+        # remove existing file
+        os.remove(save_path)
+    df.to_csv(save_path, index=False)
 
-def combine_chunks(data_dir: str, prefix: str, n_chunks: int, combined_dir: str = 'combined'):
+def combine_chunks(
+        data_dir: str, 
+        prefix: str, 
+        n_chunks: int, 
+        combined_dir: str = 'combined'):
+    """
+    Combine chunked netCDF files into a single file.
 
+    Args:
+        data_dir : The directory containing the chunked netCDF files.
+        prefix : The prefix for the chunked files.
+        n_chunks : The number of chunks to combine.
+        combined_dir : The directory where the combined files will be saved.
+    """
     if combined_dir is not None:
         out_dir = osp.join(data_dir, combined_dir)
         os.makedirs(out_dir, exist_ok=True)
@@ -25,35 +51,48 @@ def combine_chunks(data_dir: str, prefix: str, n_chunks: int, combined_dir: str 
         out_dir = data_dir
     
     # find all pixel data files and combine them
-    pixel_files = [f for f in os.listdir(data_dir) if f.startswith(prefix) and f.endswith('_pixel_data.nc')]
+    pixel_files = [f for f in os.listdir(data_dir) 
+                   if f.startswith(prefix) and f.endswith('_pixel_data.nc')]
     pixel_files.sort()
     pixel_files = pixel_files[:n_chunks]
     pixel_data = combine_netcdf_files(data_dir, pixel_files)
-    save_netcdf_file(pixel_data, osp.join(out_dir, f'{prefix}_combined_pixel_data.nc'))
+    save_path = osp.join(out_dir, f'{prefix}_combined_pixel_data.nc')
+    save_netcdf_file(pixel_data, save_path)
 
     # find all profile data files and combine them
-    profile_files = [f for f in os.listdir(data_dir) if f.startswith(prefix) and f.endswith('_profile_data.nc')]
+    profile_files = [f for f in os.listdir(data_dir) 
+                     if f.startswith(prefix) and f.endswith('_profile_data.nc')]
     profile_files.sort()
     profile_files = profile_files[:n_chunks]
     profile_data = combine_netcdf_files(data_dir, profile_files)
-    save_netcdf_file(profile_data, osp.join(out_dir, f'{prefix}_combined_profile_data.nc'))
+    save_path = osp.join(out_dir, f'{prefix}_combined_profile_data.nc')
+    save_netcdf_file(profile_data, save_path)
 
     # find all spectral data files and combine them
-    spectral_files = [f for f in os.listdir(data_dir) if f.startswith(prefix) and f.endswith('_spectra.nc')]
+    spectral_files = [f for f in os.listdir(data_dir) 
+                      if f.startswith(prefix) and f.endswith('_spectra.nc')]
     spectral_files.sort()
     spectral_files = spectral_files[:n_chunks]
     spectral_data = combine_netcdf_files(data_dir, spectral_files)
-    save_netcdf_file(spectral_data, osp.join(out_dir, f'{prefix}_combined_spectra.nc'))
+    save_path = osp.join(out_dir, f'{prefix}_combined_spectra.nc')
+    save_netcdf_file(spectral_data, save_path)
 
     # find all coordinate files and combine them
-    coord_files = [f for f in os.listdir(data_dir) if f.startswith(prefix) and f.endswith('_coords.nc')]
+    coord_files = [f for f in os.listdir(data_dir) 
+                   if f.startswith(prefix) and f.endswith('_coords.nc')]
     coord_files.sort()
     coord_files = coord_files[:n_chunks]
     coord_data = combine_netcdf_files(data_dir, coord_files)
-    save_netcdf_file(coord_data, osp.join(out_dir, f'{prefix}_combined_coords.nc'))
+    save_path = osp.join(out_dir, f'{prefix}_combined_coords.nc')
+    save_netcdf_file(coord_data, save_path)
 
 
-def combine_netcdf_files(data_dir: str, file_list: List[str]):
+def combine_netcdf_files(
+        data_dir: str, 
+        file_list: List[str]):
+    """
+    Combine multiple netCDF files into a single xarray Dataset.
+    """
     # combine chunked netCDF files into a single file
     if len(file_list) == 0:
         raise ValueError('No files to combine')
@@ -76,19 +115,39 @@ def combine_netcdf_files(data_dir: str, file_list: List[str]):
 
     return combined
 
-def prepare_data(target_dir: str,
-                 data_dir: str,
-                 prefix: str,
-                 wl_range: Tuple[float, float],
-                 gas_names: List[str] = ['co2', 'ch4'],
-                 instrument: str = 'instr2_noise0',
-                 prefix_proxy: str = None,
-                 instrument_proxy: str = 'instr1_noise0',
-                 land_threshold: float = 0.0,
-                 sza_threshold: float = 90.0,
-                 vza_threshold: float = 90.0,
-                 nmodes: int = 2
-                ):
+def prepare_data(
+        target_dir: str,
+        data_dir: str,
+        prefix: str,
+        wl_range: Tuple[float, float],
+        gas_names: List[str] = ['co2', 'ch4'],
+        instrument: str = 'instr2_noise0',
+        prefix_proxy: str = None,
+        instrument_proxy: str = 'instr1_noise0',
+        land_threshold: float = 0.0,
+        sza_threshold: float = 90.0,
+        vza_threshold: float = 90.0,
+        nmodes: int = 2):
+    """
+    Prepare RemoTAP data for neural network training/testing 
+    separating spectral, coordinate, pixel, and profile data, 
+    filtering based on land fraction, SZA, and VZA, and 
+    saving to disk in netCDF format.
+
+    Args:
+        target_dir : The directory where the processed data will be saved.
+        data_dir : The directory containing the raw RemoTAP data (synthetic measurements).
+        prefix : The prefix for the RemoTAP files.
+        wl_range : The wavelength range to consider (min, max).
+        gas_names : List of trace gases to extract.
+        instrument : The instrument extension for the spectral data.
+        prefix_proxy : Optional prefix for proxy radiances.
+        instrument_proxy : The instrument extension for the proxy spectral data.
+        land_threshold : Minimum land fraction to consider.
+        sza_threshold : Maximum solar zenith angle to consider.
+        vza_threshold : Maximum viewing zenith angle to consider.
+        nmodes : Number of aerosol modes to consider.
+    """
     
     os.makedirs(target_dir, exist_ok=True)
 
@@ -116,7 +175,8 @@ def prepare_data(target_dir: str,
     mask = np.logical_and(mask, pixel_data['ViewingZenithAngle'] <= vza_threshold)
     mask = np.logical_and(mask, pixel_data['land_fraction'] >= land_threshold)
     valid_pixels = np.where(mask)[0]
-    print(f'Filtered out {1-(len(valid_pixels)/len(mask)):.2%} of pixels based on land fraction, SZA, and VZA')
+    print(f'Filtered out {1-(len(valid_pixels)/len(mask)):.2%} of pixels' + \
+          f'based on land fraction, SZA, and VZA')
             
     # load profile data
     profile_data = load_profile_data(data_dir, prefix, gas_names)
@@ -129,11 +189,21 @@ def prepare_data(target_dir: str,
 
 
 
-def pixel_data_to_netcdf(data: Dict[str, np.ndarray], 
-                         target_dir: str, 
-                         prefix: str,
-                         valid_pixels: np.ndarray = None):
-    # convert dict to netcdf format and write to disk
+def pixel_data_to_netcdf(
+        data: Dict[str, np.ndarray], 
+        target_dir: str, 
+        prefix: str,
+        valid_pixels: np.ndarray = None):
+    """
+    Convert pixel data dictionary to netCDF format and save to disk.
+
+    Args:
+        data : Dictionary containing pixel data arrays.
+        target_dir : The directory where the netCDF file will be saved.
+        prefix : The prefix for the output netCDF file.
+        valid_pixels : Optional array of indices for valid pixels to include.
+    """
+    # convert dict to xarray Dataset
     for k, v in data.items():
         if len(v.shape) > 1:
             v = v.reshape(v.shape[0], -1)
@@ -150,11 +220,21 @@ def pixel_data_to_netcdf(data: Dict[str, np.ndarray],
     # save to disk
     save_netcdf_file(data, osp.join(target_dir, f'{prefix}_pixel_data.nc'))
 
-def pixel_data_to_csv(data: Dict[str, np.ndarray], 
-                      target_dir: str, 
-                      prefix: str,
-                      valid_pixels: np.ndarray = None):
-    # save pixel data to csv file
+def pixel_data_to_csv(
+        data: Dict[str, np.ndarray], 
+        target_dir: str, 
+        prefix: str,
+        valid_pixels: np.ndarray = None):
+    """
+    Convert pixel data dictionary to CSV format and save to disk.
+
+    Args:
+        data : Dictionary containing pixel data arrays.
+        target_dir : The directory where the CSV file will be saved.
+        prefix : The prefix for the output CSV file.
+        valid_pixels : Optional array of indices for valid pixels to include.
+    """
+    # convert dict to pandas DataFrame
     df_pixels = pd.DataFrame(data)
     df_pixels['pixelID'] = df_pixels.index
 
@@ -162,17 +242,24 @@ def pixel_data_to_csv(data: Dict[str, np.ndarray],
     if valid_pixels is not None:
         df_pixels = df_pixels.iloc[valid_pixels]
 
-    save_path = osp.join(target_dir, f'{prefix}_pixel_data.csv')
-    if os.path.isfile(save_path):
-        # remove existing file
-        os.remove(save_path)
-    df_pixels.to_csv(save_path, index=False)
+    # save to disk
+    save_csv_file(df_pixels, osp.join(target_dir, f'{prefix}_pixel_data.csv'))
 
-def coords_to_netcdf(coords: Dict[str, np.ndarray], 
-                     target_dir: str, 
-                     prefix: str,
-                     valid_pixels: np.ndarray = None):
-    # convert dict to netcdf format and write to disk
+def coords_to_netcdf(
+        coords: Dict[str, np.ndarray], 
+        target_dir: str, 
+        prefix: str,
+        valid_pixels: np.ndarray = None):
+    """
+    Convert coordinates dictionary to netCDF format and save to disk.
+
+    Args:
+        coords : Dictionary containing coordinate arrays.
+        target_dir : The directory where the netCDF file will be saved.
+        prefix : The prefix for the output netCDF file.
+        valid_pixels : Optional array of indices for valid pixels to include.
+    """
+    # convert dict to xarray Dataset
     for k, v in coords.items():
         coords[k] = {'dims': ('pixelID'), 'data': v}
     coords['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(v.shape[0])}
@@ -185,11 +272,21 @@ def coords_to_netcdf(coords: Dict[str, np.ndarray],
     # save to disk
     save_netcdf_file(coords, osp.join(target_dir, f'{prefix}_coords.nc'))
 
-def coords_to_csv(coords: Dict[str, np.ndarray], 
-                  target_dir: str, 
-                  prefix: str,
-                  valid_pixels: np.ndarray = None):
-    # save coordinates to csv file
+def coords_to_csv(
+        coords: Dict[str, np.ndarray], 
+        target_dir: str, 
+        prefix: str,
+        valid_pixels: np.ndarray = None):
+    """
+    Convert coordinates dictionary to CSV format and save to disk.
+
+    Args:
+        coords : Dictionary containing coordinate arrays.
+        target_dir : The directory where the CSV file will be saved.
+        prefix : The prefix for the output CSV file.
+        valid_pixels : Optional array of indices for valid pixels to include.
+    """
+    # convert dict to pandas DataFrame
     df_coords = pd.DataFrame(coords)
     df_coords['pixelID'] = df_coords.index
 
@@ -197,18 +294,25 @@ def coords_to_csv(coords: Dict[str, np.ndarray],
     if valid_pixels is not None:
         df_coords = df_coords.iloc[valid_pixels]
 
-    save_path = osp.join(target_dir, f'{prefix}_coords.csv')
-    if os.path.isfile(save_path):
-        # remove existing file
-        os.remove(save_path)
-    df_coords.to_csv(save_path, index=False)
+    # save to disk
+    save_csv_file(df_coords, osp.join(target_dir, f'{prefix}_coords.csv'))
 
 
-def profile_data_to_netcdf(data: Dict[str, np.ndarray], 
-                           target_dir: str,
-                           prefix: str,
-                           valid_pixels: np.ndarray = None):
-    # convert dict to netcdf format
+def profile_data_to_netcdf(
+        data: Dict[str, np.ndarray], 
+        target_dir: str,
+        prefix: str,
+        valid_pixels: np.ndarray = None):
+    """
+    Convert profile data dictionary to netCDF format and save to disk.
+
+    Args:
+        data : Dictionary containing profile data arrays.
+        target_dir : The directory where the netCDF file will be saved.
+        prefix : The prefix for the output netCDF file.
+        valid_pixels : Optional array of indices for valid pixels to include.
+    """
+    # convert dict to xarray Dataset
     for k, v in data.items():
         data[k] = {'dims': ('pixelID', 'layerID'), 'data': v}
     data['pixelID'] = {'dims': ('pixelID'), 'data': np.arange(v.shape[0])}
@@ -222,13 +326,24 @@ def profile_data_to_netcdf(data: Dict[str, np.ndarray],
     # save to disk
     save_netcdf_file(data, osp.join(target_dir, f'{prefix}_profile_data.nc'))
 
-def profile_data_to_csv(data: Dict[str, np.ndarray], 
-                        target_dir: str, 
-                        prefix: str,
-                        valid_pixels: np.ndarray = None):
-    # save profile data to csv file
-    # saved in long format, i.e. data is flattened and layer/pixel info 
-    # is included in layerID and pixelID columns
+def profile_data_to_csv(
+        data: Dict[str, np.ndarray], 
+        target_dir: str, 
+        prefix: str,
+        valid_pixels: np.ndarray = None):
+    """
+    Convert profile data dictionary to CSV format and save to disk.
+
+    The dat ais saved in long format, i.e. data is flattened and 
+    layer/pixel info is included in layerID and pixelID columns.
+
+    Args:
+        data : Dictionary containing profile data arrays.
+        target_dir : The directory where the CSV file will be saved.
+        prefix : The prefix for the output CSV file.
+        valid_pixels : Optional array of indices for valid pixels to include.
+    """
+    # convert dict to pandas DataFrame
     df_profiles = pd.DataFrame()
 
     shape = None
@@ -251,18 +366,23 @@ def profile_data_to_csv(data: Dict[str, np.ndarray],
         df_profiles = df_profiles.reset_index(drop=True)
 
     # write to disk
-    save_path = osp.join(target_dir, f'{prefix}_profile_data.csv')
-    if os.path.isfile(save_path):
-        # remove existing file
-        os.remove(save_path)
-    df_profiles.to_csv(save_path, index=False)
+    save_csv_file(df_profiles, osp.join(target_dir, f'{prefix}_profile_data.csv'))
 
-def spectra_to_netcdf(data: Dict[str, np.ndarray], 
-                      target_dir: str, 
-                      prefix: str,
-                      valid_pixels: np.ndarray = None):
-    # convert dict to netcdf format
+def spectra_to_netcdf(
+        data: Dict[str, np.ndarray], 
+        target_dir: str, 
+        prefix: str,
+        valid_pixels: np.ndarray = None):
+    """
+    Convert spectral data dictionary to netCDF format and save to disk.
 
+    Args:
+        data : Dictionary containing spectral data arrays.
+        target_dir : The directory where the netCDF file will be saved.
+        prefix : The prefix for the output netCDF file.
+        valid_pixels : Optional array of indices for valid pixels to include.
+    """
+    # convert dict to xarray Dataset
     for k, v in data.items():
         if k == 'wavelength':
             data[k] = {'dims': ('wavelength'), 'data': v}
@@ -279,12 +399,23 @@ def spectra_to_netcdf(data: Dict[str, np.ndarray],
     # save to disk
     save_netcdf_file(data, osp.join(target_dir, f'{prefix}_spectra.nc'))
 
-def spectra_to_csv(data: Dict[str, np.ndarray], 
-                   target_dir: str, 
-                   prefix: str, 
-                   quantity: str,
-                   valid_pixels: np.ndarray = None):
-    # save spectra (only for the given quantity) to csv file
+def spectra_to_csv(
+        data: Dict[str, np.ndarray], 
+        target_dir: str, 
+        prefix: str, 
+        quantity: str,
+        valid_pixels: np.ndarray = None):
+    """
+    Convert spectral data dictionary to CSV format and save to disk.
+
+    Args:
+        data : Dictionary containing spectral data arrays.
+        target_dir : The directory where the CSV file will be saved.
+        prefix : The prefix for the output CSV file.
+        quantity : The name of the spectral quantity to save.
+        valid_pixels : Optional array of indices for valid pixels to include.
+    """
+    # convert dict to pandas DataFrame
     df_spectra = pd.DataFrame(data[quantity], columns=data['wavelength'])
     df_spectra['pixelID'] = df_spectra.index
 
@@ -293,38 +424,76 @@ def spectra_to_csv(data: Dict[str, np.ndarray],
         df_spectra = df_spectra[df_spectra['pixelID'].isin(valid_pixels)]
         df_spectra = df_spectra.reset_index(drop=True)
 
-    save_path = osp.join(target_dir, f'{prefix}_spectra.csv')
-    if os.path.isfile(save_path):
-        # remove existing file
-        os.remove(save_path)
-    df_spectra.to_csv(save_path, index=False)
+    # write to disk
+    save_csv_file(df_spectra, osp.join(target_dir, f'{prefix}_spectra.csv'))
 
-def load_pixel_data(data_dir: str,
-                      prefix: str,
-                      wl_range: Tuple[float, float],
-                      gas_names: List[str] = ['co2', 'ch4'],
-                      instrument: str = 'instr2_noise0',
-                      nmodes: int = 2,
-                     ):
-    # load pixel/surface properties that do not come as vertical profiles
+def load_pixel_data(
+        data_dir: str,
+        prefix: str,
+        wl_range: Tuple[float, float],
+        gas_names: List[str] = ['co2', 'ch4'],
+        instrument: str = 'instr2_noise0',
+        nmodes: int = 2):
+    """
+    Load pixel data from RemoTAP netCDF files.
+    
+    This includes geometry, surface properties and state variables 
+    that do not come as vertical profiles. 
+
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        wl_range : The wavelength range to consider (min, max).
+        gas_names : List of trace gases to include.
+        instrument : The instrument extension for the spectral data.
+        nmodes : Number of aerosol modes to consider.
+    Returns:
+        data : Dictionary containing pixel data arrays.
+    """
+    # load pixel properties that do not come as vertical profiles
     data = {}
     data.update(load_geometry(data_dir, prefix, instrument))
-    data.update(load_surface(data_dir, prefix, gas_names))
-    data.update(load_state_vars(data_dir, prefix, wl_range, gases=gas_names, nmodes=nmodes))
+    data.update(load_aux(data_dir, prefix, gas_names))
+    data.update(load_truth(data_dir, prefix, wl_range, 
+                                gases=gas_names, nmodes=nmodes))
 
     return data
 
-def load_profile_data(data_dir: str,
-                         prefix: str,
-                         gas_names: List[str] = ['co2', 'ch4'],
-                        ):
+def load_profile_data(
+        data_dir: str,
+        prefix: str,
+        gas_names: List[str] = ['co2', 'ch4']):
+    """
+    Load vertical profile data from RemoTAP netCDF files.
+
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        gas_names : List of trace gases to include.
+    Returns:
+        data : Dictionary containing vertical profile data arrays.
+    """
     # load vertical profiles of trace gases and meteo variables
     data = load_atmospheric_profiles(data_dir, prefix, gas_names)
 
     return data
 
 
-def load_geometry(data_dir: str, prefix: str, instrument: str = 'instr2_noise0'):
+def load_geometry(
+        data_dir: str, 
+        prefix: str, 
+        instrument: str = 'instr2_noise0'):
+    """
+    Load geometry data from RemoTAP netCDF files and compute relevant 
+    derived quantities such as the air mass factor.
+
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        instrument : The instrument extension for the spectral data.
+    Returns:
+        geom_dict : Dictionary containing geometry data arrays.
+    """
     # extract orbit geometry from measurement NetCDF file
     fname = f'{prefix}_{instrument}.nc'
     var_list = [
@@ -353,19 +522,47 @@ def load_geometry(data_dir: str, prefix: str, instrument: str = 'instr2_noise0')
     return geom_dict
 
 
-def load_coords(data_dir: str, prefix: str, instrument: str = 'instr2_noise0'):
+def load_coords(
+        data_dir: str, 
+        prefix: str, 
+        instrument: str = 'instr2_noise0'):
+    """
+    Load coordinate data from RemoTAP netCDF synthetic measurements file.
+
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        instrument : The instrument extension for the spectral data.
+
+    Returns:
+        coords : Dictionary containing coordinate data arrays.
+    """
     fname = f'{prefix}_{instrument}.nc'
     # extract datetime, longitude and latitude from netCDF file
     var_list = ['UTC_Date', 'Fracday', 'Julday', 'Lon', 'Lat']
-    ds = xr.open_dataset(osp.join(data_dir, fname))
+    ds = xr.load_dataset(osp.join(data_dir, fname))
     coords = {var: ds[var].data for var in var_list}
-    ds.close()
 
-    # TODO: convert UTC_Date (int) and Fracday (float) to datetime?
+    # TODO for real data: convert UTC_Date (int) and Fracday (float) to datetime
 
     return coords
         
-def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
+def load_aux(
+        data_dir: str, 
+        prefix: str, 
+        gas_names: List[str]):
+    """
+    Load auxiliary data such as surface properties and meteorological 
+    data from RemoTAP aux.nc file.
+    
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        gas_names : List of trace gases to include.
+
+    Returns:
+        surface_dict : Dictionary containing relevant data arrays.
+    """
     # extract surface properties and meteo data from netCDF file
     fname = f'{prefix}-aux.nc'
     var_list = ['surface_pressure_meteo', 
@@ -377,7 +574,7 @@ def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
                 'cirrus_fraction',
                 'tropopause_height',
                 'cloud_top_height_asl']
-    ds = xr.open_dataset(osp.join(data_dir, fname))
+    ds = xr.load_dataset(osp.join(data_dir, fname))
     surface_dict = {var: ds[var].data for var in var_list}
 
     if 'plev' in ds:
@@ -414,15 +611,26 @@ def load_surface(data_dir: str, prefix: str, gas_names: List[str]):
         surface_dict[f'log_{gas}_column_total'] = np.log(np.maximum(column_total, 1e-12))
         surface_dict[f'x{gas}'] = avg_mole_fraction
 
-    ds.close()
-
     return surface_dict
 
-def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
+def load_atmospheric_profiles(
+        data_dir: str, 
+        prefix: str, 
+        gas_names: List[str]):
+    """
+    Load vertical atmospheric profiles from RemoTAP aux.nc file.
+
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        gas_names : List of trace gases to include.
+    Returns:
+        atm_dict : Dictionary containing vertical profile data arrays.
+    """
     # extract vertical meteo profiles from netCDF file
     fname = f'{prefix}-aux.nc'
     var_list = ['specific_humidity', 'temperature']
-    ds = xr.open_dataset(osp.join(data_dir, fname))
+    ds = xr.load_dataset(osp.join(data_dir, fname))
     atm_dict = {var: ds[var].data for var in var_list}
     layers = {var: ds[var].data for var in ['hybrid_a', 'hybrid_b']}
 
@@ -447,26 +655,37 @@ def load_atmospheric_profiles(data_dir: str, prefix: str, gas_names: List[str]):
         atm_dict[f'MMR_{gas}'] = ds[f'MMR_{gas}'].data
 
     # convert MMR to total number of particles
-    # TODO: compute dvair as done in RemoTAP
+    # TODO: double check computation of dvair in RemoTAP
     # for gas in gas_names + ['h2o']:
     #     mol_mass_dry = constants.mass['dry_air']
     #     mol_mass_gas = constants.mass[gas]
     #     atm_dict[f'dvmol_{gas}'] = atm_dict[f'MMR_{gas}'] * dvair * mol_mass_dry / mol_mass_gas # in #/m^3
 
-
-    ds.close()
-
     return atm_dict
 
-def load_state_vars(data_dir: str, 
-                    prefix: str, 
-                    wl_range: Tuple[float, float], 
-                    gases: List[str] = ['co2', 'ch4'], 
-                    nmodes: int = 2):
+def load_truth(
+        data_dir: str, 
+        prefix: str, 
+        wl_range: Tuple[float, float], 
+        gases: List[str] = ['co2', 'ch4'], 
+        nmodes: int = 2):
+    """
+    Load ground truth state variables from RemoTAP truth.nc file.
+
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        wl_range : The wavelength range for the band of interest.
+        gases : List of trace gases to include.
+        nmodes : The number of aerosol modes.
+
+    Returns:
+        props : Dictionary containing ground truth state variables.
+    """
     
     # load ground truth state variables (aerosol and surface characteristics, etc) from netCDF file
     fname = f'{prefix}-truth.nc'
-    ds = xr.open_dataset(osp.join(data_dir, fname))
+    ds = xr.load_dataset(osp.join(data_dir, fname))
 
     print(f'Loading state variables from {osp.abspath(osp.join(data_dir, fname))}')
 
@@ -544,8 +763,6 @@ def load_state_vars(data_dir: str,
     props['B_pol'] = ds['Truth_Xbpdf'].data[:, 0]
     props['v_pol'] = ds['Truth_Xbpdf'].data[:, 3]
 
-    ds.close()
-
     # apply log-transform where applicable
     vars = props.keys()
     log_props = {}
@@ -557,16 +774,33 @@ def load_state_vars(data_dir: str,
     return props
 
 
-def load_spectra(data_dir: str, prefix: str, wl_range: str, 
-                 prefix_proxy: str = None,
-                 wavelength: bool = True,
-                 instrument: str = 'instr2_noise0',
-                 instrument_proxy: str = 'instr1_noise0'):
+def load_spectra(
+        data_dir: str, 
+        prefix: str, 
+        wl_range: str, 
+        prefix_proxy: str = None,
+        wavelength: bool = True,
+        instrument: str = 'instr2_noise0',
+        instrument_proxy: str = 'instr1_noise0'):
+    """
+    Load radiance spectra from RemoTAP netCDF synthetic measurement file
+    for a specified wavelength range.
+
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        wl_range : The wavelength range to consider (min, max).
+        prefix_proxy : Optional prefix for proxy radiances.
+        wavelength : Whether to include the wavelength array in the output.
+        instrument : The instrument extension for the spectral data.
+    Returns:
+        spectra : Dictionary containing spectral data.
+    """
 
     # load data from full-physics simulation
     fname = f'{prefix}_{instrument}.nc'
 
-    ds = xr.open_dataset(osp.join(data_dir, fname))
+    ds = xr.load_dataset(osp.join(data_dir, fname))
 
     # find indices of wavelengths in specified range
     wl = ds['Wavelength'].data
@@ -585,27 +819,37 @@ def load_spectra(data_dir: str, prefix: str, wl_range: str,
         # add data from non-scattering, transmission, or single-scattering simulation
         tr_fname = f'{prefix_proxy}_{instrument_proxy}.nc'
         if osp.exists(osp.join(data_dir, tr_fname)):
-            tr_spectra = xr.open_dataset(osp.join(data_dir, tr_fname))
+            tr_spectra = xr.load_dataset(osp.join(data_dir, tr_fname))
             # get prior spectra for specified wavelength range
             spectra['proxy'] = tr_spectra['Radiance'].data[:, 0, wl_idx]
         else:
             print(f'No proxy spectra found for {prefix_proxy}')
-
-    ds.close()
         
     return spectra
     
-def load_wavelengths(data_dir: str, prefix: str, 
-                     wl_range: Tuple[float, float], 
-                     instrument: str = 'instr2_noise0'):
+def load_wavelengths(
+        data_dir: str, 
+        prefix: str, 
+        wl_range: Tuple[float, float], 
+        instrument: str = 'instr2_noise0'):
+    """
+    Load wavelengths from RemoTAP netCDF synthetic measurement file 
+    for a specified wavelength range.
+
+    Args:
+        data_dir : The directory containing the RemoTAP netCDF files.
+        prefix : The prefix for the RemoTAP files.
+        wl_range : The wavelength range to consider (min, max).
+        instrument : The instrument extension for the spectral data.
+    Returns:
+        wl : Array of wavelengths within the specified range.
+    """
     # extract wavelengths of spectra from netCDF file
     fname = f'{prefix}_{instrument}.nc'
-    ds = xr.open_dataset(osp.join(data_dir, fname))
+    ds = xr.load_dataset(osp.join(data_dir, fname))
     wl = ds['wavelength'].data
 
     # select wavelength range
     wl = wl[wl >= wl_range[0] and wl <= wl_range[1]]
-
-    ds.close()
 
     return wl # shape: (nwave)

@@ -1,10 +1,8 @@
 import os
 import numpy as np
 import torch
-from torchvision.transforms import Compose
 from torch.optim.lr_scheduler import ChainedScheduler
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
 
 from typing import Callable, Union, List, Dict, Tuple, Optional
 from typing_extensions import TypeAlias
@@ -21,7 +19,7 @@ MAP_LOCATION: TypeAlias = Optional[
 ##################################################
 
 def s5_band_to_wl_range(band: str) -> Tuple[int, int]:
-    # get wavelength range for a given band
+    """Get wavelength range for a given band."""
     if band in ['NIR', '3']:
         wl_range = (745, 773)
     elif band in ['NIR1', '3a']:
@@ -37,7 +35,7 @@ def s5_band_to_wl_range(band: str) -> Tuple[int, int]:
     return wl_range
 
 def s5_band_to_iwin(band: str) -> int:
-    # get Fortran band ID for a given band
+    """Get Fortran band ID for a given band."""
     if band in ['NIR', '3']:
         band_id = 1
     elif band in ['SWIR1', '4']:
@@ -50,6 +48,7 @@ def s5_band_to_iwin(band: str) -> int:
     return band_id
 
 def s5_band_to_absorbers(band: str) -> List[str]:
+    """Get list of absorbers for a given band."""
     if band in ['NIR', 'NIR1', 'NIR2', '3', '3a', '3b']:
         absorbers = ['o2']
     elif band in ['SWIR1', '4']:
@@ -61,6 +60,7 @@ def s5_band_to_absorbers(band: str) -> List[str]:
     return absorbers
 
 def gas_to_hitran_index(gas: str) -> int:
+    """Get HITRAN index for a given gas."""
     gas2hitran = {
         'h2o': 1,
         'co2': 2,
@@ -71,6 +71,7 @@ def gas_to_hitran_index(gas: str) -> int:
     return gas2hitran[gas.lower()]
 
 def hitran_index_to_gas(index: int) -> str:
+    """Get gas name for a given HITRAN index."""
     hitran2gas = {
         1: 'h2o',
         2: 'co2',
@@ -85,6 +86,10 @@ def hitran_index_to_gas(index: int) -> str:
 ##################################################
 
 def azimuth_difference(azimuth_1: np.ndarray, azimuth_2: np.ndarray) -> np.ndarray:
+    """
+    Calculate the absolute difference between two azimuth angles, 
+    accounting for circularity.
+    """
     diff = np.abs(azimuth_1 - azimuth_2)
     diff = np.where(diff > 180, 360 - diff, diff)
     return diff
@@ -95,7 +100,23 @@ def total_column_amount(column_concentrations: np.ndarray,
                         a: np.ndarray = None,
                         b: np.ndarray = None,
                         ) -> np.ndarray:
-    # Note: either plev, or sp, a, b must be provided
+    """
+    Calculate the total column amount of a trace gas given its column 
+    concentrations and pressure levels.
+
+    Note that either plev, or sp, a, b must be provided. 
+    If plev is not provided, it will be calculated from surface pressure (sp) 
+    and coefficients a and b.
+
+    Args:
+        column_concentrations: Trace gas column concentrations [kg/kg] (shape: nobs, nlevels)
+        plev: Pressure levels [hPa] (shape: nobs, nlevels+1)
+        sp: Surface pressure [hPa] (shape: nobs)
+        a: Coefficient a for pressure level calculation (shape: nlevels+1)
+        b: Coefficient b for pressure level calculation (shape: nlevels+1)
+    Returns:
+        Total column amount of the trace gas [kg/m^2] (shape: nobs)
+    """
 
     if plev is None:
         # calculate pressure levels from surface pressure and coefficients a and b
@@ -117,7 +138,23 @@ def total_water(specific_humidity: np.ndarray,
                 a: np.ndarray = None,
                 b: np.ndarray = None,
                 ) -> np.ndarray:
-    # Note: either plev, or sp, a, b must be provided
+    """
+    Calculate the total precipitable water content given 
+    specific humidity and pressure levels.
+
+    Note that either plev, or sp, a, b must be provided.
+    If plev is not provided, it will be calculated from surface pressure (sp) 
+    and coefficients a and b.
+
+    Args:
+        specific_humidity: Specific humidity [kg/kg] (shape: nobs, nlevels)
+        plev: Pressure levels [hPa] (shape: nobs, nlevels+1)
+        sp: Surface pressure [hPa] (shape: nobs)
+        a: Coefficient a for pressure level calculation (shape: nlevels+1)
+        b: Coefficient b for pressure level calculation (shape: nlevels+1)
+    Returns:
+        Total precipitable water content [kg/m^2] (shape: nobs)
+    """
 
     if plev is None:
         # calculate pressure levels from surface pressure and coefficients a and b
@@ -136,7 +173,23 @@ def column_averaged_water(specific_humidity: np.ndarray,
                           a: np.ndarray = None,
                           b: np.ndarray = None,
                           ) -> np.ndarray:
-    # Note: either plev, or sp, a, b must be provided
+    """
+    Calculate the column-averaged specific humidity given 
+    specific humidity and pressure levels.
+
+    Note that either plev, or sp, a, b must be provided.
+    If plev is not provided, it will be calculated from surface pressure (sp) 
+    and coefficients a and b.
+
+    Args:
+        specific_humidity: Specific humidity [kg/kg] (shape: nobs, nlevels)
+        plev: Pressure levels [hPa] (shape: nobs, nlevels+1)
+        sp: Surface pressure [hPa] (shape: nobs)
+        a: Coefficient a for pressure level calculation (shape: nlevels+1)
+        b: Coefficient b for pressure level calculation (shape: nlevels+1)
+    Returns:
+        Column-averaged specific humidity [kg/kg] (shape: nobs)
+    """
 
     if plev is None:
         # calculate pressure levels from surface pressure and coefficients a and b
@@ -149,7 +202,7 @@ def column_averaged_water(specific_humidity: np.ndarray,
     return q_avg
 
 def specific_humididty_to_mmr(specific_humidity: np.ndarray) -> np.ndarray:
-    # convert specific humidity to mass mixing ratio
+    """Convert specific humidity to mass mixing ratio."""
     mmr = specific_humidity / (1 - specific_humidity)
     return mmr
 
@@ -160,11 +213,25 @@ def column_averaged_mole_fraction(column_mmr: np.ndarray,
                                   a: np.ndarray = None,
                                   b: np.ndarray = None,
                                   ) -> np.ndarray:
-    # calculate column-averaged mole fraction
-    # column_mmr: mass mixing ratio in kg/kg (shape: nobs, nlevels)
-    # return: column-averaged mole fraction in mol/mol (shape: nobs)
+    """
+    Calculate the column-averaged mole fraction given 
+    mass mixing ratio and pressure levels.
 
-    # Note: either plev, or sp, a, b must be provided
+    Note that either plev, or sp, a, b must be provided.
+    If plev is not provided, it will be calculated from surface pressure (sp) 
+    and coefficients a and b.
+
+    Args:
+        column_mmr: Mass mixing ratio in kg/kg (shape: nobs, nlevels)
+        gas: Name of the trace gas
+        plev: Pressure levels [hPa] (shape: nobs, nlevels+1)
+        sp: Surface pressure [hPa] (shape: nobs)
+        a: Coefficient a for pressure level calculation (shape: nlevels+1)
+        b: Coefficient b for pressure level calculation (shape: nlevels+1)
+    Returns:
+        Column-averaged mole fraction in mol/mol (shape: nobs)
+    """
+
     if plev is None:
         # calculate pressure levels from surface pressure and coefficients a and b
         plev = pressure_half_levels(sp, a, b)
@@ -191,7 +258,22 @@ def column_averaged_amount(column_concentrations: np.ndarray,
                            a: np.ndarray = None,
                            b: np.ndarray = None,
                            ) -> np.ndarray:
-    # Note: either plev, or sp, a, b must be provided
+    """
+    Calculate the column-averaged amount of a trace gas given its concentrations and pressure levels.
+
+    Note that either plev, or sp, a, b must be provided.
+    If plev is not provided, it will be calculated from surface pressure (sp) 
+    and coefficients a and b.
+
+    Args:
+        column_concentrations: Concentrations of the trace gas (shape: nobs, nlevels)
+        plev: Pressure levels [hPa] (shape: nobs, nlevels+1)
+        sp: Surface pressure [hPa] (shape: nobs)
+        a: Coefficient a for pressure level calculation (shape: nlevels+1)
+        b: Coefficient b for pressure level calculation (shape: nlevels+1)
+    Returns:
+        Column-averaged amount of the trace gas (shape: nobs)
+    """
 
     if plev is None:
         # calculate pressure levels from surface pressure and coefficients a and b
@@ -207,19 +289,31 @@ def column_averaged_amount(column_concentrations: np.ndarray,
     return gas_avg
 
 def pressure_half_levels(sp: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    # calculate pressure levels from surface pressure and coefficients a and b
-    # sp: surface pressure in hPa (shape: nobs)
-    # a: coefficient a (shape: nlayers+1)
-    # b: coefficient b (shape: nlayers+1)
+    """
+    Calculate pressure half-levels from surface pressure and coefficients a and b.
+
+    Args:
+        sp: Surface pressure in hPa (shape: nobs)
+        a: Coefficient a (shape: nlayers+1)
+        b: Coefficient b (shape: nlayers+1)
+    Returns:
+        Pressure half-levels in hPa (shape: nobs, nlayers+1)
+    """
     plev = np.expand_dims(a, axis=0) + np.expand_dims(b, axis=0) * np.expand_dims(sp, axis=-1)
 
     return plev # shape: (nobs, nlayers+1)
 
 def pressure_layer_midpoints(sp: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    # calculate pressure layer midpoints from surface pressure and coefficients a and b
-    # sp: surface pressure in hPa (shape: nobs)
-    # a: coefficient a (shape: nlayers+1)
-    # b: coefficient b (shape: nlayers+1)
+    """
+    Calculate pressure layer midpoints from surface pressure and coefficients a and b.
+
+    Args:
+        sp: Surface pressure in hPa (shape: nobs)
+        a: Coefficient a (shape: nlayers+1)
+        b: Coefficient b (shape: nlayers+1)
+    Returns:
+        Pressure layer midpoints in hPa (shape: nobs, nlayers)
+    """ 
     plev = np.expand_dims(a, axis=0) + np.expand_dims(b, axis=0) * np.expand_dims(sp, axis=-1)
 
     # from half-levels to full layers
@@ -227,13 +321,19 @@ def pressure_layer_midpoints(sp: np.ndarray, a: np.ndarray, b: np.ndarray) -> np
     return p_mid # shape: (nobs, nlayers)
 
 def pressure_half_levels_to_midpoints(plev: np.ndarray) -> np.ndarray:
-    # convert pressure half-levels to layer midpoints
+    """Convert pressure half-levels to layer midpoints"""
     p_mid = 0.5 * (plev[:, :-1] + plev[:, 1:])
     return p_mid
 
 def air_column(p: np.ndarray) -> np.ndarray:
-    # calculate air column above each pressure level
-    # p: pressure levels in hPa (shape: nobs, nlevels)
+    """
+    Calculate the total air column above each pressure level.
+
+    Args:
+        p: Pressure levels in hPa (shape: nobs, nlevels)
+    Returns:
+        Total air column above each pressure level in mol/m^2 (shape: nobs, nlevels)
+    """
     n_a = constants["avogadro"]
     m_air = constants["mass"]["dry_air"]
     g = constants["gravity"]
@@ -242,16 +342,30 @@ def air_column(p: np.ndarray) -> np.ndarray:
     return vc_air
 
 def global_to_profile(data: np.ndarray, nlevels: int) -> np.ndarray:
-    # convert global data to profile data by repeating vertically
-    # data: global data (shape: nobs)
-    # nlevels: number of vertical levels
+    """
+    Convert global data to profile data by repeating vertically.
+
+    Args:
+        data: Global data (shape: nobs)
+        nlevels: Number of vertical levels
+    Returns:
+        Profile data (shape: nobs, nlevels)
+    """
     profile = np.expand_dims(data, axis=-1)
     profile = np.tile(profile, (1, nlevels))
 
     return profile
 
 def mmr_to_ppm(mmr: np.ndarray, gas: str) -> np.ndarray:
-    # convert mass mixing ratio to parts per million (ppm)
+    """
+    Convert mass mixing ratio to parts per million (ppm).
+
+    Args:
+        mmr: Mass mixing ratio (shape: nobs)
+        gas: Name of the gas
+    Returns:
+        Parts per million (ppm) (shape: nobs)
+    """
     m_air = constants["mass"]["dry_air"]
     m_gas = constants["mass"][gas]
     concentration = mmr * m_air / m_gas
@@ -260,176 +374,18 @@ def mmr_to_ppm(mmr: np.ndarray, gas: str) -> np.ndarray:
     return concentration
 
 def dry_mmr_to_wet_mmr(dry_xh2o: np.ndarray) -> np.ndarray:
+    """
+    Convert dry mass mixing ratio of H2O to moist mass mixing ratio 
+    (i.e. specific humidity).
+
+    Args:
+        dry_xh2o: Dry mass mixing ratio of H2O (shape: nobs)
+    Returns:
+        Specific humidity (shape: nobs)
+    """
     # convert dry MMR of H2O to moist MMR (i.e. specific humidity)
     specific_humidity = dry_xh2o / (1 + dry_xh2o)
     return specific_humidity
-
-
-# ##################################################
-# # torch transforms
-# ##################################################
-
-# class RTMTransform:
-#     def __init__(self):
-#         pass
-
-#     def __call__(self, data: Union[np.ndarray, torch.Tensor], **kwargs) -> torch.Tensor:
-#         # apply some transformation to data
-#         raise NotImplementedError
-    
-#     def inverse(self, data: torch.Tensor) -> Union[np.ndarray, torch.Tensor]:
-#         # reverse the transformation
-#         raise NotImplementedError
-    
-# class RTMCompose(RTMTransform):
-#     def __init__(self, transforms: List[RTMTransform]):
-#         self.transforms = transforms
-
-#     def __call__(self, data: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
-#         for transform in self.transforms:
-#             data = transform(data)
-#         return data
-    
-#     def inverse(self, data: torch.Tensor) -> Union[np.ndarray, torch.Tensor]:
-#         for transform in reversed(self.transforms):
-#             data = transform.inverse(data)
-#         return data
-    
-#     def __repr__(self):
-#         return f'RTMCompose({self.transforms})'
-
-# class NumpyToTensor(RTMTransform):
-#     def __init__(self):
-#         super().__init__()
-
-#     def __call__(self, data: np.ndarray) -> torch.Tensor:
-#         # convert numpy array to tensor, inheriting the dtype
-#         return torch.from_numpy(data)
-    
-#     def inverse(self, data: torch.Tensor) -> np.ndarray:
-#         # convert tensor back to numpy
-#         return data.detach().cpu().numpy()
-    
-#     def __repr__(self):
-#         return 'NumpyToTensor()'
-    
-# class DoubleToFloat(RTMTransform):
-#     def __init__(self):
-#         super().__init__()
-
-#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
-#         # convert to float32 tensor
-#         return data.to(torch.float)
-    
-#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-#         return data.to(torch.double)
-    
-#     def __repr__(self):
-#         return 'DoubleToFloat()'
-    
-# class Normalize(RTMTransform):
-#     def __init__(self, mean: torch.Tensor, std: torch.Tensor):
-#         super().__init__()
-#         self.mean = mean
-#         self.std = std
-
-
-#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
-#         # standardize to zero mean and unit variance
-#         normalized = (data - self.mean.to(data.device)) / self.std.to(data.device)
-#         return normalized
-
-    
-#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-#         # reverse standardization
-#         denormalized = data * self.std.to(data.device) + self.mean.to(data.device)
-#         return denormalized
-    
-#     def __repr__(self):
-#         return f'Normalize(mean={self.mean}, std={self.std})'
-
-# class LogTransform(RTMTransform):
-#     def __init__(self):
-#         super().__init__()
-
-#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
-#         return torch.log(data)
-    
-#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-#         return torch.exp(data)
-    
-#     def __repr__(self):
-#         return 'LogTransform()'
-    
-# class FourierTransform(RTMTransform):
-#     def __init__(self):
-#         super().__init__()
-
-#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
-#         return torch.fft.fft(data)
-    
-#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-#         return torch.fft.ifft(data)
-    
-#     def __repr__(self):
-#         return 'FourierTransform()'
-    
-# class FTransform(RTMTransform):
-#     def __init__(self, f: Callable, f_inv: Callable):
-#         self.f = f
-#         self.f_inf = f_inv
-
-#     def __call__(self, data: torch.Tensor) -> torch.Tensor:
-#         # apply custom function f to data
-#         return self.f(data)
-    
-#     def inverse(self, data: torch.Tensor) -> torch.Tensor:
-#         # reverse custom function f
-#         return self.f_inv(data)
-    
-#     def __repr__(self):
-#         return f'FTransform(f={self.f}, f_inv={self.f_inv})'
-    
-    
-# def normalization(stats: Dict[str, Union[np.ndarray, torch.Tensor]]) -> Callable:
-#     mean = stats['mean']
-#     std = stats['std']
-
-#     if isinstance(mean, np.ndarray):
-#         mean = torch.from_numpy(mean.copy())
-#     if isinstance(std, np.ndarray):
-#         std = torch.from_numpy(std.copy())
-
-#     if isinstance(mean, (float, np.floating)):
-#         mean = torch.tensor(mean)
-#     if isinstance(std, (float, np.floating)):
-#         std = torch.tensor(std)
-
-#     # if no variation, replace with 1 to avoid division by zero
-#     std = torch.where(std==0, torch.ones_like(std), std)
-
-#     transform = Normalize(mean, std)
-
-#     return transform
-
-
-# def load_transforms(dir: str, types=['pixel', 'profile', 'target', 'proxy']):
-#     transforms = []
-#     for t in types:
-#         fname = os.path.join(dir, f'{t}_transform.pt')
-#         if os.path.isfile(fname):
-#             transf = torch.load(fname)
-#             transforms.append(transf)
-#         else:
-#             transforms.append(None)
-#     return transforms
-
-# def save_transforms(transforms, dir: str, types=['pixel', 'profile', 'target', 'proxy']):
-#     assert len(transforms) == len(types)
-#     for i, t in enumerate(types):
-#         fname = os.path.join(dir, f'{t}_transform.pt')
-#         torch.save(transforms[i], fname)
-            
 
 
 
@@ -438,31 +394,31 @@ def dry_mmr_to_wet_mmr(dry_xh2o: np.ndarray) -> np.ndarray:
 ##################################################
 
 def mape(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # mean absolute percentage error [%]
+    """Mean absolute percentage error [%]"""
     return 100 * np.mean(np.abs((outputs - targets) / targets), **kwargs)
 
 def mape_continuum(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # mean absolute percentage error [%] w.r.t continuum
+    """Mean absolute percentage error [%] w.r.t continuum"""
     return 100 * np.mean(np.abs((outputs - targets) / targets.max(1, keepdims=True)), **kwargs)
 
 def mse(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # mean-squared error
+    """Mean-squared error"""
     return np.mean((outputs - targets) ** 2, **kwargs)
 
 def mae(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # mean absolute error
-    return np.mean(np.abs(outputs - targets), **kwargs) 
+    """Mean absolute error"""
+    return np.mean(np.abs(outputs - targets), **kwargs)
 
 def fvu(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # fraction of variance unexplained [%]
+    """Fraction of variance unexplained [%]"""
     return 100 * mse(targets, outputs, **kwargs) / np.var(targets, **kwargs)
 
 def rmse(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # root-mean-squared error
+    """Root-mean-squared error"""
     return np.sqrt(mse(outputs, targets, **kwargs))
 
 def rmse_continuum(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # root-mean-squared error w.r.t continuum
+    """Root-mean-squared error w.r.t continuum"""
     mse_continuum = np.mean(((outputs - targets) / targets.max(1, keepdims=True)) ** 2, **kwargs)
     rmse_continuum = 100 * np.sqrt(mse_continuum)
     return rmse_continuum
@@ -471,7 +427,7 @@ def nrmse(outputs: np.ndarray,
           targets: np.ndarray, 
           z: np.ndarray = None,
           **kwargs) -> np.ndarray:
-    # spectral normalized root-mean-squared error [%] (Servera et al., 2021)
+    """Spectral normalized root-mean-squared error [%] (Servera et al., 2021)"""
     if z is None:
         # separate value for each wavelength
         max_target = targets.max(**kwargs)
@@ -480,20 +436,20 @@ def nrmse(outputs: np.ndarray,
     return 100 * rmse(outputs, targets, **kwargs) / z
 
 def smape(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # symmetric mean absolute percentage error [%]
+    """Symmetric mean absolute percentage error [%]"""
     fracs = np.abs(outputs - targets) / (np.abs(outputs) + np.abs(targets))
     fracs = np.where(np.isnan(fracs), np.zeros_like(fracs), fracs)
     return 100 * np.mean(fracs, **kwargs)
 
 def bias(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # bias, i.e. mean error
+    """Bias, i.e. mean error"""
     return np.mean(outputs - targets, **kwargs)
 
 def relative_bias(outputs: np.ndarray, 
                   targets: np.ndarray, 
                   z: np.ndarray = None, 
                   **kwargs) -> np.ndarray:
-    # relative bias, i.e. mean percentage error [%]
+    """Relative bias, i.e. mean percentage error [%]"""
     if z is None:
         z = targets
     return 100 * np.mean((outputs - targets) / z, **kwargs)
@@ -502,7 +458,7 @@ def relative_rmse(outputs: np.ndarray,
                   targets: np.ndarray, 
                   z: np.ndarray = None,
                   **kwargs) -> np.ndarray:
-    # root-mean-squared error w.r.t some reference z
+    """Relative root-mean-squared error w.r.t some reference z"""
     if z is None:
         z = targets
     mse = np.mean(((outputs - targets) / z) ** 2, **kwargs)
@@ -510,7 +466,7 @@ def relative_rmse(outputs: np.ndarray,
     return rmse
 
 def r2_score(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
-    # coefficient of determination [%]
+    """Coefficient of determination [%]"""
     ss_res = np.sum((targets - outputs) ** 2, **kwargs)
     ss_tot = np.sum((targets - np.mean(targets, **kwargs)) ** 2, **kwargs)
     return 100 * (1 - ss_res / ss_tot)
@@ -570,6 +526,16 @@ def get_lr_scale(module: torch.nn.Module):
 ##################################################
 
 class LRDampenedCosine:
+    """
+    Dampened cosine learning rate scheduler with exponential decay.
+
+    Args:
+        lr_min: Minimum learning rate.
+        lr_max: Maximum learning rate.
+        T_max: Number of epochs for one cosine cycle.
+        gamma: Exponential decay factor.
+        gamma_interval: Number of epochs between each decay step.
+    """
     def __init__(self, lr_min=0.0, lr_max=1.0, T_max=10, gamma=0.95, gamma_interval=1):
         self.lr_min = lr_min
         self.lr_max = lr_max
@@ -584,14 +550,12 @@ class LRDampenedCosine:
 
         return lr_out
     
-class test_lr_func:
-    def __init__(self):
-        pass
-    
-    def __call__(self, epoch):
-        return 10
-    
 class CustomChainedScheduler(ChainedScheduler):
+    """
+    ChainedScheduler that allows for partially defined schedulers to be passed in.
+    This is useful for schedulers that require an optimizer to be passed in,
+    but the optimizer is not yet defined at the time of scheduler creation.
+    """
     def __init__(self, optimizer, schedulers, **kwargs):
 
         # initialize partially defined lr schedulers
@@ -605,7 +569,7 @@ class CustomChainedScheduler(ChainedScheduler):
 ##################################################
 
 def load_model_from_hydra_config(hydra_config: Dict) -> torch.nn.Module:
-    # load model from hydra config
+    """Load model from hydra config"""
     model = instantiate(hydra_config['model'])
     transforms = instantiate(hydra_config['transforms'])
     model.transforms = transforms
@@ -613,7 +577,7 @@ def load_model_from_hydra_config(hydra_config: Dict) -> torch.nn.Module:
     return model
 
 def load_model_from_checkpoint(checkpoint: Dict, map_location: MAP_LOCATION = None) -> torch.nn.Module:
-    # load model from checkpoint
+    """Load model from checkpoint"""
     model = load_model_from_hydra_config(checkpoint['hydra_config'])
     model.load_model_state(checkpoint, map_location=map_location)
 

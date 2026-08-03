@@ -4,12 +4,26 @@ from typing import Union, Tuple, Optional, Dict
 from torch.fx.experimental.proxy_tensor import make_fx
 
 """
-This is a collection of functions to create, save, and load TorchScripts from trained PyTorch models
+This is a collection of functions to create, save, and load TorchScripts 
+from trained PyTorch models
 """
 
 def script_model(
         model: torch.nn.Module, 
         device_type='cpu') -> torch.jit.ScriptModule:
+    """
+    Script a PyTorch model using torch.jit.script and return a TorchScript model.
+
+    Note that this does not work for certain models that use dynamic control flow 
+    or other features that are not compatible with scripting.
+    In such cases, use tracing instead.
+
+    Args:
+        model: The PyTorch model to be scripted.
+        device_type: The device type to use for scripting ('cpu' or 'cuda').
+    Returns:
+        A TorchScript model obtained by scripting the original model.
+    """
     
     # move model to device
     device = torch.device(device_type)
@@ -23,10 +37,25 @@ def script_model(
 
     return scripted_model
 
-def trace_model(model: torch.nn.Module,
-                dummy_input: Union[torch.Tensor, Tuple[torch.Tensor], Dict[str, torch.Tensor]],
-                check_tolerance: Optional[float] = 1e-5,
-                device_type='cpu') -> torch.jit.ScriptModule:
+def trace_model(
+        model: torch.nn.Module,
+        dummy_input: Union[torch.Tensor, Tuple[torch.Tensor], Dict[str, torch.Tensor]],
+        check_tolerance: Optional[float] = 1e-5,
+        device_type='cpu') -> torch.jit.ScriptModule:
+    """
+    Trace a PyTorch model using torch.jit.trace and return a TorchScript model.
+
+    Note that this only includes operations that are executed during the forward 
+    pass with the provided dummy input. 
+
+    Args:
+        model: The PyTorch model to be traced.
+        dummy_input: A sample input tensor (or tuple/dict of tensors) to the model.
+        check_tolerance: Tolerance for checking the traced model against the original model.
+        device_type: The device type to use for tracing ('cpu' or 'cuda').
+    Returns:
+        A TorchScript model obtained by tracing the original model.
+    """
     
     # move model to device
     device = torch.device(device_type)
@@ -75,6 +104,9 @@ def script_model_and_save(
         model: torch.nn.Module, 
         filepath: str, 
         device_type='cpu'):
+    """
+    Script a PyTorch model and save it to a file.
+    """
 
     # convert model to TorchScript using scripting
     scripted_model = script_model(model, device_type)
@@ -89,6 +121,9 @@ def trace_model_and_save(
         filepath: str,
         check_tolerance: Optional[float] = 1e-5,
         device_type='cpu'):
+    """
+    Trace a PyTorch model and save it to a file.
+    """
     
     traced_model = trace_model(model, dummy_input, check_tolerance, device_type)
 

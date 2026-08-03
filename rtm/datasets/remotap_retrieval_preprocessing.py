@@ -7,20 +7,37 @@ import warnings
 from rtm import utils
 
 
-def save_netcdf_file(data: xr.Dataset, save_path: str):
+def save_netcdf_file(
+        data: xr.Dataset, 
+        save_path: str):
+    """
+    Save xarray Dataset to NetCDF file, removing existing file if it exists.
+    """
     if os.path.isfile(save_path):
         # remove existing file
         os.remove(save_path)
     data.to_netcdf(save_path, format='NETCDF4')
     data.close()
 
-def prepare_data(target_dir: str,
-                 data_dir: str,
-                 prefix: str = 'remotap_retrieval',
-                 iwin: int = 1,
-                 npix: int = 1000,
-                 max_chi2: float = 10000.0,
-                ):
+def prepare_data(
+        target_dir: str,
+        data_dir: str,
+        prefix: str = 'remotap_retrieval',
+        iwin: int = 1,
+        npix: int = 1000,
+        max_chi2: float = 10000.0):
+    """
+    Prepare data for training/finetuning surrogate RTM from retrieval results,
+    and save processed data to disk in NetCDF format. 
+
+    Args:
+        target_dir: Directory to save processed data to.
+        data_dir: Directory containing retrieval results.
+        prefix: Prefix for RemoTAP output files.
+        iwin: Retrieval window index.
+        npix: Number of pixels to process.
+        max_chi2: Maximum chi-squared value for filtering valid retrievals.
+    """
     
     os.makedirs(target_dir, exist_ok=True)
 
@@ -60,7 +77,22 @@ def prepare_data(target_dir: str,
     save_netcdf_file(jacobian_data, osp.join(target_dir, f'{prefix}_jacobians.nc'))
 
 
-def load_retrieval_data(data_dir: str, iwin: int, ipix_min: int = 0, ipix_max: int = 1000) -> xr.Dataset:
+def load_retrieval_data(
+        data_dir: str, 
+        iwin: int, 
+        ipix_min: int = 0, 
+        ipix_max: int = 1000) -> xr.Dataset:
+    """
+    Load retrieval data from RemoTAP output files for a given window and pixel range.
+
+    Args:
+        data_dir: Directory containing retrieval results.
+        iwin: Retrieval window index.
+        ipix_min: Minimum pixel index to load (inclusive).
+        ipix_max: Maximum pixel index to load (exclusive).
+    Returns:
+        ds_ret: xr.Dataset containing retrieval data for the specified pixel range.
+    """
     ds_list = []
     for i in range(ipix_min, ipix_max):
         fp = f'{data_dir}/pix_{i+1:>05}_win_{iwin:02}.nc'
@@ -68,18 +100,38 @@ def load_retrieval_data(data_dir: str, iwin: int, ipix_min: int = 0, ipix_max: i
             continue
         ds_list.append(xr.load_dataset(fp))
 
-    return xr.concat(ds_list, dim='npix')
+    ds_ret = xr.concat(ds_list, dim='npix')
 
-def filter_data(ret_data: xr.Dataset, max_chi2: float = 10000) -> np.ndarray:
+    return ds_ret
+
+def filter_data(
+        ret_data: xr.Dataset, 
+        max_chi2: float = 10000) -> np.ndarray:
+    """
+    Filter retrieval data based on chi-squared values.
+    """
     # get valid retrieval iterations
     chi2 = ret_data.chi2.values # (npix, nitr)
     valid = (chi2 > 0) & (chi2 < max_chi2)
 
-    print(f'Number of valid retrieval iterations: {np.sum(valid)} ({np.sum(valid)/valid.size*100:.1f}%)')
+    print(f'Number of valid retrieval iterations: ' + \
+          f'{np.sum(valid)} ({np.sum(valid)/valid.size*100:.1f}%)')
 
     return valid
 
-def prepare_spectra(ret_data: xr.Dataset, valid: np.ndarray) -> xr.Dataset:
+def prepare_spectra(
+        ret_data: xr.Dataset, 
+        valid: np.ndarray) -> xr.Dataset:
+    """
+    Prepare target and proxy spectra for valid retrieval iterations 
+    and combine into a single xarray Dataset.
+
+    Args:
+        ret_data: xarray Dataset containing retrieval data.
+        valid: Boolean array indicating valid retrieval iterations.
+    Returns:
+        ds_spectra: xr.Dataset containing target and proxy spectra for valid iterations.
+    """
     # get target spectra for valid iterations
     y_target = ret_data.radiance_ms.values # (npix, nwave, nitr)
     y_target = y_target.transpose(0, 2, 1) # (npix, nitr, nwave)
@@ -108,6 +160,9 @@ def prepare_spectra(ret_data: xr.Dataset, valid: np.ndarray) -> xr.Dataset:
     return ds_spectra
 
 def get_feature_names(ret_data: xr.Dataset) -> list:
+    """
+    Get pixel feature names from retrieval data attributes, replacing HITRAN indices with gas names.
+    """
     # get pixel feature names from attribute "n_in_varnames" (comma-separated string)
     feature_names = ret_data.attrs['n_in_varnames'].split(',') # list of strings
 
@@ -125,7 +180,12 @@ def get_feature_names(ret_data: xr.Dataset) -> list:
 
     return feature_names
 
-def prepare_pixel_data(ret_data: xr.Dataset, valid: np.ndarray) -> xr.Dataset:
+def prepare_pixel_data(
+        ret_data: xr.Dataset, 
+        valid: np.ndarray) -> xr.Dataset:
+    """
+    Prepare pixel features for valid retrieval iterations and combine into a single xarray Dataset.
+    """
     # get pixel features for valid iterations
     x_in = ret_data.nn_x_in.values # (npix, nfeatures, nitr)
     x_in = x_in.transpose(0, 2, 1) # (npix, nitr, nfeatures)
@@ -142,7 +202,13 @@ def prepare_pixel_data(ret_data: xr.Dataset, valid: np.ndarray) -> xr.Dataset:
 
     return ds_pixel_data
 
-def prepare_jacobians(ret_data: xr.Dataset, valid: np.ndarray) -> xr.Dataset:
+def prepare_jacobians(
+        ret_data: xr.Dataset, 
+        valid: np.ndarray) -> xr.Dataset:
+    """
+    Prepare target and proxy jacobians for valid retrieval iterations and 
+    combine into a single xarray Dataset.
+    """
     # get target derivatives for valid iterations
     dy_target = ret_data.kmat.values # (npix, nfeatures, nwave, nitr)
     dy_target = dy_target.transpose(0, 3, 2, 1) # (npix, nitr, nwave, nfeatures)
