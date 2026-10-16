@@ -72,6 +72,7 @@ class SurrogateRTMWrapper(pl.LightningModule):
         outputs = self.forward(inputs,
                                proxy_targets=proxy_targets,
                                profile_inputs=profile_inputs,
+                               targets=targets, # only for debugging purposes
                                train=False)
         
         # make sure that targets are final radiances
@@ -148,6 +149,7 @@ class SurrogateRTMWrapper(pl.LightningModule):
         outputs = self.forward(inputs,
                                proxy_targets=proxy_targets,
                                profile_inputs=profile_inputs,
+                               targets=targets, # only for debugging purposes
                                train=False)
         
         # make sure that targets are final radiances
@@ -347,6 +349,7 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
     def eval_step(self, batch, split) -> torch.Tensor:
 
         inputs = batch['inputs']
+        targets = batch['targets']
         proxy_targets = batch.get('proxy_targets', None)
         profile_inputs = batch.get('profile_inputs', None)
         # measurement_noise = batch.get('noise', None)
@@ -355,10 +358,11 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
         outputs = self.forward(inputs,
                                proxy_targets=proxy_targets,
                                profile_inputs=profile_inputs,
+                               targets=targets, # only for debugging purposes
                                train=True)
 
         # compute loss function
-        targets = self.forward_model.transform_targets(batch['targets'])
+        targets = self.forward_model.transform_targets(targets)
 
         if self.use_variance_loss_weights:
             weights = 1 / targets.std(dim=0)**2
@@ -432,15 +436,19 @@ class NNSurrogateRTMWrapper(SurrogateRTMWrapper):
             if split == 'train':
                 self.train()
 
+        # compute the absolute bias as additional metric and log it
+        abs_bias = torch.abs((outputs - targets).mean())
+        self.log_loss(abs_bias, 'abs_bias', split)
+
         return loss
     
     def log_loss(self, loss, loss_name, split):
         # log loss term and its logarithm
-        self.log(f'{split}/{loss_name}', loss, on_epoch=True, 
+        self.log(f'{split}/{loss_name}', loss.detach(), on_epoch=True, 
                     on_step=(True if split == 'train' else False),
                     prog_bar=(True if split == 'train' else False), 
                     logger=True, sync_dist=True)
-        self.log(f'{split}/log_{loss_name}', torch.log(loss), on_epoch=True, 
+        self.log(f'{split}/log_{loss_name}', torch.log(loss.detach()), on_epoch=True, 
                     on_step=(True if split == 'train' else False),
                     prog_bar=(True if split == 'train' else False), 
                     logger=True, sync_dist=True)
@@ -991,7 +999,7 @@ class NNForwardModel(torch.nn.Module):
     """
     Base class for neural network forward models
     """
-    def __init__(self, proxy_operation: Optional[str] = None):
+    def __init__(self, proxy_operation: Optional[str] = None, **kwargs):
         super().__init__()
 
         # operation used to combine neural network output with proxy targets
@@ -1118,6 +1126,7 @@ class NNForwardModel(torch.nn.Module):
                 train: Optional[bool] = False,
                 normalized_inputs: Optional[bool] = False,
                 combine_with_proxy: Optional[bool] = True,
+                targets: Optional[torch.Tensor] = None,
                 ) -> torch.Tensor:
         """Run neural network forward model"""
         raise NotImplementedError
@@ -1383,6 +1392,27 @@ class LatentNNForwardModel(NNForwardModel):
         self.encoder = encoder
         self.decoder = decoder
 
+        self.test_decoder_only = kwargs.get('test_decoder_only', False)
+
+        # by default, train in spectral space
+        self.train_in_latent_space = False
+        if isinstance(self.decoder, layers.PCADecoder):
+            if kwargs.get('train_in_latent_space', False):
+                # train the NN on the PCA components, instead of the reconstructed spectra
+                self.train_in_latent_space = True
+
+    def transform_targets(self, targets):
+        # apply target transform if applicable
+        if self.target_transform is not None:
+            targets = self.target_transform(targets)
+
+        if self.train_in_latent_space:
+            # apply PCA transform to targets for training
+            targets = self.decoder.decode_inv(targets)
+
+        return targets
+
+
     def forward(self, 
                 inputs: torch.Tensor,
                 proxy_targets: Optional[torch.Tensor] = None,
@@ -1390,6 +1420,7 @@ class LatentNNForwardModel(NNForwardModel):
                 train: Optional[bool] = False,
                 normalized_inputs: Optional[bool] = False,
                 combine_with_proxy: Optional[bool] = True,
+                targets: Optional[torch.Tensor] = None,
                 ) -> torch.Tensor:
         # predicts radiance spectrum from input features, and optionally proxy spectra
 
@@ -1425,10 +1456,20 @@ class LatentNNForwardModel(NNForwardModel):
         # Run core part of the NN forward model
         outputs = self.core_nn(inputs)
 
-        if self.decoder is not None:
-            outputs = self.decoder.decode(outputs)
+        if self.test_decoder_only and targets is not None \
+           and isinstance(self.decoder, layers.PCADecoder):
+ 
+            # simple decode encoded targets
+            targets_transf = self.target_transform(targets)
+            outputs = self.decoder.decode_inv(targets_transf)
 
-        # undo any transforms and normalization, 
+        if self.decoder is not None:
+            if (not self.train_in_latent_space) or (not train):
+                # only apply decoder if training happens in spectral space,
+                # or in eval mode
+                outputs = self.decoder.decode(outputs)
+
+        # undo any transforms and normalization (only in eval mode), 
         # and combine with proxy targets if applicable
         outputs = self.prepare_outputs(outputs, proxy_targets, train, combine_with_proxy)
 
@@ -1475,6 +1516,7 @@ class SequenceNNForwardModel(NNForwardModel):
                 train: Optional[bool] = False,
                 normalized_inputs: Optional[bool] = False,
                 combine_with_proxy: Optional[bool] = True,
+                **kwargs
                 ) -> torch.Tensor:
         
         if inputs.dim() == 1:
@@ -2051,6 +2093,109 @@ class ResNet1D(torch.nn.Module):
                                    kernel_size=kernel_size, stride=stride,
                                    nonlinearity=nonlinearity, 
                                    dropout_p=self.dropout_p)
+                                   for i in range(n_layers)
+        ])
+        n_channels_final = max(n_channels // 2**(n_layers//decrease_channels), 2) \
+                            if decrease_channels > 0 else n_channels
+        # self.fc_out = torch.nn.Linear(n_channels_final, n_out)
+
+        self.fc_out = layers.MLP(n_channels_final, n_channels_final, n_out,
+                                 nonlinearity=nonlinearity, 
+                                 dropout_p=self.dropout_p,
+                                 n_fc_layers=n_output_layers)
+
+
+    def forward(self, x):
+        # x has shape (batch_size, seq_length, n_channels)
+        # conv1d expects shape (batch_size, n_channels, seq_length)
+        x = x.permute((0, 2, 1))
+
+        for layer in self.layers:
+            x = layer(x)
+            x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+        x = x.permute(0, 2, 1)
+        x = self.fc_out(x)
+
+        return x
+
+class ResNet1DLayerNorm(torch.nn.Module):
+    def __init__(self, n_channels: int, n_layers: int, n_out: int = 1, 
+                 kernel_size: int = 3, stride: int = 1, **kwargs):
+        super().__init__()
+
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.is_sequence_model = True
+
+        nonlinearity = kwargs.get('nonlinearity', 'relu')
+
+        # number of layers after which the number of channels is halfed
+        decrease_channels = kwargs.get('decrease_channels', 0)
+        if decrease_channels == "last_layer":
+            decrease_channels = n_layers
+
+        n_output_layers = kwargs.get('n_output_layers', 1)
+
+        self.layers = nn.ModuleList([
+            layers.ResidualBlock1DLayerNorm(max(n_channels // 2**(i//decrease_channels), 2) 
+                                   if decrease_channels else n_channels,
+                                   max(n_channels // 2**((i+1)//decrease_channels), 2) 
+                                   if decrease_channels else n_channels, 
+                                   kernel_size=kernel_size, stride=stride,
+                                   nonlinearity=nonlinearity, 
+                                   dropout_p=self.dropout_p)
+                                   for i in range(n_layers)
+        ])
+        n_channels_final = max(n_channels // 2**(n_layers//decrease_channels), 2) \
+                            if decrease_channels > 0 else n_channels
+        # self.fc_out = torch.nn.Linear(n_channels_final, n_out)
+
+        self.fc_out = layers.MLP(n_channels_final, n_channels_final, n_out,
+                                 nonlinearity=nonlinearity, 
+                                 dropout_p=self.dropout_p,
+                                 n_fc_layers=n_output_layers)
+
+
+    def forward(self, x):
+        # x has shape (batch_size, seq_length, n_channels)
+        # conv1d expects shape (batch_size, n_channels, seq_length)
+        x = x.permute((0, 2, 1))
+
+        for layer in self.layers:
+            x = layer(x)
+            x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+        x = x.permute(0, 2, 1)
+        x = self.fc_out(x)
+
+        return x
+
+class ResNet1DLayerNormDilation(torch.nn.Module):
+    def __init__(self, n_channels: int, n_layers: int, n_out: int = 1, 
+                 kernel_size: int = 3, stride: int = 1, **kwargs):
+        super().__init__()
+
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.is_sequence_model = True
+
+        nonlinearity = kwargs.get('nonlinearity', 'relu')
+
+        # number of layers after which the number of channels is halfed
+        decrease_channels = kwargs.get('decrease_channels', 0)
+        if decrease_channels == "last_layer":
+            decrease_channels = n_layers
+
+        n_output_layers = kwargs.get('n_output_layers', 1)
+
+        self.layers = nn.ModuleList([
+            layers.ResidualBlock1DLayerNormDilation(max(n_channels // 2**(i//decrease_channels), 2) 
+                                   if decrease_channels else n_channels,
+                                   max(n_channels // 2**((i+1)//decrease_channels), 2) 
+                                   if decrease_channels else n_channels, 
+                                   kernel_size=kernel_size, stride=stride,
+                                   nonlinearity=nonlinearity, 
+                                   dropout_p=self.dropout_p,
+                                   dilation=2**i)
                                    for i in range(n_layers)
         ])
         n_channels_final = max(n_channels // 2**(n_layers//decrease_channels), 2) \

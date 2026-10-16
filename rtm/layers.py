@@ -42,7 +42,9 @@ class MLP(torch.nn.Module):
         self.fc_out = torch.nn.Linear(n_hidden, n_out)
 
         if kwargs.get('use_batch_norm', False):
-            self.batch_norms = nn.ModuleList([nn.BatchNorm1d(n_hidden) for _ in range(self.n_layers + 1)])
+            self.batch_norms = nn.ModuleList([nn.BatchNorm1d(n_hidden) for _ in range(self.n_layers)])
+        elif kwargs.get('use_layer_norm', False):
+            self.layer_norms = nn.ModuleList([nn.LayerNorm(n_hidden) for _ in range(self.n_layers)])
 
         self.reset_parameters()
 
@@ -56,7 +58,9 @@ class MLP(torch.nn.Module):
 
         x = self.fc_in(features)
         if hasattr(self, 'batch_norms'):
-                x = self.batch_norms[0](x)
+            x = self.batch_norms[0](x)
+        elif hasattr(self, 'layer_norms'):
+            x = self.layer_norms[0](x)
         x = self.nonlinearity(x)
         x = F.dropout(x, p=self.dropout_p, training=self.training)
 
@@ -65,6 +69,8 @@ class MLP(torch.nn.Module):
             x = l(x)
             if hasattr(self, 'batch_norms'):
                 x = self.batch_norms[i + 1](x)
+            elif hasattr(self, 'layer_norms'):
+                x = self.layer_norms[i + 1](x)
             x = self.nonlinearity(x)
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
@@ -146,6 +152,11 @@ class MLPEncoder(Encoder):
 
         self.dropout_p = dropout_p
 
+        if kwargs.get('use_batch_norm', False):
+            self.batch_norms = nn.ModuleList([nn.BatchNorm1d(enc_dims[i+1]) for i in range(len(enc_dims) - 2)])
+        elif kwargs.get('use_layer_norm', False):
+            self.layer_norms = nn.ModuleList([nn.LayerNorm(enc_dims[i+1]) for i in range(len(enc_dims) - 2)])
+
         nonlinearity = kwargs.get('nonlinearity', 'relu')
         self.nonlinearity = getattr(F, nonlinearity)
 
@@ -167,8 +178,13 @@ class MLPEncoder(Encoder):
         return z
     
     def encode(self, x: torch.Tensor) -> torch.Tensor:
-        for layer in self.encoder_layers[:-1]:
-            x = self.nonlinearity(layer(x))
+        for i, layer in enumerate(self.encoder_layers[:-1]):
+            x = layer(x)
+            if hasattr(self, 'batch_norms'):
+                x = self.batch_norms[i](x)
+            elif hasattr(self, 'layer_norms'):
+                x = self.layer_norms[i](x)
+            x = self.nonlinearity(x)
             x = F.dropout(x, p=self.dropout_p, training=self.training)
         # no activation on last layer
         x = self.encoder_layers[-1](x)
@@ -298,6 +314,15 @@ class MLPDecoder(Decoder):
 
         self.dropout_p = dropout_p
 
+        if kwargs.get('use_batch_norm', False):
+            self.batch_norms = nn.ModuleList([nn.BatchNorm1d(dec_dims[i+1]) for i in range(len(dec_dims) - 2)])
+        elif kwargs.get('use_layer_norm', False):
+            self.layer_norms = nn.ModuleList([nn.LayerNorm(dec_dims[i+1]) for i in range(len(dec_dims) - 2)])
+                
+
+        nonlinearity = kwargs.get('nonlinearity', 'relu')
+        self.nonlinearity = getattr(F, nonlinearity)
+
         # initialize weights
         self.reset_parameters()
 
@@ -306,8 +331,13 @@ class MLPDecoder(Decoder):
             init_weights(layer)
     
     def decode(self, z: torch.Tensor) -> torch.Tensor:
-        for layer in self.decoder_layers[:-1]:
-            z = F.relu(layer(z))
+        for i, layer in enumerate(self.decoder_layers[:-1]):
+            z = layer(z)
+            if hasattr(self, 'batch_norms'):
+                z = self.batch_norms[i](z)
+            elif hasattr(self, 'layer_norms'):
+                z = self.layer_norms[i](z)
+            z = self.nonlinearity(z)
             z = F.dropout(z, p=self.dropout_p, training=self.training)
         # no activation on last layer
         x = self.decoder_layers[-1](z)
@@ -371,6 +401,13 @@ class PCADecoder(Decoder):
     def decode(self, z: torch.Tensor) -> torch.Tensor:
         x = F.linear(z, self.components.T, self.mean)
         return x
+
+    def decode_inv(self, x: torch.Tensor) -> torch.Tensor:
+
+        # apply PCA dimensionality reduction (inverse of decoding function)
+        z = F.linear(x, self.components, - self.mean @ self.components.T)
+
+        return z
 
 
 ##################################################
@@ -463,6 +500,72 @@ class ResidualBlock1D(nn.Module):
         out_padded = F.pad(out, (self.padding, self.padding), mode='replicate')
         out = self.conv2(out_padded)
         out = self.bn2(out)
+
+        out = out + shortcut
+        out = self.nonlinearity(out)
+        return out
+
+class ResidualBlock1DLayerNorm(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, nonlinearity='relu', **kwargs):
+        super().__init__()
+
+        self.padding = (kernel_size - 1) // 2  # To maintain the same sequence length after the convolution
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=0)
+        self.norm1 = nn.GroupNorm(1, out_channels) # identical to LayerNorm over channels
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=0)
+        self.norm2 = nn.GroupNorm(1, out_channels) # identical to LayerNorm over channels
+        self.nonlinearity = getattr(F, nonlinearity)
+        
+        if stride > 1 or in_channels != out_channels:
+            # reduce channels and/or sequence length
+            self.shortcut = nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=stride)
+        else:
+            self.shortcut = nn.Identity()
+
+    def forward(self, x):
+        shortcut = self.shortcut(x)
+
+        # use "replicate" padding to avoid artifacts at the boundaries of the spectrum
+        x_padded = F.pad(x, (self.padding, self.padding), mode='replicate')
+        out = self.conv1(x_padded)
+        out = self.norm1(out)
+        out = self.nonlinearity(out)
+        out_padded = F.pad(out, (self.padding, self.padding), mode='replicate')
+        out = self.conv2(out_padded)
+        out = self.norm2(out)
+
+        out = out + shortcut
+        out = self.nonlinearity(out)
+        return out
+
+class ResidualBlock1DLayerNormDilation(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, nonlinearity='relu', dilation=1, **kwargs):
+        super().__init__()
+
+        self.padding = dilation * (kernel_size - 1) // 2  # To maintain the same sequence length after the convolution
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=0, dilation=dilation)
+        self.norm1 = nn.GroupNorm(1, out_channels) # identical to LayerNorm over channels
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=1, padding=0, dilation=dilation)
+        self.norm2 = nn.GroupNorm(1, out_channels) # identical to LayerNorm over channels
+        self.nonlinearity = getattr(F, nonlinearity)
+        
+        if stride > 1 or in_channels != out_channels:
+            # reduce channels and/or sequence length
+            self.shortcut = nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=stride)
+        else:
+            self.shortcut = nn.Identity()
+
+    def forward(self, x):
+        shortcut = self.shortcut(x)
+
+        # use "replicate" padding to avoid artifacts at the boundaries of the spectrum
+        x_padded = F.pad(x, (self.padding, self.padding), mode='replicate')
+        out = self.conv1(x_padded)
+        out = self.norm1(out)
+        out = self.nonlinearity(out)
+        out_padded = F.pad(out, (self.padding, self.padding), mode='replicate')
+        out = self.conv2(out_padded)
+        out = self.norm2(out)
 
         out = out + shortcut
         out = self.nonlinearity(out)

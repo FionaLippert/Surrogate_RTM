@@ -525,7 +525,10 @@ def r2_score(outputs: np.ndarray, targets: np.ndarray, **kwargs) -> np.ndarray:
 def init_weights(model):
     """Initialize model weights with Kaiming method for relu activations"""
     if type(model) == torch.nn.Linear:
-        torch.nn.init.kaiming_normal_(model.weight, nonlinearity='relu')
+        # torch.nn.init.kaiming_normal_(model.weight, nonlinearity='relu')
+        torch.nn.init.kaiming_uniform_(model.weight, a=0, mode='fan_out', nonlinearity='relu')
+        if model.bias is not None:
+            torch.nn.init.zeros_(model.bias)
 
 def freeze_weights(model):
     """Freeze all model parameters"""
