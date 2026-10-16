@@ -74,7 +74,7 @@ def run(cfg: DictConfig):
 
     # optional: load pretrained model weights
     if cfg.task.get('model_path', None) is not None:
-        checkpoint = torch.load(cfg.task.model_path)
+        checkpoint = torch.load(cfg.task.model_path, weights_only=False)
         print('Loading model state from checkpoint...')
         model.load_model_state(checkpoint)
 
@@ -84,8 +84,6 @@ def run(cfg: DictConfig):
     if 'train' in cfg.task.name:
         train(trainer, model, cfg, pretrained=trained)
         trained = True
-    else:
-        trained = False
 
 
     if 'eval' in cfg.task.name:
@@ -187,7 +185,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
         if isinstance(getattr(model.forward_model, 'decoder', None), layers.PCADecoder):
             print('Fitting output PCA...')
             targets = model.forward_model.target_transform(train_data['targets'])
-            model.forward_model.decoder.fit(train_data['targets'])
+            model.forward_model.decoder.fit(targets)
             exp_var = 100 * model.forward_model.decoder.explained_variance_ratio()
             print(f'Explained output variance (%): {exp_var:.4f}')
 
@@ -196,6 +194,7 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
         targets = train_data['targets']
         if model.forward_model.target_transform is not None:
             targets = model.forward_model.target_transform(targets)
+        print(f'Target mean, std = {targets.mean():.4f}, {targets.std():.4f}')
 
     # train model
     trainer.validate(model, val_loader)
