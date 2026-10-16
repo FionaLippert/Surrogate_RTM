@@ -13,6 +13,9 @@ from rtm.utils import init_weights
 from rtm.rtm_transforms import RTMTransform
 
 class DimensionalityReduction(pl.LightningModule):
+    """
+    Base class for dimensionality reduction methods (e.g., PCA, autoencoders, etc.)
+    """
     def __init__(self, 
                  target_quantity: str = 'targets',
                  target_transform: RTMTransform = None, 
@@ -155,6 +158,13 @@ class DimensionalityReduction(pl.LightningModule):
     
 
 class PCA(DimensionalityReduction):
+    """
+    Principal component analysis (PCA) for dimensionality reduction.
+
+    This is a PyTorch implementation, allowing for gradient-based optimization 
+    together with other neural network components. It uses the `torch_pca` 
+    library for PCA computations.
+    """
     def __init__(self, n_components, **kwargs):
         super().__init__(**kwargs)
 
@@ -308,6 +318,9 @@ class MLPEncoder(Encoder):
 
     
 class ResNet1DEncoder(Encoder):
+    """
+    ResNet-style encoder for 1D signals (here radiance spectra).
+    """
     def __init__(self, input_channels, hidden_dim=64, latent_dim=256, 
                  num_blocks=4, stride=1, **kwargs):
         super().__init__(**kwargs)
@@ -350,6 +363,9 @@ class ResNet1DEncoder(Encoder):
 
     
 class RTCNNEncoder(Encoder):
+    """
+    CNN-based encoder for 1D signals (here radiance spectra).
+    """
     def __init__(self, 
                  latent_dim: int, 
                  num_wavelengths: int,
@@ -428,6 +444,9 @@ class RTCNNEncoder(Encoder):
 
 
 class RTBiGRUEncoder(Encoder):
+    """
+    Bi-directional GRU-based encoder for 1D signals (here radiance spectra).
+    """
     def __init__(self, 
                  latent_dim: int, 
                  num_wavelengths: int, 
@@ -548,6 +567,9 @@ class MLPDecoder(Decoder):
         return x
     
 class RTCNNDecoder(Decoder):
+    """
+    CNN-based decoder for 1D signals (here radiance spectra).
+    """
     def __init__(self, 
                  latent_dim: int, 
                  num_wavelengths: int, 
@@ -635,6 +657,9 @@ class RTCNNDecoder(Decoder):
     
 
 class ResNet1DDecoder(Decoder):
+    """
+    ResNet-style decoder for 1D signals (here radiance spectra).
+    """
     def __init__(self, latent_dim, num_wavelengths, output_channels=1, hidden_dim=64, num_blocks=4, **kwargs):
         super().__init__()
 
@@ -681,6 +706,9 @@ class ResNet1DDecoder(Decoder):
 
 
 class RTBiGRUDecoder(Decoder):
+    """
+    Bi-directional GRU-based decoder for 1D signals (here radiance spectra).
+    """
     def __init__(self, 
                  latent_dim: int, 
                  num_wavelengths: int, 
@@ -725,6 +753,9 @@ class RTBiGRUDecoder(Decoder):
 
 
 class RTTransformerDecoder(Decoder):
+    """
+    Transformer-based decoder for 1D signals (here radiance spectra).
+    """
     def __init__(self, 
                  latent_dim: int, 
                  num_wavelengths, 
@@ -840,6 +871,9 @@ class ConvDecoder(Decoder):
 
 
 class AE(DimensionalityReduction):
+    """
+    Auto-encoder model for dimensionality reduction.
+    """
     def __init__(self,
                  output_dim: int,
                  encoder: Encoder, 
@@ -911,6 +945,9 @@ class AE(DimensionalityReduction):
 
 
 class VAE(DimensionalityReduction):
+    """
+    Variational auto-encoder model for dimensionality reduction.
+    """
     def __init__(self, lr: float = 0.01, **kwargs):
         super().__init__(**kwargs)
 

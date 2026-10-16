@@ -9,10 +9,24 @@ import os
 
 from rtm import rtm_transforms
 
-def prepare_transforms(cfg_transforms: DictConfig, 
-                       dataset: Dataset, 
-                       indices: List[int], 
-                       **kwargs):
+def prepare_transforms(
+        cfg_transforms: DictConfig, 
+        dataset: Dataset, 
+        indices: List[int], 
+        **kwargs
+        ) -> rtm_transforms.RTMTransform:
+    """
+    Prepare a composed transform, including normalization and 
+    base transforms to be applied before normalization.
+
+    Args:
+        cfg_transforms: Configuration for the transforms to be applied before normalization.
+        dataset: The dataset for which the transforms are being prepared.
+        indices: List of indices to use for computing normalization statistics.
+        **kwargs: Additional keyword arguments to be passed to the normalization method.
+    Returns:
+        A composed RTMTransform that includes normalization and any other specified transforms.
+    """
 
     # initialize transforms
     transforms = instantiate(cfg_transforms)
@@ -31,6 +45,9 @@ def prepare_transforms(cfg_transforms: DictConfig,
 
 
 def prepare_train_dataset(cfg_dataset: DictConfig):
+    """
+    Generate the training dataset and split it into training and validation sets.
+    """
 
     # get training data
     dataset = instantiate(cfg_dataset, train=True)
@@ -41,6 +58,9 @@ def prepare_train_dataset(cfg_dataset: DictConfig):
     return dataset, train_indices, val_indices
 
 def prepare_test_dataset(cfg_dataset: DictConfig):
+    """
+    Generate the test dataset.
+    """
 
     # get test data
     dataset = instantiate(cfg_dataset, train=False)
@@ -48,8 +68,13 @@ def prepare_test_dataset(cfg_dataset: DictConfig):
     return dataset
 
 
-def load_train_dataset(cfg_dataset: OmegaConf, 
-                       data_path: Optional[str] = None):
+def load_train_dataset(
+        cfg_dataset: OmegaConf, 
+        data_path: Optional[str] = None):
+    """
+    Load the training dataset and the associated training/validation indices 
+    from disk if available, otherwise prepare it from scratch.
+    """
 
     artifact_name = f'{cfg_dataset.name}_train_val'
     if data_path is not None:
@@ -71,9 +96,13 @@ def load_train_dataset(cfg_dataset: OmegaConf,
     return dataset, train_indices, val_indices
 
 
-def load_test_dataset(cfg_dataset: OmegaConf, 
-                      data_path: Optional[str] = None, 
-                      run = None):
+def load_test_dataset(
+        cfg_dataset: OmegaConf, 
+        data_path: Optional[str] = None, 
+        run = None):
+    """
+    Load the test dataset from disk if available, otherwise prepare it from scratch.
+    """
     
     artifact_name = f'{cfg_dataset.name}_test'
     if data_path is not None:
@@ -111,7 +140,9 @@ def prepare_data_and_log(cfg_dataset: DictConfig,
                          data_path: str,
                          wandb_project: Optional[str] = None,
                          transforms: Optional[List[rtm_transforms.RTMTransform]] = None):
-    # load training and test data, and log everything as artifacts to W&B
+    """
+    Load training and test data, and log everything as artifacts to W&B
+    """
 
     with wandb.init(project=wandb_project, job_type='prepare-data') as run:
 
@@ -167,7 +198,10 @@ def prepare_data_and_log(cfg_dataset: DictConfig,
 
 def prepare_data_and_save(cfg_dataset: DictConfig, 
                           data_path: str):
-    # load training and test data, and save everything to disk
+    """
+    Load training and test data, and save everything to disk
+    """
+    
 
     if cfg_dataset.test_size < 1.0:
         # prepare training data

@@ -1,5 +1,5 @@
 # @package model
-name: Hybrid_emulator
+name: Base_emulator_paper
 _target_: rtm.models.NNSurrogateRTMWrapper
 
 input_dim: ${dataset.input_dim} # all features
@@ -11,9 +11,10 @@ input_latent_dim: ${model.hidden_dim}
 output_latent_dim: ${model.hidden_dim}
 profile_latent_dim: 2 # number of PCs to use to encode temperature profile
 
-dropout_p: 0.0
 
-nonlinearity: relu
+dropout_p: 0.001
+
+nonlinearity: silu
 
 loss_terms:
   - _target_: rtm.loss.WeightedMSE
@@ -52,7 +53,7 @@ forward_model:
     n_features: ${model.output_dim}
     fixed_components: true
     lr_scale: 1.0
-  proxy_operation: ratio
+  proxy_operation: null
   
 jacobian_weights: ${dataset.jacobian_weights} # if using jacobian-based loss terms, weights for each input dimension
 jacobian_mask: ${dataset.jacobian_mask}
@@ -67,10 +68,8 @@ betas: [0.9, 0.999]
 lr_decay: 0.01
 lr_start_factor: 1e-5
 lr_scheduler_interval: step
-lr_warmup_scale: 100
-lr_cosine_scale: 1500
-lr_warmup_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * ${model.lr_warmup_scale}'}
-lr_cosine_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * ${model.lr_cosine_scale}'}
+lr_warmup_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * 100'}
+lr_cosine_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * 1500'}
 lr_schedulers:
         - _target_: torch.optim.lr_scheduler.LinearLR
           _partial_: true
@@ -88,3 +87,4 @@ lr_schedulers:
 lr_milestones:
        - ${model.lr_warmup_steps}
        - ${eval:'${model.lr_warmup_steps} + ${model.lr_cosine_steps}'}
+      

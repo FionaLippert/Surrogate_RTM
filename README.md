@@ -10,6 +10,11 @@ conda env create -f rtm_env.yml
 conda activate rtm
 ```
 
+Now, install the `rtm` package into the conda environment:
+```
+pip install -e .
+```
+
 ### Test Pytorch GPU compatibility
 
 To check if Pytorch can see your GPU, run

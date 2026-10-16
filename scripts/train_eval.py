@@ -5,7 +5,6 @@ import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 import hydra
 from hydra.utils import instantiate
-from hydra.core.hydra_config import HydraConfig
 import wandb
 from typing import Any, List, Optional
 import pytorch_lightning as pl
@@ -15,7 +14,7 @@ from torch.utils.data import SubsetRandomSampler, Subset
 from operator import mul
 from functools import reduce
 
-from rtm import data_utils, torchscript_utils, utils, dimensionality_reduction, layers
+from rtm import data_utils, torchscript_utils, utils, layers
 
 def join_paths(*paths):
     return osp.join(*[str(p) for p in paths])
@@ -36,6 +35,11 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 # main entry point
 @hydra.main(config_path="conf", config_name="config", version_base="1.1")
 def run(cfg: DictConfig):
+    """
+    Main entry point for training and evaluating neural network-based 
+    forward models. The exact setup is determined by the provided 
+    Hydra configuration.
+    """
 
     # for reproducibility
     pl.seed_everything(cfg.seed, workers=True)
@@ -78,6 +82,8 @@ def run(cfg: DictConfig):
         print('Loading model state from checkpoint...')
         model.load_model_state(checkpoint)
 
+        print(f'Loaded model with cfg: {checkpoint["hydra_config"]["model"]}')
+
         # remember that this is a pretrained model
         trained = True
 
@@ -87,11 +93,7 @@ def run(cfg: DictConfig):
 
 
     if 'eval' in cfg.task.name:
-        if not trained:
-            # skip evaluation if the model has not been trained or loaded with pretrained weights
-            print('Model has not been trained or loaded with pretrained weights. Skipping evaluation.')
-        else:
-            eval(trainer, model, cfg)
+        eval(trainer, model, cfg)
 
     
     if isinstance(trainer.logger, WandbLogger):
@@ -108,7 +110,12 @@ def run(cfg: DictConfig):
 
 
 def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretrained: bool):
+    """
+    Train a neural network-based forward model using the provided trainer and configuration.
+    If a pretrained model is provided, it will be used as the starting point for training.
 
+    The final trained model will be saved to the output directory specified in the configuration.
+    """
     if cfg.verbose:
         print('####### Start model training ########')
     
@@ -227,7 +234,10 @@ def train(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig, pretr
 
 
 def eval(trainer: pl.Trainer, model: pl.LightningModule, cfg: DictConfig):
-    
+    """
+    Evaluate the performance of a trained neural network-based forward model 
+    on a test or validation dataset.
+    """
     if cfg.verbose:
         print('####### Start model evaluation ########')
 

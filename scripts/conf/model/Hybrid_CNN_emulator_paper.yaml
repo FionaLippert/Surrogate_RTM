@@ -1,0 +1,95 @@
+# @package model
+name: Hybrid_CNN_emulator_paper
+_target_: rtm.models.NNSurrogateRTMWrapper
+
+use_variance_loss_weights: false
+
+input_dim: ${dataset.input_dim} # all features
+output_dim: ${dataset.output_dim} # all wavelengths
+profile_dim: ${dataset.profile_dim} # atmospheric profile features
+
+profile_latent_dim: 2 # number of PCs to use to encode temperature profile
+hidden_dim: 128
+n_layers: 2
+decrease_channels: 2 # number of layers after which number of channels is reduced by half
+
+dropout_p: 0.001
+
+nonlinearity: silu # relu
+
+loss_terms:
+  - _target_: rtm.loss.WeightedMSE
+    weight: 1.0
+
+forward_model:
+  _target_: rtm.models.SequenceNNForwardModel
+  sequence_length: ${dataset.output_dim}
+  sequence_module:
+    _target_: rtm.models.ResNet1D
+    n_channels: ${model.hidden_dim}
+    n_layers: ${model.n_layers}
+    decrease_channels: ${model.decrease_channels}
+    n_out: 1
+    n_output_layers: 1
+    nonlinearity: ${model.nonlinearity}
+    kernel_size: 5
+    stride: 1
+    dropout_p: ${model.dropout_p}
+    encoder: null
+  pos_encoding:
+    _target_: rtm.layers.PositionalEncoding
+    d_model: ${model.hidden_dim}
+    num_wavelengths: ${dataset.output_dim}
+  proxy_module: null
+  profile_module:
+    _target_: rtm.layers.PCAEncoder
+    n_components: ${model.profile_latent_dim}
+    n_features: ${model.profile_dim}
+    n_feature_dims: 2
+    fixed_components: true
+  input_processing:
+    _target_: rtm.dimensionality_reduction.MLPEncoder
+    enc_dims: 
+      - ${add_values:${model.input_dim},1,${model.profile_latent_dim}}
+      - ${model.hidden_dim}
+      - ${model.hidden_dim}
+    noise_level: 0.0
+    dropout_p: ${model.dropout_p}
+    bias: true
+    nonlinearity: ${model.nonlinearity}
+  use_proxy_input: true
+  use_profile_input: true
+  proxy_operation: ratio
+
+jacobian_weights: ${dataset.jacobian_weights} # if using jacobian-based loss terms, weights for each input dimension
+jacobian_mask: ${dataset.jacobian_mask}
+jacobian_mse_loss_scale: 0.0 # scale for MSE-based jacobian loss terms
+jacobian_proj_loss_scale: 0.0 # scale for SVD projection-based jacobian loss term
+jacobian_subspace_loss_scale: 0.0 # scale for SVD subspace-based jacobian loss term
+
+
+lr: 1e-3
+l2_reg: 0.0
+betas: [0.9, 0.999]
+lr_decay: 0.01
+lr_start_factor: 1e-5
+lr_scheduler_interval: step
+lr_warmup_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * 100'}
+lr_cosine_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * 1500'}
+lr_schedulers:
+        - _target_: torch.optim.lr_scheduler.LinearLR
+          _partial_: true
+          start_factor: ${model.lr_start_factor}
+          end_factor: 1.0
+          total_iters: ${model.lr_warmup_steps} # number of steps
+        - _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+          _partial_: true
+          T_max: ${model.lr_cosine_steps}
+          eta_min: ${eval:'${model.lr} * ${model.lr_decay}'}
+        - _target_: torch.optim.lr_scheduler.ConstantLR
+          _partial_: true
+          factor: ${model.lr_decay}
+          total_iters: 1e6
+lr_milestones:
+       - ${model.lr_warmup_steps}
+       - ${eval:'${model.lr_warmup_steps} + ${model.lr_cosine_steps}'}

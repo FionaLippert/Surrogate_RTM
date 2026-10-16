@@ -1,16 +1,10 @@
 import os
 import os.path as osp
-from datetime import datetime
-from collections import OrderedDict
 import numpy as np
 import xarray as xr
-import pandas as pd
-import netCDF4 as nc
-from typing import Union, List, Dict, Tuple, Callable
+from typing import Union, List, Dict, Tuple
 import torch
-from torch.utils.data import Dataset, random_split
-from torchvision.transforms import Compose
-from scipy.interpolate import interp1d
+from torch.utils.data import Dataset
 
 from rtm import rtm_transforms
 from rtm.rtm_transforms import RTMTransformCollection, RTMTransform
@@ -18,22 +12,22 @@ from rtm.rtm_transforms import RTMTransformCollection, RTMTransform
 
 class RTDataset(Dataset):
     """Synthetic measurements generated with physical forward model"""
-    def __init__(self, 
-                 data_dir: str,
-                 prefix: str,
-                 pixel_features: Union[str, List[str]] = 'all',
-                 profile_features: Union[str, List[str]] = 'all',
-                 target_quantity: str = 'radiance',
-                 predict_difference: bool = False,
-                 predict_ratio: bool = False,
-                 seed: int = 0,
-                 train: bool = True,
-                 test_size: float = 0.2,
-                 radiance_thr: float = None,
-                 include_jacobian: bool = False,
-                 torch_dtype: torch.dtype = torch.float64,
-                 **kwargs
-                 ):
+    def __init__(
+            self, 
+            data_dir: str,
+            prefix: str,
+            pixel_features: Union[str, List[str]] = 'all',
+            profile_features: Union[str, List[str]] = 'all',
+            target_quantity: str = 'radiance',
+            predict_difference: bool = False,
+            predict_ratio: bool = False,
+            seed: int = 0,
+            train: bool = True,
+            test_size: float = 0.2,
+            radiance_thr: float = None,
+            include_jacobian: bool = False,
+            torch_dtype: torch.dtype = torch.float64,
+            **kwargs):
         
         super().__init__()
         
@@ -394,15 +388,35 @@ class RTDataset(Dataset):
         return wavelengths
         
     
-    def normalization(self, 
-                      transforms: Dict[str, RTMTransformCollection],
-                      indices: List[int] = None, 
-                      per_wavelength: bool = True,
-                      per_layer: bool = False,
-                      per_state_variable: bool = True,
-                      coupled_proxy: bool = False, 
-                      max_spectral_scaling: bool = False,
-                      **kwargs):
+    def normalization(
+            self, 
+            transforms: Dict[str, RTMTransformCollection],
+            indices: List[int] = None, 
+            per_wavelength: bool = True,
+            per_layer: bool = False,
+            per_state_variable: bool = True,
+            coupled_proxy: bool = False, 
+            max_spectral_scaling: bool = False,
+            **kwargs,
+            ) -> Dict[str, RTMTransformCollection]:
+        """
+        Compute normalization statistics for the dataset and return 
+        a dictionary of transforms.
+
+        Args:
+            transforms: Dictionary of RTMTransformCollection objects for each data type 
+                        (pixel, profile, target, proxy, jacobian) that should be applied 
+                        before normalization.
+            indices: List of indices to use for computing normalization statistics. 
+                     If None, use all data.
+            per_wavelength: Whether to compute statistics per wavelength (for spectral data).
+            per_layer: Whether to compute statistics per layer (for profile data).
+            per_state_variable: Whether to compute statistics per state variable (for jacobian data).
+            coupled_proxy: Whether to couple proxy normalization with target normalization.
+            max_spectral_scaling: Whether to scale spectral data by the maximum value instead of standard deviation.
+        Returns:
+            Dictionary of RTMTransformCollection objects for each data type.
+        """
         # define indices to use to compute normalization 
         if indices is None: indices = range(len(self))
 
@@ -464,7 +478,21 @@ class RTDataset(Dataset):
             'jacobian_transform': jacobian_norm
         }
     
-    def get_pixel_statistics(self, indices: List[int], transform: RTMTransform = None):
+    def get_pixel_statistics(
+            self, 
+            indices: List[int], 
+            transform: RTMTransform = None
+            ) -> Dict[str, np.ndarray]:
+        """
+        Compute statistics for pixel features over the specified indices.
+
+        Args:
+            indices: List of indices to use for computing statistics.
+            transform: Optional transform to apply to the pixel data before computing statistics.
+        Returns:
+            Dictionary containing statistics for the pixel features.
+        """
+        
         if self.pixel_data is not None:
             data = self.pixel_data[indices]
             if transform is not None:
@@ -485,11 +513,23 @@ class RTDataset(Dataset):
 
         return stats
     
-    def get_profile_statistics(self, 
-                               indices: List[int], 
-                               transform: RTMTransform = None,
-                               per_layer: bool = False
-                               ):
+    def get_profile_statistics(
+            self, 
+            indices: List[int], 
+            transform: RTMTransform = None,
+            per_layer: bool = False
+            ) -> Dict[str, np.ndarray]:
+        """
+        Compute statistics for profile features over the specified indices.
+
+        Args:
+            indices: List of indices to use for computing statistics.
+            transform: Optional transform to apply to the profile data before computing statistics.
+            per_layer: Whether to compute statistics per layer (True) or overall (False).
+
+        Returns:
+            Dictionary containing statistics for the profile features.
+        """
         if self.profile_data is not None:
             data = self.profile_data[indices]
             if transform is not None:
@@ -511,11 +551,22 @@ class RTDataset(Dataset):
 
         return stats
     
-    def get_target_statistics(self, 
-                              indices: List[int], 
-                              transform: RTMTransform = None,
-                              per_wavelength: bool = True
-                              ):
+    def get_target_statistics(
+            self, 
+            indices: List[int], 
+            transform: RTMTransform = None,
+            per_wavelength: bool = True
+            ) -> Dict[str, np.ndarray]:
+        """
+        Compute statistics for target spectra over the specified indices.
+
+        Args:
+            indices: List of indices to use for computing statistics.
+            transform: Optional transform to apply to the target data before computing statistics.
+            per_wavelength: Whether to compute statistics per wavelength (True) or overall (False).
+        Returns:
+            Dictionary containing statistics for the target spectra.
+        """
         targets = self.targets[indices]
         if transform is not None:
             targets = transform(targets)
@@ -534,11 +585,22 @@ class RTDataset(Dataset):
 
         return stats
     
-    def get_proxy_statistics(self, 
-                             indices: List[int], 
-                             transform: RTMTransform = None,
-                             per_wavelength: bool = True
-                             ):
+    def get_proxy_statistics(
+            self, 
+            indices: List[int], 
+            transform: RTMTransform = None,
+            per_wavelength: bool = True
+            ) -> Dict[str, np.ndarray]:
+        """
+        Compute statistics for proxy features over the specified indices.
+
+        Args:
+            indices: List of indices to use for computing statistics.
+            transform: Optional transform to apply to the proxy data before computing statistics.
+            per_wavelength: Whether to compute statistics per wavelength (True) or overall (False).
+        Returns:
+            Dictionary containing statistics for the proxy features.
+        """
         if self.proxy is not None:
             proxy = self.proxy[indices]
             if transform is not None:
@@ -560,11 +622,22 @@ class RTDataset(Dataset):
 
         return stats
     
-    def get_jacobian_statistics(self, 
-                             indices: List[int], 
-                             transform: RTMTransform = None,
-                             per_state_variable: bool = True
-                             ):
+    def get_jacobian_statistics(
+            self, 
+            indices: List[int], 
+            transform: RTMTransform = None,
+            per_state_variable: bool = True
+            ) -> Dict[str, np.ndarray]:
+        """
+        Compute statistics for jacobian features over the specified indices.
+
+        Args:
+            indices: List of indices to use for computing statistics.
+            transform: Optional transform to apply to the jacobian data before computing statistics.
+            per_state_variable: Whether to compute statistics per state variable (True) or overall (False).
+        Returns:
+            Dictionary containing statistics for the jacobian features.
+        """
         if hasattr(self, 'target_jacobians') and self.target_jacobians is not None:
             jacobian = self.target_jacobians[indices]
             if transform is not None:
@@ -586,7 +659,15 @@ class RTDataset(Dataset):
 
         return stats
 
-    def get_data_split(self, test_size: float = 0.2):
+    def get_data_split(self, test_size: float = 0.2) -> Tuple[np.ndarray]:
+        """
+        Split the dataset into training and testing indices.
+
+        Args:
+            test_size: Proportion of the dataset to include in the test split.
+        Returns:
+            Tuple of training and testing indices.
+        """
 
         n_total = len(self)
         n_test = int(test_size * n_total)

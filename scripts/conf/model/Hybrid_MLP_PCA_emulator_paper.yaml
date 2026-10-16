@@ -1,5 +1,5 @@
 # @package model
-name: Base_emulator
+name: Hybrid_MLP_PCA_emulator_paper
 _target_: rtm.models.NNSurrogateRTMWrapper
 
 input_dim: ${dataset.input_dim} # all features
@@ -11,10 +11,9 @@ input_latent_dim: ${model.hidden_dim}
 output_latent_dim: ${model.hidden_dim}
 profile_latent_dim: 2 # number of PCs to use to encode temperature profile
 
+dropout_p: 0.001
 
-dropout_p: 0.0
-
-nonlinearity: relu
+nonlinearity: silu
 
 loss_terms:
   - _target_: rtm.loss.WeightedMSE
@@ -53,7 +52,7 @@ forward_model:
     n_features: ${model.output_dim}
     fixed_components: true
     lr_scale: 1.0
-  proxy_operation: null
+  proxy_operation: ratio
   
 jacobian_weights: ${dataset.jacobian_weights} # if using jacobian-based loss terms, weights for each input dimension
 jacobian_mask: ${dataset.jacobian_mask}
@@ -89,4 +88,3 @@ lr_schedulers:
 lr_milestones:
        - ${model.lr_warmup_steps}
        - ${eval:'${model.lr_warmup_steps} + ${model.lr_cosine_steps}'}
-      
