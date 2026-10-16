@@ -1,0 +1,38 @@
+program: train_eval.py
+name: base_mlp-pca_nir_sweep_no_pca_revisions
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - device=snellius
+  - dataset=synthetic_remotap_nir_spectrometer_only_LHS_matched_retrieval_era5_paper
+  - model=MLP_tempPCA_constant_latent_dim
+  - model.nonlinearity=silu
+  - model.dropout_p=0.001
+  - model.forward_model.core_nn.n_fc_layers=3
+  - model.output_latent_dim=100
+  - model.input_latent_dim=128
+  - +model.core_nn.use_layer_norm=true
+  - transforms=log_targets_log_proxy_log_albedo_era5
+  - trainer.max_epochs=75
+  - dataloader.batch_size=256
+  - task.data_frac=1.0
+  - task=train+eval
+  - task.final_eval=false
+  - task.save_predictions=false
+  - task.load_best_model=false # use latest
+  - task.measure_cpu_time=false
+  - logger.project=spectrometer_only_nir_era5_sweep_final_ablations_revisions
+  - logger.group=no_pca
+method: grid
+metric:
+  name: test/RMSE_continuum
+  goal: minimize
+parameters:
+  # random seed
+  seed:
+    values: [0]
+  model.lr:
+    values: [5e-4, 1e-3, 2e-3]
+

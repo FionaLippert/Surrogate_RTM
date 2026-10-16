@@ -29,7 +29,7 @@ forward_model:
     n_in: ${model.input_latent_dim}
     n_out: ${model.output_latent_dim}
     n_hidden: ${model.hidden_dim}
-    n_fc_layers: 5
+    n_fc_layers: 3
     dropout_p: ${model.dropout_p}
     nonlinearity: ${model.nonlinearity}
   profile_module:
@@ -69,8 +69,10 @@ betas: [0.9, 0.999]
 lr_decay: 0.01
 lr_start_factor: 1e-5
 lr_scheduler_interval: step
-lr_warmup_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * 100'}
-lr_cosine_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * 1500'}
+lr_warmup_scale: 100
+lr_cosine_scale: 1500
+lr_warmup_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * ${model.lr_warmup_scale}'}
+lr_cosine_steps: ${eval:'${trainer.max_epochs} * ${task.data_frac} * ${model.lr_cosine_scale}'}
 lr_schedulers:
         - _target_: torch.optim.lr_scheduler.LinearLR
           _partial_: true

@@ -35,5 +35,6 @@ parameters:
     values: [0]
   # hidden dimension
   model.hidden_dim:
-    values: [16, 32, 64, 128, 256]
+    # values: [16, 32, 64, 128, 256]
+    values: [512]
 

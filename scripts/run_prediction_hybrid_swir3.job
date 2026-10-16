@@ -1,0 +1,41 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_a100
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=120G
+#SBATCH --gpus=1
+#SBATCH --job-name=predict
+#SBATCH --time=1:00:00
+#SBATCH --output=slurm_output_%A_%a.out
+
+
+export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
+
+cd $HOME/SRON/surrogate_rtm/scripts
+source activate rtm_env
+
+export TORCH_USE_CUDA_DSA=1
+
+nvidia-smi
+
+output_dir="/projects/0/prjs1294/output/results/spectrometer_only_swir3_era5_paper/default/logs/wandb"
+model_path="${output_dir}/run-20261013_114605-s7hiewof/files/checkpoints/last.ckpt" # base MLP-PCA
+
+srun python train_eval.py device=snellius \
+    dataset=synthetic_remotap_swir3_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper \
+    model=MLP_PCA_Ratio_tempPCA_constant_latent_dim \
+    model.hidden_dim=128 \
+    model.output_latent_dim=140 \
+    model.forward_model.core_nn.n_fc_layers=3 \
+    model.nonlinearity=silu \
+    dataset.normalization.per_wavelength=true \
+    logger.project=spectrometer_only_swir3_era5_paper \
+    transforms=log_targets_log_proxy_log_albedo_era5 \
+    task=eval \
+    task.final_eval=true \
+    task.save_predictions=true \
+    task.data_frac=1.0 \
+    task.measure_cpu_time=false \
+    task.model_path=$model_path

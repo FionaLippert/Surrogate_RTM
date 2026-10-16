@@ -1,0 +1,41 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_a100
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=36
+#SBATCH --mem=240G
+#SBATCH --gpus=2
+#SBATCH --job-name=train_test
+#SBATCH --time=10:00:00
+#SBATCH --output=slurm_output_%A_%a.out
+
+
+export PYTHONPATH=$PYTHONPATH:/$HOME/SRON/surrogate_rtm
+
+cd $HOME/SRON/surrogate_rtm/scripts
+source activate rtm_env
+
+export TORCH_USE_CUDA_DSA=1
+
+nvidia-smi
+
+
+srun python train_eval.py device=snellius \
+    dataset=synthetic_remotap_swir1_spectrometer_only_LHS_matched_retrieval_era5_paper \
+    model=MLP_tempPCA_constant_latent_dim \
+    model.hidden_dim=128 \
+    model.output_latent_dim=160 \
+    model.forward_model.core_nn.n_fc_layers=3 \
+    model.nonlinearity=silu \
+    dataset.normalization.per_wavelength=true \
+    model.dropout_p=0.001 \
+    logger.project=spectrometer_only_swir1_era5_paper \
+    transforms=log_targets_log_proxy_log_albedo_era5 \
+    task.final_eval=true \
+    task.save_predictions=false \
+    seed=0 \
+    task.data_frac=0.1 \
+    trainer.max_epochs=75 \
+    task.measure_cpu_time=false \
+    model.lr=1e-3

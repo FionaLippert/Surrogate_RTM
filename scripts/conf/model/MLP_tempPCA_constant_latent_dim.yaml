@@ -28,7 +28,7 @@ forward_model:
     n_in: ${model.input_latent_dim}
     n_out: ${model.output_latent_dim}
     n_hidden: ${model.hidden_dim}
-    n_fc_layers: 5
+    n_fc_layers: 3
     dropout_p: ${model.dropout_p}
     nonlinearity: ${model.nonlinearity}
   profile_module:
