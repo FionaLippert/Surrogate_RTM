@@ -1249,6 +1249,8 @@ class ResNet1D(torch.nn.Module):
                                  dropout_p=self.dropout_p,
                                  n_fc_layers=n_output_layers)
 
+        utils.init_weights(self.fc_out, mode=kwargs.get('init_mode', 'fan_in'))
+
 
     def forward(self, x):
         # x has shape (batch_size, seq_length, n_channels)

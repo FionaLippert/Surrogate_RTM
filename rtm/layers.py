@@ -47,13 +47,14 @@ class MLP(torch.nn.Module):
         elif kwargs.get('use_layer_norm', False):
             self.layer_norms = nn.ModuleList([nn.LayerNorm(n_hidden) for _ in range(self.n_layers)])
 
-        self.reset_parameters()
+        self.reset_parameters(mode=kwargs.get('init_mode', 'fan_out'))
 
-    def reset_parameters(self):
+    def reset_parameters(self, mode='fan_out'):
 
-        self.fc_hidden.apply(init_weights)
-        init_weights(self.fc_in)
-        init_weights(self.fc_out)
+        for layer in self.fc_hidden:
+            init_weights(layer, mode=mode)
+        init_weights(self.fc_in, mode=mode)
+        init_weights(self.fc_out, mode=mode)
 
     def forward(self, features):
 
@@ -164,11 +165,11 @@ class MLPEncoder(Encoder):
         self.nonlinearity = getattr(F, nonlinearity)
 
         # initialize weights
-        self.reset_parameters()
+        self.reset_parameters(mode=kwargs.get('init_mode', 'fan_out'))
 
-    def reset_parameters(self):
+    def reset_parameters(self, mode='fan_out'):
         for layer in self.encoder_layers:
-            init_weights(layer)
+            init_weights(layer, mode=mode)
 
     def add_noise(self, x: torch.Tensor) -> torch.Tensor:
         return x + self.noise_level * torch.randn_like(x).to(x.device)
@@ -327,11 +328,11 @@ class MLPDecoder(Decoder):
         self.nonlinearity = getattr(F, nonlinearity)
 
         # initialize weights
-        self.reset_parameters()
+        self.reset_parameters(mode=kwargs.get('init_mode', 'fan_out'))
 
-    def reset_parameters(self):
+    def reset_parameters(self, mode='fan_out'):
         for layer in self.decoder_layers:
-            init_weights(layer)
+            init_weights(layer, mode=mode)
     
     def decode(self, z: torch.Tensor) -> torch.Tensor:
         for i, layer in enumerate(self.decoder_layers[:-1]):
