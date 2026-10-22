@@ -9,6 +9,7 @@ First, create the provided conda environment and activate it:
 conda env create -f rtm_env.yml
 conda activate rtm
 ```
+Note that this will be much faster when using mamba instead of the standard conda.
 
 Now, install the `rtm` package into the conda environment:
 ```
