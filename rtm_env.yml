@@ -1,15 +1,14 @@
-name: rtm
+name: rtm_env
 channels:
   - conda-forge
-  - pytorch
-  - nvidia
 dependencies:
-  - python>=3.10
-  - pytorch
+  - python=3.12
+  - cuda-version=12.*
+  - pytorch=*=*cuda*
   - torchvision
-  - pytorch-cuda=11.8
   - pytorch-lightning
-  - wandb
+  - libblas=*=*openblas
+  - wandb>=0.19
   - hydra-core
   - gpustat
   - ipython
