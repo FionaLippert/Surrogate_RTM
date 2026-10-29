@@ -7,7 +7,7 @@
 #SBATCH --mem=240G
 #SBATCH --gpus=2
 #SBATCH --job-name=train_test
-#SBATCH --time=10:00:00
+#SBATCH --time=5:00:00
 #SBATCH --output=slurm_output_%A_%a.out
 
 
@@ -23,20 +23,21 @@ nvidia-smi
 
 srun python train_eval.py device=snellius \
     dataset=synthetic_remotap_swir3_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper \
-    model=SequenceNNSurrogateRTMRatio_proxy_input_tempPCA_input_processing_layer_norm_dilation \
+    model=SequenceNNSurrogateRTMRatio_proxy_input_tempPCA_input_processing \
     model.n_layers=2 \
     model.hidden_dim=128 \
     model.forward_model.sequence_module.kernel_size=5 \
+    model.forward_model.sequence_module.n_output_layers=2 \
     model.decrease_channels=last_layer \
     model.nonlinearity=silu \
     dataset.normalization.per_wavelength=false \
     model.dropout_p=0.001 \
-    logger.project=spectrometer_only_swir3_era5_paper \
     transforms=log_targets_log_proxy_log_albedo_era5 \
-    task.final_eval=true \
+    task.final_eval=false \
     task.save_predictions=false \
-    seed=0 \
-    task.data_frac=1.0 \
+    seed=1 \
     trainer.max_epochs=75 \
     task.measure_cpu_time=false \
-    model.lr=2e-3
+    model.lr=1e-3 \
+    logger.project=spectrometer_only_swir3_era5_paper_hyperparam_search_revisions \
+    task.data_frac=1.0

@@ -35,6 +35,7 @@ forward_model:
     decrease_channels: ${model.decrease_channels}
     n_out: 1
     n_output_layers: 1
+    init_mode: fan_in
     nonlinearity: ${model.nonlinearity}
     kernel_size: 5
     stride: 1
@@ -80,6 +81,7 @@ forward_model:
     dropout_p: ${model.dropout_p}
     bias: true
     nonlinearity: ${model.nonlinearity}
+    init_mode: fan_in
   use_proxy_input: true
   use_profile_input: true
   proxy_operation: ratio

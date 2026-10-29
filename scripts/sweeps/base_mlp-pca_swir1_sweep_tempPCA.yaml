@@ -1,5 +1,5 @@
 program: train_eval.py
-name: base_mlp-pca_swir1_sweep_n_hidden_n_layers
+name: base_mlp-pca_swir1_sweep_temp_pca
 command:
   - ${env}
   - ${interpreter}
@@ -10,19 +10,23 @@ command:
   - model=MLP_PCA_tempPCA_constant_latent_dim
   - model.nonlinearity=silu
   - model.dropout_p=0.001
+  - model.forward_model.core_nn.n_fc_layers=3
   - model.output_latent_dim=160
+  - model.input_latent_dim=128
+  - model.hidden_dim=128
   - model.forward_model.decoder.fixed_components=true
+  - +model.core_nn.use_layer_norm=true
   - transforms=log_targets_log_proxy_log_albedo_era5
-  - model.lr=1e-3
+  - trainer.max_epochs=75
   - dataloader.batch_size=256
   - task.data_frac=1.0
   - task=train+eval
-  - task.final_eval=true
+  - task.final_eval=false
   - task.save_predictions=false
-  - task.load_best_model=false # use latest
+  - task.load_best_model=true
   - task.measure_cpu_time=false
-  - logger.project=spectrometer_only_swir1_era5_sweep_final_ablations
-  - logger.group=hidden_dim
+  - logger.project=spectrometer_only_swir1_era5_sweep_hyperparams
+  - logger.group=temp_pca
 method: grid
 metric:
   name: test/RMSE_continuum
@@ -32,12 +36,8 @@ parameters:
   seed:
     values: [0]
   # hidden dimension
-  model.hidden_dim:
-    # values: [32, 64, 128, 256]
-    values: [256]
-  model.forward_model.core_nn.n_fc_layers:
-    values: [3]
-  trainer.max_epochs:
-    # values: [75, 150]
-    values: [150]
+  model.profile_latent_dim:
+    values: [1, 2, 5]
+  model.lr:
+    values: [1e-3]
 

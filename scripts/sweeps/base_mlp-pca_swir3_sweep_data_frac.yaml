@@ -21,10 +21,10 @@ command:
   - task=train+eval
   - task.final_eval=true
   - task.save_predictions=false
-  - task.load_best_model=false # use latest
+  - task.load_best_model=true
   - task.measure_cpu_time=false
-  - logger.project=spectrometer_only_swir3_era5_sweep_final_ablations
-  - logger.group=default
+  - logger.project=spectrometer_only_swir3_era5_sweep_data_frac
+  - logger.group=data_frac
 method: grid
 metric:
   name: test/RMSE_continuum
@@ -33,10 +33,7 @@ parameters:
   # random seed
   seed:
     values: [0]
-    # values: [1, 2]
   # hidden dimension
   task.data_frac:
-    # values: [0.0002, 0.001, 0.01, 0.1, 1.0]
-    values: [0.000215, 0.000464, 0.00215, 0.00464, 0.0215, 0.0464, 0.215, 0.464]
-    # values: [0.0002]
+    values: [0.000464, 0.001, 0.00215, 0.00464, 0.01, 0.0215, 0.0464, 0.1, 0.215, 0.464, 1.0]
 

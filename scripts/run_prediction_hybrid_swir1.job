@@ -21,7 +21,7 @@ export TORCH_USE_CUDA_DSA=1
 nvidia-smi
 
 output_dir="/projects/0/prjs1294/output/results/spectrometer_only_swir1_era5_paper/default/logs/wandb"
-model_path="${output_dir}/run-20261012_104718-9xhz0lsa/files/checkpoints/last.ckpt" # hybrid MLP-PCA
+model_path="${output_dir}/run-20261017_215032-zvdj97ow/files/checkpoints/last.ckpt" # hybrid MLP-PCA, kaiming normal fan_out
 
 srun python train_eval.py device=snellius \
     dataset=synthetic_remotap_swir1_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper \

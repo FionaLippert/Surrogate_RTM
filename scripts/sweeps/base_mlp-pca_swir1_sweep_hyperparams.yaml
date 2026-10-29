@@ -1,17 +1,16 @@
 program: train_eval.py
-name: base_mlp-pca_nir_sweep_hyperparams_revisions
+name: base_mlp-pca_swir1_sweep_hyperparams
 command:
   - ${env}
   - ${interpreter}
   - ${program}
   - ${args_no_hyphens}
   - device=snellius
-  - dataset=synthetic_remotap_nir_spectrometer_only_LHS_matched_retrieval_era5_paper
+  - dataset=synthetic_remotap_swir1_spectrometer_only_LHS_matched_retrieval_era5_paper
   - model=MLP_PCA_tempPCA_constant_latent_dim
   - model.nonlinearity=silu
   - model.dropout_p=0.001
-  - model.forward_model.core_nn.n_fc_layers=3
-  - model.output_latent_dim=100
+  - model.output_latent_dim=160
   - model.input_latent_dim=128
   - model.forward_model.decoder.fixed_components=true
   - transforms=log_targets_log_proxy_log_albedo_era5
@@ -23,7 +22,7 @@ command:
   - task.save_predictions=false
   - task.load_best_model=true
   - task.measure_cpu_time=false
-  - logger.project=spectrometer_only_nir_era5_sweep_hyperparams_revisions
+  - logger.project=spectrometer_only_swir1_era5_sweep_hyperparams
   - logger.group=hyperparams
 method: grid
 metric:
@@ -32,19 +31,15 @@ metric:
 parameters:
   # random seed
   seed:
-    # values: [0]
     values: [1]
   # hidden dimension
   model.hidden_dim:
-    # values: [16, 32, 64, 128, 256, 512]
-    values: [32, 64, 128, 256, 512]
+    values: [16, 32, 64, 128, 256]
     # values: [128]
   model.forward_model.core_nn.n_fc_layers:
-    # values: [1, 2, 3, 4]
-    values: [3]
-    # values: [1, 2]
+    values: [1, 2, 3, 4]
+    # values: [3]
   model.lr:
+    values: [5e-4, 1e-3, 2e-3]
     # values: [1e-3]
-    values: [5e-4, 2e-3]
-    # values: [5e-4, 1e-3, 2e-3]
 

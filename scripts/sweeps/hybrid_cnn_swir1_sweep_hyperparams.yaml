@@ -1,5 +1,5 @@
 program: train_eval.py
-name: hybrid_cnn_swir1_sweep
+name: hybrid_cnn_swir1_sweep_hyperparams
 command:
   - ${env}
   - ${interpreter}
@@ -9,20 +9,20 @@ command:
   - dataset=synthetic_remotap_swir1_ratio_spectrometer_only_LHS_matched_retrieval_era5_paper
   - dataset.normalization.per_wavelength=false
   - model=SequenceNNSurrogateRTMRatio_proxy_input_tempPCA_input_processing
+  - model.decrease_channels=last_layer
   - model.nonlinearity=silu
   - model.dropout_p=0.001
   - transforms=log_targets_log_proxy_log_albedo_era5
   - task.data_frac=1.0
   - trainer.max_epochs=75
-  - model.lr=1e-3
   - dataloader.batch_size=256
   - task=train+eval
-  - task.final_eval=false
+  - task.final_eval=true
   - task.save_predictions=false
-  - task.load_best_model=false # use latest
+  - task.load_best_model=true
   - task.measure_cpu_time=false
-  - logger.project=spectrometer_only_swir1_era5_sweep_hp_search
-  - logger.group=3_layer_input_processing
+  - logger.project=spectrometer_only_swir1_era5_sweep_hyperparams
+  - logger.group=hyperparams
 method: grid
 metric:
   name: test/RMSE_continuum
@@ -33,9 +33,16 @@ parameters:
     values: [0]
   model.hidden_dim:
     values: [16, 32, 64, 128, 256]
+    # values: [128]
   model.n_layers:
-    values: [1, 2, 3, 4, 5]
-  model.decrease_channels:
-    values: [1, "last_layer"]
+    values: [1, 2, 3]
+    # values: [2]
+  model.forward_model.sequence_module.n_output_layers:
+    values: [1, 2]
+    # values: [1]
   model.forward_model.sequence_module.kernel_size:
-    values: [3, 5]
+    values: [3, 5, 7]
+    # values: [5]
+  model.lr:
+    values: [5e-4, 1e-3, 2e-3]
+    # values: [1e-3]
