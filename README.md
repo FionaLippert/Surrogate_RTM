@@ -28,7 +28,7 @@ python -uc "import torch; print('GPU available?', torch.cuda.is_available())"
 On the Snellius cluster from Surfsara, I had issues installing pytorch directly with conda. 
 If this is the case for you, try creating the rtm environment by running
 ```
-conda create --name rtm python=3.13
+conda create --name rtm python=3.12
 ```
 and then installing pytorch (with the cuda version matching your system) via pip:
 ```
