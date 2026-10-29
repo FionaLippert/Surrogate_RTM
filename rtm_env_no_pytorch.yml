@@ -2,8 +2,9 @@ name: rtm_env
 channels:
   - conda-forge
 dependencies:
-  - python>=3.10
-  - wandb
+  - python=3.12
+  - wandb>=0.19
+  - libblas=*=*openblas
   - hydra-core
   - gpustat
   - ipython
